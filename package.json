@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "init-env": "node scripts/init-env.js"
+    "init-env": "node scripts/init-env.js",
+    "build:apk": "eas build -p android --profile preview",
+    "build:aab": "eas build -p android --profile production"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

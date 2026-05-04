@@ -43,6 +43,10 @@ npx expo start
 
 Press `i` / `a` for iOS simulator / Android emulator, or scan the QR code with Expo Go.
 
+**Phone checklist (copy-paste):** see `samples/SAYCART_MOBILE_TEST.txt` — Metro, dev build, Wi‑Fi/tunnel/USB, and sample phrases for Bulk List by Voice.
+
+**Installable APK (no Metro):** see `docs/BUILD_APK.md` — EAS cloud build or local Gradle.
+
 ## 4. Speech-to-text (important)
 
 Voice uses the config plugin **`expo-speech-recognition`** in `app.json`. That **requires native code**.
