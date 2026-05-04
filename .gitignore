@@ -1,0 +1,52 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Logs / debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# Secrets & signing (never commit)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# macOS
+.DS_Store
+
+# Env / local config
+.env
+.env.*
+!.env.example
+
+# Android — local SDK path & build outputs
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+*.apk
+*.aab
+
+# iOS — CocoaPods & build
+ios/Pods/
+ios/build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Metro / caches
+.metro-health-check*
+
+# Testing / coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
