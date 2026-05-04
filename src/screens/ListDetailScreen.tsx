@@ -14,7 +14,6 @@ import {
   ScrollView,
   Pressable,
   FlatList,
-  type LayoutChangeEvent,
 } from "react-native";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,6 +41,7 @@ import {
 import { parsePriceFromSpeech } from "../utils/parsePriceFromSpeech";
 import { toTitleCaseWords } from "../utils/textFormat";
 import { useSpeechToText } from "../hooks/useSpeechToText";
+import { parseBulkTranscriptLocal } from "../utils/parseBulkTranscriptLocal";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -58,7 +58,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const listRef = useRef<GroceryList | null>(list);
   listRef.current = list;
 
-  const totalCardMeasureRef = useRef<View | null>(null);
   const draggableFlatListRef = useRef<React.ComponentRef<typeof DraggableFlatList<GroceryItem>> | null>(
     null
   );
@@ -67,8 +66,19 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   /** When true, list was removed on purpose (archived); don't auto-goBack. */
   const finishingListRef = useRef(false);
 
-  const { start: startSpeech, stop: stopSpeech, listening, lastError } = useSpeechToText();
-  const [voiceTarget, setVoiceTarget] = useState<"name" | "price" | null>(null);
+  const {
+    start: startSpeech,
+    stop: stopSpeech,
+    listening,
+    lastError,
+    clearLastError,
+  } = useSpeechToText();
+  const [voiceTarget, setVoiceTarget] = useState<"name" | "price" | "bulk" | null>(null);
+
+  const [bulkModalVisible, setBulkModalVisible] = useState(false);
+  const [bulkTranscript, setBulkTranscript] = useState("");
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const bulkTranscriptRef = useRef("");
 
   const [itemModalMode, setItemModalMode] = useState<ItemModalMode>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -83,9 +93,29 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         Object.values(timersRef.current).forEach(clearTimeout);
         timersRef.current = {};
         stopSpeech();
+        setBulkModalVisible(false);
+        setBulkProcessing(false);
       };
     }, [stopSpeech])
   );
+
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
+      body: JSON.stringify({
+        sessionId: "52ce9e",
+        runId: "list-detail-mount",
+        hypothesisId: "H1",
+        location: "ListDetailScreen.tsx:mount",
+        message: "ListDetail mounted (bulk banner uses View layers, not ExpoLinearGradient native)",
+        data: { listId, platform: Platform.OS },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [listId]);
 
   useEffect(() => {
     if (!listening) setVoiceTarget(null);
@@ -98,59 +128,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   useEffect(() => {
     if (!list && !finishingListRef.current) navigation.goBack();
   }, [list, navigation]);
-
-  useEffect(() => {
-    if (!list) return;
-    const showPrice = list.showItemPrice;
-    const handle = requestAnimationFrame(() => {
-      const listNative = draggableFlatListRef.current as unknown as {
-        measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void;
-      } | null;
-      listNative?.measureInWindow?.((lx, ly, lw, lh) => {
-        if (showPrice && totalCardMeasureRef.current) {
-          totalCardMeasureRef.current.measureInWindow((tx, ty, tw, th) => {
-            // #region agent log
-            fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-              body: JSON.stringify({
-                sessionId: "52ce9e",
-                runId: "post-reorder",
-                hypothesisId: "H1-geometry",
-                location: "ListDetailScreen.tsx:overlapMeasure",
-                message: "total vs list window",
-                data: {
-                  list: { lx, ly, lw, lh },
-                  total: { tx, ty, tw, th },
-                  totalBottom: ty + th,
-                  overlapPx: ty + th - ly,
-                },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
-          });
-        } else {
-          // #region agent log
-          fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-            body: JSON.stringify({
-              sessionId: "52ce9e",
-              runId: "post-reorder",
-              hypothesisId: "H2-no-total",
-              location: "ListDetailScreen.tsx:overlapMeasure",
-              message: "list window only",
-              data: { list: { lx, ly, lw, lh }, showItemPrice: showPrice },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
-        }
-      });
-    });
-    return () => cancelAnimationFrame(handle);
-  }, [list, list?.showItemPrice, list?.items.length, list?.updatedAt, lastError, insets.top]);
 
   const clearTimer = (itemId: string) => {
     const t = timersRef.current[itemId];
@@ -371,6 +348,88 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     });
   };
 
+  const showBulkListInfo = () => {
+    Alert.alert(
+      "Bulk List by Voice — format",
+      "1) Say the QUANTITY first, then the item name.\n2) Say AND before the next item (you can use a comma instead of AND).\n\nExample: “one bear brand and two eggs and one coffee and three cheese and five apples”\nOr: “3 milk, 2 bread, 1 butter”\n\nTap the mic to start, tap again when finished. Bulk lines don’t get spoken prices—use Item Price and edit if needed."
+    );
+  };
+
+  const openBulkVoiceModal = () => {
+    stopSpeech();
+    clearLastError();
+    setBulkTranscript("");
+    bulkTranscriptRef.current = "";
+    setBulkModalVisible(true);
+  };
+
+  const closeBulkVoiceModal = () => {
+    stopSpeech();
+    clearLastError();
+    setBulkModalVisible(false);
+    setBulkTranscript("");
+    bulkTranscriptRef.current = "";
+    setBulkProcessing(false);
+  };
+
+  const finishBulkFromTranscript = async (text: string) => {
+    const snap = listRef.current;
+    if (!snap) return;
+    setBulkProcessing(true);
+    try {
+      const parsed = parseBulkTranscriptLocal(text);
+      if (parsed.length === 0) {
+        Alert.alert(
+          "Nothing to add",
+          "We couldn’t find products in that recording. Try listing items more clearly."
+        );
+        return;
+      }
+      const { active } = splitActiveAndCompleted(snap.items);
+      let nextOrder = active.reduce((m, i) => Math.max(m, i.order), -1) + 1;
+      const newItems: GroceryItem[] = parsed.map((p) => {
+        const item: GroceryItem = {
+          id: generateId(),
+          name: toTitleCaseWords(p.name),
+          quantity: p.quantity,
+          price: p.price,
+          checked: false,
+          order: nextOrder++,
+        };
+        return item;
+      });
+      pushList({ ...snap, items: [...snap.items, ...newItems] });
+      closeBulkVoiceModal();
+    } catch (e) {
+      Alert.alert("Bulk list", e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const onBulkMicPress = async () => {
+    if (bulkProcessing) return;
+    if (listening && voiceTarget === "bulk") {
+      stopSpeech();
+      setVoiceTarget(null);
+      const captured = bulkTranscriptRef.current.trim();
+      setTimeout(() => {
+        void finishBulkFromTranscript(captured);
+      }, 450);
+      return;
+    }
+    setVoiceTarget("bulk");
+    bulkTranscriptRef.current = "";
+    setBulkTranscript("");
+    await startSpeech(
+      (t) => {
+        bulkTranscriptRef.current = t;
+        setBulkTranscript(t);
+      },
+      { bulk: true }
+    );
+  };
+
   if (!list) {
     return (
       <View style={styles.loader}>
@@ -403,50 +462,12 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           />
         </TouchableOpacity>
       </View>
-      <View
-        style={styles.addRowSecond}
-        onLayout={(e: LayoutChangeEvent) => {
-          const w = e.nativeEvent.layout.width;
-          // #region agent log
-          fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-            body: JSON.stringify({
-              sessionId: "52ce9e",
-              runId: "modal-qty-price-layout",
-              hypothesisId: "H4-row-width",
-              location: "ListDetailScreen.tsx:addRowSecond",
-              message: "second row width",
-              data: { rowWidth: w, showPriceInForm },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
-        }}
-      >
+      <View style={styles.addRowSecond}>
         <View
           style={[
             styles.qtyStepperShell,
             showPriceInForm ? styles.qtyStepperShellCompact : styles.qtyStepperShellGrow,
           ]}
-          onLayout={(e: LayoutChangeEvent) => {
-            const w = e.nativeEvent.layout.width;
-            // #region agent log
-            fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-              body: JSON.stringify({
-                sessionId: "52ce9e",
-                runId: "modal-qty-price-layout",
-                hypothesisId: "H1-qty-steals-flex",
-                location: "ListDetailScreen.tsx:qtyStepperShell",
-                message: "qty stepper width",
-                data: { qtyShellWidth: w, showPriceInForm },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
-          }}
         >
           <TouchableOpacity
             style={[
@@ -482,48 +503,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           </TouchableOpacity>
         </View>
         {showPriceInForm ? (
-          <View
-            style={styles.addPriceRow}
-            onLayout={(e: LayoutChangeEvent) => {
-              const w = e.nativeEvent.layout.width;
-              // #region agent log
-              fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-                body: JSON.stringify({
-                  sessionId: "52ce9e",
-                  runId: "modal-qty-price-layout",
-                  hypothesisId: "H2-price-row-minwidth",
-                  location: "ListDetailScreen.tsx:addPriceRow",
-                  message: "price row width",
-                  data: { priceRowWidth: w },
-                  timestamp: Date.now(),
-                }),
-              }).catch(() => {});
-              // #endregion
-            }}
-          >
-            <View
-              style={styles.priceFieldShell}
-              onLayout={(e: LayoutChangeEvent) => {
-                const w = e.nativeEvent.layout.width;
-                // #region agent log
-                fetch("http://127.0.0.1:7265/ingest/ac83ca7d-6fc6-477e-b881-deacc4607e2e", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "52ce9e" },
-                  body: JSON.stringify({
-                    sessionId: "52ce9e",
-                    runId: "modal-qty-price-layout",
-                    hypothesisId: "H3-price-shell-collapsed",
-                    location: "ListDetailScreen.tsx:priceFieldShell",
-                    message: "price shell width",
-                    data: { priceShellWidth: w },
-                    timestamp: Date.now(),
-                  }),
-                }).catch(() => {});
-                // #endregion
-              }}
-            >
+          <View style={styles.addPriceRow}>
+            <View style={styles.priceFieldShell}>
               <TextInput
                 value={formPrice}
                 onChangeText={setFormPrice}
@@ -665,8 +646,62 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           <View style={{ width: 72 }} />
         </View>
 
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={openBulkVoiceModal}
+          accessibilityRole="button"
+          accessibilityLabel="Bulk list by voice"
+          style={styles.bulkBannerTouch}
+        >
+          <View style={styles.bulkBannerGradient}>
+            <View style={styles.bulkBannerGradientBg} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: "#c2410c" }]} />
+              <View
+                style={{
+                  position: "absolute",
+                  right: "-18%",
+                  top: "-45%",
+                  width: "78%",
+                  height: "220%",
+                  backgroundColor: "#7dd3fc",
+                  opacity: 0.48,
+                  transform: [{ rotate: "-24deg" }],
+                }}
+              />
+              <View
+                style={{
+                  position: "absolute",
+                  left: "-12%",
+                  bottom: "-35%",
+                  width: "62%",
+                  height: "170%",
+                  backgroundColor: "#fb7185",
+                  opacity: 0.42,
+                  transform: [{ rotate: "16deg" }],
+                }}
+              />
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: "#f97316", opacity: 0.5 },
+                ]}
+              />
+            </View>
+            <View style={styles.bulkBannerRow}>
+              <View style={styles.bulkBannerIconCircle}>
+                <Ionicons name="mic" size={22} color="#c2410c" />
+              </View>
+              <View style={styles.bulkBannerTextCol}>
+                <Text style={styles.bulkBannerTitle}>Bulk List by Voice</Text>
+                <Text style={styles.bulkBannerSub}>Qty first · Say AND between items · Tap ⓘ for format</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.92)" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {list.showItemPrice ? (
-          <View ref={totalCardMeasureRef} style={styles.totalCard}>
+          <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total Cost</Text>
             <Text style={styles.totalValue}>{formatMoney(total, sym)}</Text>
           </View>
@@ -760,6 +795,78 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={bulkModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeBulkVoiceModal}
+      >
+        <View style={styles.bulkModalRoot}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeBulkVoiceModal} />
+          <View style={[styles.bulkModalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.bulkModalHeader}>
+              <View style={styles.bulkModalHeaderSpacer} />
+              <Text style={styles.bulkModalTitle} numberOfLines={1}>
+                Bulk List by Voice
+              </Text>
+              <View style={styles.bulkModalHeaderActions}>
+                <TouchableOpacity
+                  onPress={showBulkListInfo}
+                  style={styles.bulkModalInfoBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="About bulk list by voice"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="information-circle-outline" size={26} color="#64748b" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={closeBulkVoiceModal} style={styles.modalClose}>
+                  <Ionicons name="close" size={26} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={styles.bulkModalHint}>
+              Quantity first, then name. Separate items with AND (or a comma)—e.g. “one bear brand and two eggs and
+              one coffee” or “3 milk, 2 bread”. Tap the mic to start, tap again to stop. On-device only (no
+              internet). Tap ⓘ for full examples.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.bulkMicOuter,
+                listening && voiceTarget === "bulk" && styles.bulkMicOuterActive,
+                bulkProcessing && styles.bulkMicOuterDisabled,
+              ]}
+              onPress={() => void onBulkMicPress()}
+              disabled={bulkProcessing}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={listening && voiceTarget === "bulk" ? "Stop listening" : "Start listening"}
+            >
+              <Ionicons
+                name={listening && voiceTarget === "bulk" ? "stop-circle" : "mic"}
+                size={56}
+                color={bulkProcessing ? "#94a3b8" : listening && voiceTarget === "bulk" ? "#dc2626" : "#2563eb"}
+              />
+            </TouchableOpacity>
+            <Text style={styles.bulkStatusLabel}>
+              {bulkProcessing
+                ? "Creating items…"
+                : listening && voiceTarget === "bulk"
+                  ? "Listening… tap again when finished"
+                  : "Tap to speak"}
+            </Text>
+            {bulkTranscript ? (
+              <ScrollView style={styles.bulkTranscriptScroll} keyboardShouldPersistTaps="handled">
+                <Text style={styles.bulkTranscriptText}>{bulkTranscript}</Text>
+              </ScrollView>
+            ) : null}
+            {bulkProcessing ? (
+              <ActivityIndicator style={{ marginTop: 12 }} size="small" color="#2563eb" />
+            ) : null}
+            {lastError ? <Text style={styles.bulkErrorText}>{lastError}</Text> : null}
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -912,6 +1019,156 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "800",
+  },
+  bulkBannerTouch: {
+    width: "100%",
+    marginBottom: 12,
+    shadowColor: "#9a3412",
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  bulkBannerGradient: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+  },
+  bulkBannerGradientBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+  },
+  bulkBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 14,
+    zIndex: 1,
+  },
+  bulkBannerIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bulkBannerTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  bulkBannerTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+    textShadowColor: "rgba(0,0,0,0.12)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  bulkBannerSub: {
+    marginTop: 3,
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  bulkModalRoot: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.5)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  bulkModalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    maxHeight: "88%",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  bulkModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 4,
+  },
+  bulkModalHeaderSpacer: {
+    width: 88,
+  },
+  bulkModalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0f172a",
+    textAlign: "center",
+  },
+  bulkModalHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    width: 88,
+  },
+  bulkModalInfoBtn: {
+    width: 40,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bulkModalHint: {
+    fontSize: 14,
+    color: "#64748b",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  bulkMicOuter: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#eff6ff",
+    borderWidth: 3,
+    borderColor: "#bfdbfe",
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bulkMicOuterActive: {
+    backgroundColor: "#fef2f2",
+    borderColor: "#fecaca",
+  },
+  bulkMicOuterDisabled: {
+    opacity: 0.65,
+  },
+  bulkStatusLabel: {
+    textAlign: "center",
+    marginTop: 14,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  bulkTranscriptScroll: {
+    maxHeight: 160,
+    marginTop: 14,
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  bulkTranscriptText: {
+    padding: 12,
+    fontSize: 15,
+    color: "#0f172a",
+    lineHeight: 22,
+  },
+  bulkErrorText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: "#b91c1c",
+    lineHeight: 18,
   },
   totalCard: {
     marginHorizontal: 16,

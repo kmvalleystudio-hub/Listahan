@@ -7,10 +7,17 @@ const isExpoGo =
 
 type SpeechPack = typeof import("expo-speech-recognition");
 
+export type SpeechStartOptions = {
+  /** Long-form dictation: accumulate finalized phrases; enables continuous recognition when supported. */
+  bulk?: boolean;
+};
+
 export function useSpeechToText() {
   const [listening, setListening] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const onTextRef = useRef<(text: string) => void>(() => {});
+  const modeRef = useRef<"single" | "bulk">("single");
+  const bulkCommittedRef = useRef("");
 
   useEffect(() => {
     if (isExpoGo) return;
@@ -24,7 +31,22 @@ export function useSpeechToText() {
     const { ExpoSpeechRecognitionModule } = pack;
     const subResult = ExpoSpeechRecognitionModule.addListener("result", (ev) => {
       const t = ev.results[0]?.transcript ?? "";
-      onTextRef.current(t);
+      if (modeRef.current === "bulk") {
+        const trimmed = t.trim();
+        if (ev.isFinal && trimmed) {
+          bulkCommittedRef.current = bulkCommittedRef.current
+            ? `${bulkCommittedRef.current} ${trimmed}`
+            : trimmed;
+          onTextRef.current(bulkCommittedRef.current);
+        } else {
+          const live = bulkCommittedRef.current
+            ? `${bulkCommittedRef.current} ${trimmed}`.trim()
+            : trimmed;
+          onTextRef.current(live);
+        }
+      } else {
+        onTextRef.current(t);
+      }
     });
     const subError = ExpoSpeechRecognitionModule.addListener("error", (ev) => {
       const raw = (ev.message ?? "Speech error").trim();
@@ -59,53 +81,63 @@ export function useSpeechToText() {
     setListening(false);
   }, []);
 
-  const start = useCallback(async (onText: (text: string) => void) => {
-    onTextRef.current = onText;
-    if (isExpoGo) {
-      setLastError(
-        "Voice isn’t available in Expo Go. Build a dev client with: npx expo run:android (or iOS). See SETUP.md."
-      );
-      return;
-    }
-    setLastError(null);
-    let ExpoSpeechRecognitionModule: SpeechPack["ExpoSpeechRecognitionModule"];
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ExpoSpeechRecognitionModule = (require("expo-speech-recognition") as SpeechPack)
-        .ExpoSpeechRecognitionModule;
-    } catch {
-      setLastError("Speech recognition isn’t available in this build.");
-      return;
-    }
-    try {
-      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      const ok =
-        perm.granted === true ||
-        perm.status === "granted" ||
-        (Platform.OS === "web" && perm.granted !== false);
-      if (!ok) {
-        setLastError("Microphone or speech permission was denied.");
+  const clearLastError = useCallback(() => setLastError(null), []);
+
+  const start = useCallback(
+    async (onText: (text: string) => void, options?: SpeechStartOptions) => {
+      onTextRef.current = onText;
+      const bulk = options?.bulk === true;
+      modeRef.current = bulk ? "bulk" : "single";
+      bulkCommittedRef.current = "";
+
+      if (isExpoGo) {
+        setLastError(
+          "Voice isn’t available in Expo Go. Build a dev client with: npx expo run:android (or iOS). See SETUP.md."
+        );
         return;
       }
-    } catch (e) {
-      setLastError(e instanceof Error ? e.message : "Permission error");
-      return;
-    }
+      setLastError(null);
+      let ExpoSpeechRecognitionModule: SpeechPack["ExpoSpeechRecognitionModule"];
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        ExpoSpeechRecognitionModule = (require("expo-speech-recognition") as SpeechPack)
+          .ExpoSpeechRecognitionModule;
+      } catch {
+        setLastError("Speech recognition isn’t available in this build.");
+        return;
+      }
+      try {
+        const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        const ok =
+          perm.granted === true ||
+          perm.status === "granted" ||
+          (Platform.OS === "web" && perm.granted !== false);
+        if (!ok) {
+          setLastError("Microphone or speech permission was denied.");
+          return;
+        }
+      } catch (e) {
+        setLastError(e instanceof Error ? e.message : "Permission error");
+        return;
+      }
 
-    setListening(true);
-    try {
-      ExpoSpeechRecognitionModule.start({
-        lang: "en-US",
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: false,
-        requiresOnDeviceRecognition: false,
-      });
-    } catch (e) {
-      setListening(false);
-      setLastError(e instanceof Error ? e.message : "Could not start recognition");
-    }
-  }, []);
+      setListening(true);
+      try {
+        ExpoSpeechRecognitionModule.start({
+          lang: "en-US",
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: bulk,
+          addsPunctuation: bulk,
+          requiresOnDeviceRecognition: false,
+        });
+      } catch (e) {
+        setListening(false);
+        setLastError(e instanceof Error ? e.message : "Could not start recognition");
+      }
+    },
+    []
+  );
 
-  return { start, stop, listening, lastError };
+  return { start, stop, listening, lastError, clearLastError };
 }

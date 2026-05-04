@@ -78,3 +78,13 @@ Edit `src/constants/currency.ts` and set `DEFAULT_CURRENCY_SYMBOL` (default is `
 | `src/utils/items.ts` | Active vs completed sorting, “all done” check |
 
 Data is stored under `@saycart/lists_v1` and `@saycart/history_v1` in AsyncStorage. Pending “CHECK” timers are **not** persisted (if the app is killed mid–2-second window, items revert to unchecked on next launch).
+
+## 6. Bulk List by Voice (on-device)
+
+The **Bulk List by Voice** banner records your speech, then **splits the transcript into rows** in `src/utils/parseBulkTranscriptLocal.ts`. **Format:** say **quantity first**, then the item name; say **AND** (or use a **comma**) before the next item—e.g. `one bear brand and two eggs and one coffee` or `3 milk, 2 bread`. **No internet and no API key** are required.
+
+If you skip AND/commas and put multiple quantities in one phrase, parsing won’t know where one item ends—stick to the format above. **Spoken prices inside a long bulk phrase are not parsed**—use **Item Price** and edit lines, or add prices per item in the item modal.
+
+Continuous speech works best on **Android 13+** (older versions may not support continuous recognition). Use a **development build** for microphone support (same as section 4).
+
+*(Optional legacy code: `src/services/openaiBulkItems.ts` is unused; you can delete it if you standardize on local parsing only.)*
