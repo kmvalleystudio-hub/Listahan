@@ -14,12 +14,207 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompletedListPreviewProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
+import { useTheme } from "../context/ThemeContext";
+import type { AppThemeColors } from "../theme/colors";
 import type { GroceryItem } from "../types";
 import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
 import { formatMoney, lineTotal, totalFromItems } from "../utils/money";
 
+function createPreviewStyles(c: AppThemeColors) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 12,
+      paddingBottom: 8,
+    },
+    back: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 8,
+      width: 72,
+    },
+    backText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: c.text,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: c.text,
+      flex: 1,
+      textAlign: "center",
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+    },
+    listName: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: c.text,
+    },
+    listMeta: {
+      marginTop: 6,
+      fontSize: 14,
+      color: c.textTertiary,
+    },
+    hint: {
+      marginTop: 10,
+      fontSize: 13,
+      color: c.placeholder,
+      lineHeight: 18,
+    },
+    itemsCard: {
+      marginTop: 16,
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: "hidden",
+    },
+    row: {
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    rowBody: {
+      gap: 4,
+    },
+    rowName: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: c.text,
+    },
+    rowSub: {
+      fontSize: 14,
+      color: c.textTertiary,
+    },
+    footer: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      backgroundColor: c.background,
+    },
+    primaryBtn: {
+      backgroundColor: c.primary,
+      borderRadius: 16,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    primaryBtnText: {
+      color: "#fff",
+      fontSize: 17,
+      fontWeight: "700",
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: c.overlayStrong,
+      justifyContent: "center",
+      padding: 24,
+    },
+    modalCard: {
+      backgroundColor: c.card,
+      borderRadius: 18,
+      padding: 18,
+      gap: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: c.text,
+    },
+    modalInput: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: c.text,
+      backgroundColor: c.inputBg,
+    },
+    modalRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: 10,
+      marginTop: 4,
+    },
+    modalGhost: {
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+    },
+    modalGhostText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: c.textTertiary,
+    },
+    modalPrimary: {
+      backgroundColor: c.primary,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 18,
+    },
+    modalPrimaryText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  });
+}
+
+function PreviewRow({
+  item,
+  showPrice,
+  sym,
+  styles: s,
+}: {
+  item: GroceryItem;
+  showPrice: boolean;
+  sym: string;
+  styles: ReturnType<typeof createPreviewStyles>;
+}) {
+  const qty = item.quantity?.trim() || "—";
+  const lt = lineTotal(item.price, item.quantity);
+  return (
+    <View style={s.row}>
+      <View style={s.rowBody}>
+        <Text style={s.rowName}>{item.name}</Text>
+        <Text style={s.rowSub}>
+          Qty {qty}
+          {showPrice ? (
+            <>
+              {" · "}
+              {item.price ? `${sym}${item.price}` : "—"}
+              {" · "}
+              {formatMoney(lt, sym)}
+            </>
+          ) : null}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function CompletedListPreviewScreen({ navigation, route }: CompletedListPreviewProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createPreviewStyles(colors), [colors]);
   const { historyId } = route.params;
   const { history, createListFromHistory } = useAppData();
   const entry = useMemo(() => history.find((h) => h.id === historyId) ?? null, [history, historyId]);
@@ -55,7 +250,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-          <Ionicons name="chevron-back" size={22} color="#0f172a" />
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -80,7 +275,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
 
         <View style={styles.itemsCard}>
           {sortedItems.map((item) => (
-            <PreviewRow key={item.id} item={item} showPrice={showPrice} sym={sym} />
+            <PreviewRow key={item.id} item={item} showPrice={showPrice} sym={sym} styles={styles} />
           ))}
         </View>
       </ScrollView>
@@ -104,7 +299,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
               onChangeText={setNewName}
               style={styles.modalInput}
               placeholder="List name"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.placeholder}
             />
             <View style={styles.modalRow}>
               <TouchableOpacity style={styles.modalGhost} onPress={() => setPickerOpen(false)}>
@@ -120,187 +315,3 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
     </View>
   );
 }
-
-function PreviewRow({
-  item,
-  showPrice,
-  sym,
-}: {
-  item: GroceryItem;
-  showPrice: boolean;
-  sym: string;
-}) {
-  const qty = item.quantity?.trim() || "—";
-  const lt = lineTotal(item.price, item.quantity);
-  return (
-    <View style={styles.row}>
-      <View style={styles.rowBody}>
-        <Text style={styles.rowName}>{item.name}</Text>
-        <Text style={styles.rowSub}>
-          Qty {qty}
-          {showPrice ? (
-            <>
-              {" · "}
-              {item.price ? `${sym}${item.price}` : "—"}
-              {" · Tot "}
-              {formatMoney(lt, sym)}
-            </>
-          ) : null}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#f4f6f8",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-  },
-  back: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 8,
-    width: 72,
-  },
-  backText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-    flex: 1,
-    textAlign: "center",
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  listName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  listMeta: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#64748b",
-  },
-  hint: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#94a3b8",
-    lineHeight: 18,
-  },
-  itemsCard: {
-    marginTop: 16,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    overflow: "hidden",
-  },
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e2e8f0",
-  },
-  rowBody: {
-    gap: 4,
-  },
-  rowName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  rowSub: {
-    fontSize: 14,
-    color: "#64748b",
-  },
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    backgroundColor: "#f4f6f8",
-  },
-  primaryBtn: {
-    backgroundColor: "#2563eb",
-    borderRadius: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15,23,42,0.35)",
-    justifyContent: "center",
-    padding: 24,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
-    gap: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#0f172a",
-  },
-  modalRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 4,
-  },
-  modalGhost: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  modalGhostText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  modalPrimary: {
-    backgroundColor: "#2563eb",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  modalPrimaryText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-});

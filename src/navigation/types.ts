@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 export type RootStackParamList = {
   Home: undefined;
   CreateList: undefined;
-  ListDetail: { listId: string };
+  ListDetail: { listId: string; autoOpenAdd?: boolean };
   History: undefined;
   CompletedListPreview: { historyId: string };
   AllDone: { listId: string };

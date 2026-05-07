@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,71 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { CreateListProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
+import { useTheme } from "../context/ThemeContext";
+import type { AppThemeColors } from "../theme/colors";
+
+function createCreateListStyles(c: AppThemeColors) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: c.text,
+    },
+    link: {
+      fontSize: 16,
+      color: c.linkBlue,
+      fontWeight: "600",
+      width: 56,
+    },
+    body: {
+      padding: 20,
+      gap: 12,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.textSecondary,
+    },
+    input: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: c.text,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    primaryBtn: {
+      marginTop: 8,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    primaryBtnText: {
+      color: "#fff",
+      fontSize: 17,
+      fontWeight: "700",
+    },
+  });
+}
 
 export default function CreateListScreen({ navigation }: CreateListProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createCreateListStyles(colors), [colors]);
   const { createList } = useAppData();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -23,7 +85,7 @@ export default function CreateListScreen({ navigation }: CreateListProps) {
     setBusy(true);
     try {
       const list = await createList(name);
-      navigation.replace("ListDetail", { listId: list.id });
+      navigation.replace("ListDetail", { listId: list.id, autoOpenAdd: true });
     } finally {
       setBusy(false);
     }
@@ -48,7 +110,7 @@ export default function CreateListScreen({ navigation }: CreateListProps) {
           value={name}
           onChangeText={setName}
           placeholder="e.g. Weekend groceries"
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.placeholder}
           style={styles.input}
           autoFocus
           returnKeyType="done"
@@ -65,59 +127,3 @@ export default function CreateListScreen({ navigation }: CreateListProps) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#f4f6f8",
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  link: {
-    fontSize: 16,
-    color: "#2563eb",
-    fontWeight: "600",
-    width: 56,
-  },
-  body: {
-    padding: 20,
-    gap: 12,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#475569",
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  primaryBtn: {
-    marginTop: 8,
-    backgroundColor: "#2563eb",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-});
