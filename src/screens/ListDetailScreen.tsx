@@ -89,6 +89,11 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   /** When true, list was removed on purpose (archived); don't auto-goBack. */
   const finishingListRef = useRef(false);
 
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const wiggleIdRef = useRef<string | null>(null);
+  const wiggleAnim = useRef(new Animated.Value(0)).current;
+
   const {
     start: startSpeech,
     stop: stopSpeech,
@@ -173,6 +178,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   useEffect(() => {
     finishingListRef.current = false;
     autoOpenHandledRef.current = false;
+    setBulkMode(false);
+    setSelectedIds(new Set());
+    wiggleIdRef.current = null;
   }, [listId]);
 
   useEffect(() => {
@@ -254,6 +262,104 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     );
     pushList({ ...snap, items });
     timersRef.current[itemId] = setTimeout(() => void commitCheck(itemId), 1000);
+  };
+
+  const togglePriority = (itemId: string, next?: boolean) => {
+    const snap = listRef.current;
+    if (!snap) return;
+    const items = snap.items.map((i) =>
+      i.id === itemId ? { ...i, priority: next ?? !i.priority } : i
+    );
+    pushList({ ...snap, items });
+  };
+
+  const startWiggle = () => {
+    wiggleAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(wiggleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+      Animated.timing(wiggleAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const enterBulkMode = (itemId: string) => {
+    wiggleIdRef.current = itemId;
+    startWiggle();
+    setBulkMode(true);
+    setSelectedIds((prev) => new Set([...prev, itemId]));
+  };
+
+  const exitBulkMode = () => {
+    setBulkMode(false);
+    setSelectedIds(new Set());
+    wiggleIdRef.current = null;
+  };
+
+  const toggleSelected = (itemId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      if (next.size === 0) {
+        wiggleIdRef.current = null;
+      }
+      return next;
+    });
+  };
+
+  const confirmBulkCheckSelected = () => {
+    const snap = listRef.current;
+    if (!snap || selectedIds.size === 0) return;
+    Alert.alert("Bulk check", `Check ${selectedIds.size} item(s)?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        onPress: () => {
+          const current = listRef.current;
+          if (!current) return;
+          const items = current.items.map((i) =>
+            selectedIds.has(i.id) ? { ...i, checked: true, checkPending: false } : i
+          );
+          pushList({ ...current, items });
+          exitBulkMode();
+        },
+      },
+    ]);
+  };
+
+  const bulkDeleteSelected = () => {
+    const snap = listRef.current;
+    if (!snap || selectedIds.size === 0) return;
+    Alert.alert("Delete items", `Remove ${selectedIds.size} selected item(s)?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          const items = snap.items.filter((i) => !selectedIds.has(i.id));
+          pushList({ ...snap, items });
+          exitBulkMode();
+        },
+      },
+    ]);
+  };
+
+  const confirmBulkPrioritySelected = (nextPriority: boolean) => {
+    const snap = listRef.current;
+    if (!snap || selectedIds.size === 0) return;
+    Alert.alert("Bulk prioritize", `Prioritize ${selectedIds.size} item(s)?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        onPress: () => {
+          const current = listRef.current;
+          if (!current) return;
+          const items = current.items.map((i) =>
+            selectedIds.has(i.id) ? { ...i, priority: nextPriority } : i
+          );
+          pushList({ ...current, items });
+        },
+      },
+    ]);
   };
 
   const onTapUndo = (itemId: string) => {
@@ -517,7 +623,12 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const showPriceInForm = list.showItemPrice;
   const sym = list.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL;
   const floatingBarBottom = insets.bottom + 12;
-  const listBottomInset = floatingBarBottom + 74 + 18;
+  const bulkActionsBottom = floatingBarBottom + 70;
+  const listBottomInset = bulkMode ? bulkActionsBottom + 62 : floatingBarBottom + 74 + 18;
+  const overlayHeight = bulkMode ? 320 : 220;
+  const overlayOpacities = bulkMode
+    ? [0, 0.06, 0.14, 0.24, 0.36, 0.48, 0.6, 0.72, 0.82, 0.9, 0.96]
+    : [0, 0.04, 0.12, 0.24, 0.38, 0.52, 0.68, 0.82, 0.92];
   const micBlobAAnimatedStyle = {
     transform: [
       {
@@ -582,8 +693,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             style={styles.priceSwitch}
             value={showPriceInForm}
             onValueChange={togglePrice}
-            trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
-            thumbColor={showPriceInForm ? colors.switchThumbOn : colors.switchThumbOff}
+            trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
+            thumbColor={showPriceInForm ? colors.primaryDark : colors.switchThumbOff}
             ios_backgroundColor={colors.iosSwitchBg}
           />
         </View>
@@ -697,16 +808,56 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     const isDone = item.checked && !item.checkPending;
     const rowMuted = item.checked;
 
+    const isSelected = selectedIds.has(item.id);
+    const shouldWiggle = wiggleIdRef.current === item.id;
+    const wiggleStyle = shouldWiggle
+      ? {
+          transform: [
+            {
+              rotate: wiggleAnim.interpolate({
+                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                outputRange: ["0deg", "-0.8deg", "0deg", "0.8deg", "0deg"],
+              }),
+            },
+          ],
+        }
+      : null;
+
     return (
-      <View
+      <Animated.View
         style={[
           styles.row,
           rowMuted && styles.rowMuted,
           opts.isActive && { opacity: 0.9 },
+          wiggleStyle,
         ]}
       >
+        {bulkMode ? (
+          <TouchableOpacity
+            style={[styles.rowCheckbox, isSelected && styles.rowCheckboxActive]}
+            onPress={() => toggleSelected(item.id)}
+            accessibilityRole="checkbox"
+            accessibilityLabel={isSelected ? "Deselect item" : "Select item"}
+          >
+            {isSelected ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
+          </TouchableOpacity>
+        ) : null}
+        {bulkMode ? (
+          <Pressable
+            style={styles.rowBulkTapOverlay}
+            onPress={() => toggleSelected(item.id)}
+            accessibilityRole="button"
+            accessibilityLabel={isSelected ? "Deselect item" : "Select item"}
+          />
+        ) : null}
         {opts.draggable && opts.drag ? (
-          <TouchableOpacity onLongPress={opts.drag} delayLongPress={120} style={styles.handle}>
+          <TouchableOpacity
+            onLongPress={() => {
+              if (!bulkMode) opts.drag?.();
+            }}
+            delayLongPress={120}
+            style={styles.handle}
+          >
             <Ionicons name="reorder-three" size={26} color={colors.textTertiary} />
           </TouchableOpacity>
         ) : (
@@ -717,8 +868,18 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
 
         <TouchableOpacity
           style={styles.rowTap}
-          onPress={() => openEditModal(item)}
-          disabled={isPending}
+          onPress={() => {
+            if (bulkMode) {
+              toggleSelected(item.id);
+              return;
+            }
+            openEditModal(item);
+          }}
+          onLongPress={() => {
+            if (!bulkMode) enterBulkMode(item.id);
+          }}
+          delayLongPress={650}
+          disabled={isPending && !bulkMode}
           activeOpacity={0.75}
         >
           <View style={styles.rowTitleLine}>
@@ -757,21 +918,66 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         </TouchableOpacity>
 
         <View style={styles.actionCol}>
+          <TouchableOpacity
+            style={styles.starBtn}
+            onPress={() => {
+              if (bulkMode) {
+                toggleSelected(item.id);
+                return;
+              }
+              togglePriority(item.id);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={item.priority ? "Unprioritize item" : "Prioritize item"}
+          >
+            <Ionicons
+              name={item.priority ? "star" : "star-outline"}
+              size={18}
+              color={item.priority ? colors.micIcon : colors.placeholder}
+            />
+          </TouchableOpacity>
           {isPending ? (
-            <TouchableOpacity style={styles.undoBtn} onPress={() => onTapUndo(item.id)}>
+            <TouchableOpacity
+              style={styles.undoBtn}
+              onPress={() => {
+                if (bulkMode) {
+                  toggleSelected(item.id);
+                  return;
+                }
+                onTapUndo(item.id);
+              }}
+            >
               <Text style={styles.undoText}>Undo</Text>
             </TouchableOpacity>
           ) : isDone ? (
-            <TouchableOpacity style={styles.uncheckBtn} onPress={() => onTapUncheck(item.id)}>
+            <TouchableOpacity
+              style={styles.uncheckBtn}
+              onPress={() => {
+                if (bulkMode) {
+                  toggleSelected(item.id);
+                  return;
+                }
+                onTapUncheck(item.id);
+              }}
+            >
               <Text style={styles.uncheckText}>Uncheck</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.checkBtn} onPress={() => onTapCheck(item.id)}>
+            <TouchableOpacity
+              style={styles.checkBtn}
+              onPress={() => {
+                if (bulkMode) {
+                  toggleSelected(item.id);
+                  return;
+                }
+                onTapCheck(item.id);
+              }}
+            >
               <Text style={styles.checkText}>CHECK</Text>
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -836,6 +1042,71 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           }
         />
       </View>
+      <View style={[styles.bulkOverlayFade, { height: overlayHeight }]} pointerEvents="none">
+        {overlayOpacities.map((opacity, idx) => (
+          <View
+            key={`overlay-stop-${idx}`}
+            style={[
+              styles.bulkOverlayStop,
+              {
+                opacity,
+                backgroundColor: colors.background,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      {bulkMode ? (
+        <View style={[styles.bulkActionsFloating, { bottom: bulkActionsBottom }]}>
+          <TouchableOpacity
+            style={styles.bulkCircleBtn}
+            onPress={confirmBulkCheckSelected}
+            disabled={selectedIds.size === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Bulk check selected items"
+          >
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={22}
+              color={selectedIds.size ? colors.primaryDark : colors.placeholder}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bulkCircleBtn}
+            onPress={() => confirmBulkPrioritySelected(true)}
+            disabled={selectedIds.size === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Bulk prioritize selected items"
+          >
+            <Ionicons
+              name="star"
+              size={22}
+              color={selectedIds.size ? colors.micIcon : colors.placeholder}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bulkCircleBtnDanger}
+            onPress={bulkDeleteSelected}
+            disabled={selectedIds.size === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Bulk delete selected items"
+          >
+            <Ionicons
+              name="trash-outline"
+              size={22}
+              color={selectedIds.size ? colors.micIcon : colors.placeholder}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bulkCircleBtn}
+            onPress={exitBulkMode}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel bulk selection"
+          >
+            <Ionicons name="close" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
         <View style={styles.fabBar}>
           <View style={styles.fabPriceToggle}>
@@ -846,8 +1117,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               style={styles.priceSwitch}
               value={list.showItemPrice}
               onValueChange={togglePrice}
-              trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
-              thumbColor={list.showItemPrice ? colors.switchThumbOn : colors.switchThumbOff}
+              trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
+              thumbColor={list.showItemPrice ? colors.primaryDark : colors.switchThumbOff}
               ios_backgroundColor={colors.iosSwitchBg}
             />
           </View>
@@ -941,31 +1212,49 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         <View style={styles.bulkModalRoot}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={closeBulkVoiceModal} />
           <View style={[styles.bulkModalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.bulkHero} pointerEvents="none" />
+            <View style={styles.bulkHeroBlobA} pointerEvents="none" />
+            <View style={styles.bulkHeroBlobB} pointerEvents="none" />
+
             <View style={styles.bulkModalHeader}>
-              <View style={styles.bulkModalHeaderSpacer} />
-              <Text style={styles.bulkModalTitle} numberOfLines={2}>
-                Bulk List by Voice
-              </Text>
-              <View style={styles.bulkModalHeaderActions}>
+              <View style={styles.bulkHeaderPill}>
+                <Ionicons name="sparkles" size={14} color={colors.micIcon} />
+                <Text style={styles.bulkHeaderPillText}>On-device</Text>
+              </View>
+              <View style={styles.bulkHeaderActions}>
                 <TouchableOpacity
                   onPress={showBulkListInfo}
-                  style={styles.bulkModalInfoBtn}
+                  style={styles.bulkHeaderIconBtn}
                   accessibilityRole="button"
                   accessibilityLabel="About bulk list by voice"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="information-circle-outline" size={26} color={colors.textTertiary} />
+                  <Ionicons name="information-circle-outline" size={22} color={colors.textTertiary} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={closeBulkVoiceModal} style={styles.modalClose}>
-                  <Ionicons name="close" size={26} color={colors.textTertiary} />
+                <TouchableOpacity
+                  onPress={closeBulkVoiceModal}
+                  style={styles.bulkHeaderIconBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <Ionicons name="close" size={22} color={colors.textTertiary} />
                 </TouchableOpacity>
               </View>
             </View>
-            <Text style={styles.bulkModalHint}>
-              Quantity first, then name. Separate items with AND (or a comma)—e.g. “one bear brand and two eggs and
-              one coffee” or “3 milk, 2 bread”. Tap the mic to start, tap again to stop. On-device only (no
-              internet). Tap ⓘ for full examples.
+
+            <Text style={styles.bulkModalTitle} numberOfLines={2}>
+              Bulk List by Voice
             </Text>
+            <Text style={styles.bulkModalHint}>
+              Say quantity first, then name. Separate items with AND (or a comma).
+            </Text>
+
+            <View style={styles.bulkFormatCard}>
+              <Text style={styles.bulkFormatLine}>“one bear brand and two eggs and one coffee”</Text>
+              <Text style={styles.bulkFormatSub}>or</Text>
+              <Text style={styles.bulkFormatLine}>“3 milk, 2 bread”</Text>
+            </View>
+
             <TouchableOpacity
               style={[
                 styles.bulkMicOuter,
@@ -974,10 +1263,19 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               ]}
               onPress={() => void onBulkMicPress()}
               disabled={bulkProcessing}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
               accessibilityRole="button"
               accessibilityLabel={listening && voiceTarget === "bulk" ? "Stop listening" : "Start listening"}
             >
+              <View style={styles.bulkMicFill} pointerEvents="none" />
+              <Animated.View
+                style={[styles.bulkMicBlobA, micBlobAAnimatedStyle]}
+                pointerEvents="none"
+              />
+              <Animated.View
+                style={[styles.bulkMicBlobB, micBlobBAnimatedStyle]}
+                pointerEvents="none"
+              />
               <Ionicons
                 name={listening && voiceTarget === "bulk" ? "stop-circle" : "mic"}
                 size={56}
@@ -985,16 +1283,17 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                   bulkProcessing
                     ? colors.placeholder
                     : listening && voiceTarget === "bulk"
-                      ? colors.danger
-                      : colors.primary
+                      ? colors.micIcon
+                      : colors.primaryDark
                 }
               />
             </TouchableOpacity>
+
             <Text style={styles.bulkStatusLabel}>
               {bulkProcessing
                 ? "Creating items…"
                 : listening && voiceTarget === "bulk"
-                  ? "Listening… tap again when finished"
+                  ? "Listening… tap again to finish"
                   : "Tap to speak"}
             </Text>
             {bulkTranscript ? (

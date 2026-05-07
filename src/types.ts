@@ -3,6 +3,8 @@ export type GroceryItem = {
   name: string;
   quantity: string;
   price: string;
+  /** When true, item is prioritized and floats to top. */
+  priority?: boolean;
   checked: boolean;
   /** True during the 2s undo window after tapping CHECK; not persisted. */
   checkPending?: boolean;

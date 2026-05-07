@@ -39,6 +39,7 @@ function cloneItemsForNewList(items: GroceryItem[]): GroceryItem[] {
       id: generateId(),
       checked: false,
       checkPending: false,
+      priority: Boolean(it.priority),
       order: idx,
     }))
   );

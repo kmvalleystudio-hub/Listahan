@@ -13,7 +13,12 @@ export function splitActiveAndCompleted(items: GroceryItem[]): {
 } {
   const active = items.filter((i) => !i.checked || i.checkPending);
   const completed = items.filter((i) => i.checked && !i.checkPending);
-  active.sort((a, b) => a.order - b.order);
+  active.sort((a, b) => {
+    const ap = a.priority ? 1 : 0;
+    const bp = b.priority ? 1 : 0;
+    if (ap !== bp) return bp - ap; // priority first
+    return a.order - b.order;
+  });
   completed.sort((a, b) => a.order - b.order);
   return { active, completed };
 }

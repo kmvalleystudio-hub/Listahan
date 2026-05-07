@@ -17,6 +17,7 @@ function sanitizeItem(item: GroceryItem): GroceryItem {
     name: item.name ?? "",
     quantity: item.quantity ?? "",
     price: item.price ?? "",
+    priority: Boolean(item.priority),
     checkPending: false,
   };
 }
