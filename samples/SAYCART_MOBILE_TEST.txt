@@ -1,0 +1,44 @@
+SayCart — copy this to your phone (Notes, email, or cloud)
+============================================================
+
+BEFORE YOU TEST (on your computer)
+------------------------------------
+1. Open the SayCart project folder in a terminal.
+2. Run:  npx expo start
+3. Voice (mic) needs a DEVELOPMENT BUILD, not plain Expo Go.
+   - Android: plug in phone with USB debugging, then:
+     npx expo run:android
+   - Or install a dev build you already made, then connect to Metro.
+
+4. Phone and PC must reach Metro:
+   - Same Wi-Fi: use the URL shown in the terminal (exp://...).
+   - Or run:  npx expo start --tunnel   (slower but works across networks).
+   - USB only: on PC run  adb reverse tcp:8081 tcp:8081  then open the app.
+
+OPEN THE APP ON THE PHONE
+-------------------------
+- Launch SayCart (dev build).
+- If you see a red "can't load script" error, Metro isn't reachable — fix Wi-Fi/tunnel/adb reverse, then reload.
+
+TRY BULK LIST BY VOICE
+----------------------
+1. Open any list (or create one).
+2. Tap the orange "Bulk List by Voice" banner.
+3. Tap the big mic → speak ONE of the lines below → tap mic again to stop.
+
+LINE A (use the word AND between items):
+one milk and two coffee and three lemons and one mayonnaise and three eggs
+
+LINE B (commas also work):
+3 bear brand, 2 pancit canton, 1 coffee, 5 apples
+
+Expected: each piece becomes its own row; quantity is a NUMBER in Qty, not "One" in the name.
+
+TRY SINGLE-ITEM VOICE
+---------------------
+Add Item → mic next to the name field (dev build only).
+
+TIP
+---
+If recognition is wrong, speak a bit slower and use the format:
+  quantity FIRST, then product name, then AND, then next item.

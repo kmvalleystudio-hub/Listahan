@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const wordsToNumbers = require("words-to-numbers") as (s: string) => string | number | null;
 
-import { extractUnitFromText, lookupUnitsForItem } from "./productRegistry";
+import { extractUnitFromText, lookupCanonicalItemName, lookupUnitsForItem } from "./productRegistry";
 
 export type ParsedBulkItem = {
   name: string;
@@ -185,12 +185,17 @@ export function parseBulkTranscriptLocal(transcript: string): ParsedBulkItem[] {
   }
 
   return rows
-    .map((r) => ({
-      name: r.name.replace(/\s+/g, " ").trim(),
-      quantity: r.quantity.trim() || "1",
-      unit: r.unit.trim(),
-      unitOptions: r.unitOptions,
-      price: r.price,
-    }))
+    .map((r) => {
+      const normalizedName = lookupCanonicalItemName(
+        r.name.replace(/^[-–—]+\s*/, "").replace(/\s+/g, " ").trim()
+      );
+      return {
+        name: normalizedName,
+        quantity: r.quantity.trim() || "1",
+        unit: r.unit.trim(),
+        unitOptions: lookupUnitsForItem(normalizedName),
+        price: r.price,
+      };
+    })
     .filter((r) => r.name.length > 0);
 }

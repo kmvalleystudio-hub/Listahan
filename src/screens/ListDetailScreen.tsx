@@ -17,7 +17,10 @@ import {
   FlatList,
   Animated,
   Easing,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import type { ImagePickerAsset } from "expo-image-picker";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -45,7 +48,15 @@ import { parsePriceFromSpeech } from "../utils/parsePriceFromSpeech";
 import { toTitleCaseWords } from "../utils/textFormat";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { parseBulkTranscriptLocal } from "../utils/parseBulkTranscriptLocal";
-import { extractUnitFromText, lookupUnitsForItem } from "../utils/productRegistry";
+import { parseScannedListLocal } from "../utils/parseScannedListLocal";
+import { runOcrFromImageBase64, runOcrFromImageUri } from "../utils/scanListOcr";
+import {
+  replaceScanTextRange,
+  shouldFlagOcrWord,
+  suggestOcrWordCorrections,
+  tokenizeScanText,
+} from "../utils/scanOcrLexicon";
+import { extractUnitFromText, lookupUnitsForItem, resolveTrustedProductName } from "../utils/productRegistry";
 import { useTheme } from "../context/ThemeContext";
 import { createListDetailStyles } from "./listDetailStyles";
 
@@ -70,6 +81,10 @@ function dedupeItemsByName(items: GroceryItem[]): GroceryItem[] {
 }
 
 type ItemModalMode = "add" | "edit" | null;
+const UI_DEBUG_VERSION = "v1.0.0-scan-debug-30";
+
+/** Set `true` to show ImagePicker result alerts while debugging scan/camera. */
+const SCAN_DEBUG_PICKER_ALERTS = false;
 
 export default function ListDetailScreen({ navigation, route }: ListDetailProps) {
   const insets = useSafeAreaInsets();
@@ -117,13 +132,28 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const [formPrice, setFormPrice] = useState("");
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
   const [unitMenuVisible, setUnitMenuVisible] = useState(false);
+  const [scanModalVisible, setScanModalVisible] = useState(false);
+  const [scanImageUri, setScanImageUri] = useState("");
+  const [scanRawText, setScanRawText] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanHintText, setScanHintText] = useState("");
+  const [scanRawEditMode, setScanRawEditMode] = useState(false);
+  const [scanWordSuggest, setScanWordSuggest] = useState<{
+    start: number;
+    end: number;
+    original: string;
+    suggestions: string[];
+  } | null>(null);
+  const [scanLoadingLabel, setScanLoadingLabel] = useState("");
   const [editSeedUnits, setEditSeedUnits] = useState<string[]>([]);
   const [editSeedName, setEditSeedName] = useState("");
   /** Android: Modal + keyboard — KeyboardAvoidingView is unreliable; pad scroll content by keyboard height. */
   const [itemModalKeyboardInset, setItemModalKeyboardInset] = useState(0);
+  const [scanModalKeyboardInset, setScanModalKeyboardInset] = useState(0);
   const itemModalOpen = itemModalMode !== null;
   const bulkMicBlobAnim = useRef(new Animated.Value(0)).current;
   const autoOpenHandledRef = useRef(false);
+  const scanModalScrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     if (!itemModalOpen) {
@@ -142,6 +172,25 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       subHide.remove();
     };
   }, [itemModalOpen]);
+
+  useEffect(() => {
+    if (!scanModalVisible || !scanRawEditMode) {
+      setScanModalKeyboardInset(0);
+      return;
+    }
+    const onShow = (e: { endCoordinates: { height: number } }) => {
+      setScanModalKeyboardInset(e.endCoordinates.height);
+    };
+    const onHide = () => setScanModalKeyboardInset(0);
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const subShow = Keyboard.addListener(showEvent, onShow);
+    const subHide = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, [scanModalVisible, scanRawEditMode]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -625,6 +674,316 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setBulkProcessing(false);
   };
 
+  const scanSmartLines = useMemo(() => {
+    const lines = scanRawText.split(/\r?\n/);
+    let offset = 0;
+    return lines.map((line, idx) => {
+      const tokens = tokenizeScanText(line).map((tok) =>
+        tok.type === "word"
+          ? { ...tok, start: tok.start + offset, end: tok.end + offset }
+          : { ...tok, start: tok.start + offset, end: tok.end + offset }
+      );
+      offset += line.length;
+      // Count newline separator for every line except the last.
+      if (idx < lines.length - 1) offset += 1;
+      return { key: `scan-line-${idx}`, tokens };
+    });
+  }, [scanRawText]);
+
+  const openScanModal = () => {
+    stopSpeech();
+    setScanModalVisible(true);
+  };
+
+  const closeScanModal = () => {
+    setScanModalVisible(false);
+  };
+
+  const onScanBackdropPress = () => {
+    console.log("[scan] backdrop pressed", { scanModalVisible });
+    closeScanModal();
+  };
+
+  const onScanCameraPress = async () => {
+    console.log("[scan] camera button pressed", { scanModalVisible });
+    setScanLoading(true);
+    setScanLoadingLabel("Opening camera…");
+    setScanHintText("Opening camera...");
+    setScanModalVisible(false);
+    const asset = await pickScanFromCamera();
+    if (asset) {
+      setScanLoadingLabel("Reading text from image…");
+    }
+    setScanModalVisible(true);
+    if (asset) {
+      await processScanAsset(asset);
+      return;
+    }
+    setScanLoading(false);
+    setScanLoadingLabel("");
+  };
+
+  const onScanUploadPress = async () => {
+    console.log("[scan] upload button pressed", { scanModalVisible });
+    setScanLoading(true);
+    setScanLoadingLabel("Opening gallery…");
+    setScanHintText("Opening gallery...");
+    setScanModalVisible(false);
+    const asset = await pickScanFromLibrary();
+    if (asset) {
+      setScanLoadingLabel("Reading text from image…");
+    }
+    setScanModalVisible(true);
+    if (asset) {
+      await processScanAsset(asset);
+      return;
+    }
+    setScanLoading(false);
+    setScanLoadingLabel("");
+  };
+
+  useEffect(() => {
+    console.log("[scan] modal visibility changed", { scanModalVisible });
+  }, [scanModalVisible]);
+
+  useEffect(() => {
+    if (!scanModalVisible) return;
+    let cancelled = false;
+    void ImagePicker.getPendingResultAsync().then((pending) => {
+      if (cancelled || !pending) return;
+      if (Array.isArray(pending)) return;
+      if (pending.canceled) {
+        setScanHintText("Pending camera result was cancelled.");
+        return;
+      }
+      const asset = pending.assets?.[0];
+      if (!asset?.uri) {
+        setScanHintText("Pending result has no image URI.");
+        return;
+      }
+      setScanHintText("Recovered pending image result. Processing...");
+      void processScanAsset(asset);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scanModalVisible]);
+
+  const processScanAsset = async (asset: ImagePickerAsset) => {
+    console.log("[scan] processScanAsset start", {
+      hasUri: Boolean(asset?.uri),
+      hasBase64: Boolean(asset?.base64),
+    });
+    setScanImageUri(asset.uri);
+    setScanRawText("");
+    setScanHintText("Reading text from image…");
+    setScanLoading(true);
+    setScanLoadingLabel("Reading text from image…");
+    try {
+      const b64 = asset.base64;
+      const text = b64 ? await runOcrFromImageBase64(b64) : await runOcrFromImageUri(asset.uri);
+      setScanRawText(text);
+      setScanHintText(text.trim() ? "Review and edit detected text before importing." : "No text detected.");
+      if (!text.trim()) {
+        Alert.alert("No text found", "OCR could not read text. You can edit/paste text manually below.");
+      }
+    } catch (e) {
+      setScanRawText("");
+      setScanHintText("Could not detect text from this image.");
+      Alert.alert(
+        "OCR unavailable",
+        e instanceof Error
+          ? `${e.message}\n\nYou can still paste/edit text manually and import.`
+          : "Could not read text from image."
+      );
+    } finally {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+    }
+  };
+
+  const tryGetPendingPickerResult = async (source: "camera" | "upload") => {
+    const pending = await ImagePicker.getPendingResultAsync();
+    if (!pending || Array.isArray(pending)) {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+      setScanHintText(`${source} returned canceled and no pending result was found.`);
+      return null;
+    }
+    if (pending.canceled) {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+      setScanHintText(`${source} returned canceled and pending result is also canceled.`);
+      return null;
+    }
+    const asset = pending.assets?.[0];
+    if (!asset?.uri) {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+      setScanHintText(`${source} pending result has no image URI.`);
+      return null;
+    }
+    setScanHintText(`${source} recovered from pending result.`);
+    return asset;
+  };
+
+  const pickScanFromCamera = async (): Promise<ImagePickerAsset | null> => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Camera permission needed", "Please allow camera access to scan handwritten lists.");
+        return null;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.9,
+        base64: true,
+        exif: false,
+      });
+      console.log("[scan] camera result", {
+        canceled: result.canceled,
+        assets: result.assets?.length ?? 0,
+        hasUri: Boolean(result.assets?.[0]?.uri),
+        hasBase64: Boolean(result.assets?.[0]?.base64),
+      });
+      if (SCAN_DEBUG_PICKER_ALERTS) {
+        Alert.alert(
+          "Camera result",
+          `canceled=${String(result.canceled)}\nassets=${result.assets?.length ?? 0}\nuri=${String(
+            Boolean(result.assets?.[0]?.uri)
+          )}\nbase64=${String(Boolean(result.assets?.[0]?.base64))}`
+        );
+      }
+      if (result.canceled) {
+        const recovered = await tryGetPendingPickerResult("camera");
+        if (!recovered) {
+          setScanLoading(false);
+          setScanLoadingLabel("");
+          setScanHintText("Capture cancelled or no image returned. Please retake or try Upload.");
+        } else {
+          setScanHintText("Photo received. Reading text…");
+        }
+        return recovered;
+      }
+      if (!result.assets?.[0]?.uri) {
+        setScanLoading(false);
+        setScanLoadingLabel("");
+        setScanHintText("No image returned from camera. Please retake.");
+        return null;
+      }
+      setScanHintText("Photo received. Reading text…");
+      return result.assets[0];
+    } catch (e) {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+      setScanHintText("Camera failed to open on this device.");
+      Alert.alert("Camera unavailable", e instanceof Error ? e.message : "Failed to open camera.");
+      return null;
+    }
+  };
+
+  const pickScanFromLibrary = async (): Promise<ImagePickerAsset | null> => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Photos permission needed", "Please allow photo access to upload a list image.");
+        return null;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.9,
+        base64: true,
+        allowsMultipleSelection: false,
+        exif: false,
+      });
+      console.log("[scan] upload result", {
+        canceled: result.canceled,
+        assets: result.assets?.length ?? 0,
+        hasUri: Boolean(result.assets?.[0]?.uri),
+        hasBase64: Boolean(result.assets?.[0]?.base64),
+      });
+      if (SCAN_DEBUG_PICKER_ALERTS) {
+        Alert.alert(
+          "Upload result",
+          `canceled=${String(result.canceled)}\nassets=${result.assets?.length ?? 0}\nuri=${String(
+            Boolean(result.assets?.[0]?.uri)
+          )}\nbase64=${String(Boolean(result.assets?.[0]?.base64))}`
+        );
+      }
+      if (result.canceled) {
+        const recovered = await tryGetPendingPickerResult("upload");
+        if (!recovered) {
+          setScanLoading(false);
+          setScanLoadingLabel("");
+          setScanHintText("Image selection cancelled or no image returned.");
+        } else {
+          setScanHintText("Image selected. Reading text…");
+        }
+        return recovered;
+      }
+      if (!result.assets?.[0]?.uri) {
+        setScanLoading(false);
+        setScanLoadingLabel("");
+        setScanHintText("No image selected.");
+        return null;
+      }
+      setScanHintText("Image selected. Reading text…");
+      return result.assets[0];
+    } catch (e) {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+      setScanHintText("Gallery failed to open on this device.");
+      Alert.alert("Upload unavailable", e instanceof Error ? e.message : "Failed to open gallery.");
+      return null;
+    }
+  };
+
+  const importScannedText = async () => {
+    const snap = listRef.current;
+    if (!snap) return;
+    const parsed = parseScannedListLocal(scanRawText);
+    if (parsed.length === 0) {
+      Alert.alert(
+        "Nothing to import",
+        "No valid items found. Try a clearer image or edit the extracted text first."
+      );
+      return;
+    }
+    setScanLoading(true);
+    const { active } = splitActiveAndCompleted(snap.items);
+    let nextOrder = active.reduce((m, i) => Math.max(m, i.order), -1) + 1;
+    try {
+      const trusted = await Promise.all(
+        parsed.map(async (p) => {
+          const resolved = await resolveTrustedProductName(p.name);
+          return {
+            ...p,
+            name: resolved.name || p.name,
+            unitOptions: resolved.unitOptions.length ? resolved.unitOptions : p.unitOptions,
+          };
+        })
+      );
+      const newItems: GroceryItem[] = trusted.map((p) => ({
+        id: generateId(),
+        name: toTitleCaseWords(p.name),
+        quantity: p.quantity,
+        unit: p.unit,
+        unitOptions: p.unitOptions,
+        price: p.price,
+        checked: false,
+        order: nextOrder++,
+      }));
+      pushList({ ...snap, items: dedupeItemsByName([...snap.items, ...newItems]) });
+      setScanImageUri("");
+      setScanRawText("");
+      setScanHintText("");
+      setScanRawEditMode(false);
+      setScanWordSuggest(null);
+      closeScanModal();
+    } finally {
+      setScanLoading(false);
+      setScanLoadingLabel("");
+    }
+  };
+
   const finishBulkFromTranscript = async (text: string) => {
     const snap = listRef.current;
     if (!snap) return;
@@ -943,6 +1302,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     item: GroceryItem,
     opts: { drag?: () => void; isActive?: boolean; draggable: boolean }
   ) => {
+    const displayUnit =
+      (item.unit ?? "").trim() || (item.unitOptions?.find((u) => (u ?? "").trim()) ?? "").trim();
     const isPending = item.checked && item.checkPending;
     const isDone = item.checked && !item.checkPending;
     const rowMuted = item.checked;
@@ -989,16 +1350,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             accessibilityLabel={isSelected ? "Deselect item" : "Select item"}
           />
         ) : null}
-        {!bulkMode ? (
-          <Pressable
-            style={styles.rowCardTapOverlay}
-            onPress={() => openEditModal(item)}
-            onLongPress={() => enterBulkMode(item.id)}
-            delayLongPress={650}
-            accessibilityRole="button"
-            accessibilityLabel="Edit item"
-          />
-        ) : null}
         {opts.draggable && opts.drag ? (
           <TouchableOpacity
             onLongPress={() => {
@@ -1015,7 +1366,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           </View>
         )}
 
-        <View style={styles.rowTap}>
+        <View style={styles.rowTap} pointerEvents="none">
           <View style={styles.rowTitleLine}>
             {item.quantity ? (
               <>
@@ -1051,11 +1402,16 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           </View>
         </View>
 
-        <View style={styles.actionCol}>
-          {item.unit ? (
-            <Text style={[styles.unitMetaText, rowMuted && styles.strikeText]} numberOfLines={1}>
-              {item.unit}
-            </Text>
+        <View style={styles.actionCol} pointerEvents="box-none">
+          {displayUnit ? (
+            <View pointerEvents="none" style={styles.unitBeforeStarWrap}>
+              <Text
+                style={[styles.unitBeforeStarText, rowMuted && styles.strikeText]}
+                numberOfLines={1}
+              >
+                {displayUnit}
+              </Text>
+            </View>
           ) : null}
           <TouchableOpacity
             style={styles.starBtn}
@@ -1116,18 +1472,27 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             </TouchableOpacity>
           )}
         </View>
+        {!bulkMode ? (
+          <Pressable
+            style={styles.rowCardTapOverlay}
+            onPress={() => openEditModal(item)}
+            onLongPress={() => enterBulkMode(item.id)}
+            delayLongPress={650}
+            accessibilityRole="button"
+            accessibilityLabel="Edit item"
+          />
+        ) : null}
       </Animated.View>
     );
   };
 
   const renderDraggable = ({ item, drag, isActive }: RenderItemParams<GroceryItem>) => (
-    <ScaleDecorator>
-      {renderRow(item, { drag, isActive, draggable: true })}
-    </ScaleDecorator>
+    <ScaleDecorator>{renderRow(item, { drag, isActive, draggable: true })}</ScaleDecorator>
   );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
+      <Text style={styles.debugVersionLabel}>{UI_DEBUG_VERSION}</Text>
       <View style={styles.staticChrome}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
@@ -1175,7 +1540,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 <Text style={styles.sectionLabel}>Checked</Text>
               ) : null}
               {completed.map((item) => (
-                <View key={item.id}>{renderRow(item, { draggable: false })}</View>
+                <View key={item.id} style={{ width: "100%" }}>
+                  {renderRow(item, { draggable: false })}
+                </View>
               ))}
             </View>
           }
@@ -1279,6 +1646,15 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             />
             <View style={styles.fabMicInnerRing} pointerEvents="none" />
             <Ionicons name="mic" size={22} color={colors.micIcon} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fabScanBtn}
+            onPress={openScanModal}
+            activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Scan list from image"
+          >
+            <Ionicons name="scan-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fabPrimaryBtn}
@@ -1449,6 +1825,244 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         </View>
       </Modal>
 
+      <Modal visible={scanLoading && !scanModalVisible} transparent animationType="fade" statusBarTranslucent>
+        <View
+          style={styles.scanBusyGateRoot}
+          accessibilityLabel={scanLoadingLabel || "Scan in progress"}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.scanBusyGateText}>{scanLoadingLabel || "Working…"}</Text>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={scanModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeScanModal}
+      >
+        <View style={styles.bulkModalRoot}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={onScanBackdropPress} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1, width: "100%", maxHeight: "100%" }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 24 : 0}
+          >
+            <ScrollView
+              ref={scanModalScrollRef}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                flexGrow: 1,
+                justifyContent: scanModalKeyboardInset > 0 ? "flex-end" : "center",
+                paddingTop: 0,
+                paddingBottom:
+                  insets.bottom + (scanModalKeyboardInset > 0 ? scanModalKeyboardInset + 12 : 22),
+              }}
+            >
+              <View style={[styles.bulkModalCard, { paddingBottom: 28 }]}>
+            <View style={styles.bulkModalHeader}>
+              <View style={styles.bulkHeaderPill}>
+                <Ionicons name="scan-outline" size={14} color={colors.primaryDark} />
+                <Text style={styles.bulkHeaderPillText}>Scan list</Text>
+              </View>
+              <TouchableOpacity
+                onPress={closeScanModal}
+                style={styles.bulkHeaderIconBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close scan modal"
+              >
+                <Ionicons name="close" size={22} color={colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.scanVersionLabel}>{UI_DEBUG_VERSION}</Text>
+            {!scanImageUri ? (
+              <>
+                <Text style={styles.bulkModalTitle}>Capture or Upload List</Text>
+                <Text style={styles.bulkModalHint}>
+                  Take a photo of your paper list, then review/edit text before importing.
+                </Text>
+                {scanHintText ? <Text style={styles.scanMetaText}>{scanHintText}</Text> : null}
+              </>
+            ) : null}
+            {scanLoading ? (
+              <View style={styles.scanLoadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.scanLoadingText}>{scanLoadingLabel || "Preparing your items..."}</Text>
+              </View>
+            ) : null}
+            <View style={styles.scanActionRow}>
+              <TouchableOpacity style={styles.scanActionBtnScan} onPress={() => void onScanCameraPress()}>
+                <Ionicons name="scan-outline" size={18} color={colors.primary} />
+                <Text style={styles.scanActionBtnScanText}>Scan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.scanActionBtn} onPress={() => void onScanUploadPress()}>
+                <Ionicons name="images-outline" size={18} color={colors.primaryDark} />
+                <Text style={styles.scanActionBtnText}>Upload</Text>
+              </TouchableOpacity>
+            </View>
+            {scanImageUri ? (
+              <View style={styles.scanPreviewWrap}>
+                <Image source={{ uri: scanImageUri }} style={styles.scanPreviewImage} resizeMode="cover" />
+                <Text style={styles.scanMetaText} numberOfLines={1}>
+                  Selected image attached
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.scanTextModeRow}>
+              <TouchableOpacity
+                style={styles.scanTextModeBtn}
+                onPress={() => {
+                  setScanWordSuggest(null);
+                  setScanRawEditMode((v) => !v);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={scanRawEditMode ? "Switch to smart review" : "Edit raw OCR text"}
+              >
+                <Text style={styles.scanTextModeBtnText}>
+                  {scanRawEditMode ? "Smart review" : "Edit raw text"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {scanRawEditMode ? (
+              <TextInput
+                value={scanRawText}
+                onChangeText={(t) => {
+                  setScanRawText(t);
+                  setScanWordSuggest(null);
+                }}
+                multiline
+                textAlignVertical="top"
+                style={styles.scanTextInput}
+                placeholder="OCR text appears here. You can edit/paste lines before import."
+                placeholderTextColor={colors.placeholder}
+                onFocus={() => {
+                  requestAnimationFrame(() => {
+                    scanModalScrollRef.current?.scrollToEnd({ animated: true });
+                  });
+                  setTimeout(() => {
+                    scanModalScrollRef.current?.scrollToEnd({ animated: true });
+                  }, 160);
+                }}
+              />
+            ) : (
+              <ScrollView
+                style={styles.scanTokenScroll}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.scanTokenWrap}>
+                  {scanSmartLines.every((line) => line.tokens.length === 0) ? (
+                    <Text style={styles.scanMetaText}>
+                      No text yet. Capture a photo or switch to Edit raw text.
+                    </Text>
+                  ) : (
+                    scanSmartLines.map((line, lineIndex) => (
+                      <View key={line.key} style={styles.scanTokenLine}>
+                        {line.tokens.map((tok, idx) => {
+                          if (tok.type === "sep") {
+                            return (
+                              <Text key={`sep-${tok.start}-${idx}`} style={styles.scanTokenSep} selectable>
+                                {tok.text}
+                              </Text>
+                            );
+                          }
+                          const flagged = shouldFlagOcrWord(tok.text);
+                          if (flagged) {
+                            return (
+                              <Pressable
+                                key={`w-${tok.start}-${idx}`}
+                                onPress={() => {
+                                  const suggestions = suggestOcrWordCorrections(tok.text);
+                                  setScanWordSuggest({
+                                    start: tok.start,
+                                    end: tok.end,
+                                    original: tok.text,
+                                    suggestions,
+                                  });
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Suggestions for ${tok.text}`}
+                              >
+                                <Text style={[styles.scanTokenWord, styles.scanTokenWordFlagged]} selectable>
+                                  {tok.text}
+                                </Text>
+                              </Pressable>
+                            );
+                          }
+                          return (
+                            <Text key={`w-${tok.start}-${idx}`} style={styles.scanTokenWord} selectable>
+                              {tok.text}
+                            </Text>
+                          );
+                        })}
+                        {lineIndex < scanSmartLines.length - 1 ? <Text style={styles.scanTokenSep}>{"\n"}</Text> : null}
+                      </View>
+                    ))
+                  )}
+                </View>
+              </ScrollView>
+            )}
+            {scanWordSuggest ? (
+              <View style={styles.scanSuggestSheet}>
+                <Text style={styles.scanSuggestTitle} numberOfLines={2}>
+                  Replace “{scanWordSuggest.original}”
+                </Text>
+                {scanWordSuggest.suggestions.length === 0 ? (
+                  <Text style={styles.scanSuggestHint}>
+                    No auto-suggestions for this token. Use Edit raw text to fix it, or import and edit the
+                    item later.
+                  </Text>
+                ) : (
+                  <View style={styles.scanSuggestChips}>
+                    {scanWordSuggest.suggestions.map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        style={styles.scanSuggestChip}
+                        onPress={() => {
+                          setScanRawText(
+                            replaceScanTextRange(
+                              scanRawText,
+                              scanWordSuggest.start,
+                              scanWordSuggest.end,
+                              s
+                            )
+                          );
+                          setScanWordSuggest(null);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Replace with ${s}`}
+                      >
+                        <Text style={styles.scanSuggestChipText}>{s}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.scanSuggestDismiss}
+                  onPress={() => setScanWordSuggest(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss suggestions"
+                >
+                  <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {scanLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+            <TouchableOpacity
+              style={[styles.addBtn, scanLoading && { opacity: 0.6 }]}
+              onPress={importScannedText}
+              disabled={scanLoading}
+            >
+              <Ionicons name="download-outline" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>Import Items</Text>
+            </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
       <Modal
         visible={currencyMenuVisible}
         transparent
