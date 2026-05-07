@@ -190,6 +190,7 @@ function PreviewRow({
   styles: ReturnType<typeof createPreviewStyles>;
 }) {
   const qty = item.quantity?.trim() || "—";
+  const unit = item.unit?.trim() || "";
   const lt = lineTotal(item.price, item.quantity);
   return (
     <View style={s.row}>
@@ -197,6 +198,7 @@ function PreviewRow({
         <Text style={s.rowName}>{item.name}</Text>
         <Text style={s.rowSub}>
           Qty {qty}
+          {unit ? ` ${unit}` : ""}
           {showPrice ? (
             <>
               {" · "}

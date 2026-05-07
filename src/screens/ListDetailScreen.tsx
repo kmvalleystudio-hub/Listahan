@@ -45,6 +45,7 @@ import { parsePriceFromSpeech } from "../utils/parsePriceFromSpeech";
 import { toTitleCaseWords } from "../utils/textFormat";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { parseBulkTranscriptLocal } from "../utils/parseBulkTranscriptLocal";
+import { extractUnitFromText, lookupUnitsForItem } from "../utils/productRegistry";
 import { useTheme } from "../context/ThemeContext";
 import { createListDetailStyles } from "./listDetailStyles";
 
@@ -112,8 +113,12 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formQty, setFormQty] = useState("");
+  const [formUnit, setFormUnit] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
+  const [unitMenuVisible, setUnitMenuVisible] = useState(false);
+  const [editSeedUnits, setEditSeedUnits] = useState<string[]>([]);
+  const [editSeedName, setEditSeedName] = useState("");
   /** Android: Modal + keyboard — KeyboardAvoidingView is unreliable; pad scroll content by keyboard height. */
   const [itemModalKeyboardInset, setItemModalKeyboardInset] = useState(0);
   const itemModalOpen = itemModalMode !== null;
@@ -253,6 +258,35 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     [archiveCompletedList, navigation, pushList]
   );
 
+  const commitOrFinishList = useCallback(
+    async (base: GroceryList, nextItems: GroceryItem[]) => {
+      if (allItemsCommittedDone(nextItems)) {
+        const entry: HistoryEntry = {
+          id: generateId(),
+          sourceListId: base.id,
+          name: base.name,
+          createdAt: base.createdAt,
+          updatedAt: nowIso(),
+          items: normalizeItemsForPersist(
+            nextItems.map((i) => ({ ...i, checked: true, checkPending: false }))
+          ),
+          showItemPrice: base.showItemPrice,
+          currencySymbol: base.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL,
+        };
+        finishingListRef.current = true;
+        try {
+          await archiveCompletedList(entry);
+          navigation.replace("AllDone", { listId: base.id });
+        } catch {
+          finishingListRef.current = false;
+        }
+        return;
+      }
+      pushList({ ...base, items: nextItems });
+    },
+    [archiveCompletedList, navigation, pushList]
+  );
+
   const onTapCheck = (itemId: string) => {
     const snap = listRef.current;
     if (!snap) return;
@@ -319,7 +353,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           const items = current.items.map((i) =>
             selectedIds.has(i.id) ? { ...i, checked: true, checkPending: false } : i
           );
-          pushList({ ...current, items });
+          void commitOrFinishList(current, items);
           exitBulkMode();
         },
       },
@@ -336,7 +370,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         style: "destructive",
         onPress: () => {
           const items = snap.items.filter((i) => !selectedIds.has(i.id));
-          pushList({ ...snap, items });
+          void commitOrFinishList(snap, items);
           exitBulkMode();
         },
       },
@@ -414,7 +448,10 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setEditingItemId(null);
     setFormName("");
     setFormQty("");
+    setFormUnit("");
     setFormPrice("");
+    setEditSeedUnits([]);
+    setEditSeedName("");
   };
 
   const setListCurrencySymbol = (symbol: string) => {
@@ -430,7 +467,10 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setEditingItemId(null);
     setFormName("");
     setFormQty("");
+    setFormUnit("");
     setFormPrice("");
+    setEditSeedUnits([]);
+    setEditSeedName("");
     setItemModalMode("add");
   };
 
@@ -450,9 +490,29 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setEditingItemId(item.id);
     setFormName(item.name);
     setFormQty(item.quantity);
+    setFormUnit(item.unit ?? "");
     setFormPrice(item.price);
+    setEditSeedUnits(
+      Array.from(new Set([...(item.unitOptions ?? []), item.unit ?? ""].map((u) => u.trim()).filter(Boolean)))
+    );
+    setEditSeedName(item.name.trim().toLowerCase());
     setItemModalMode("edit");
   };
+
+  const formUnitOptions = useMemo(() => {
+    const suggested = lookupUnitsForItem(formName);
+    const isSameAsEditBaseName = itemModalMode === "edit" && formName.trim().toLowerCase() === editSeedName;
+    const base = isSameAsEditBaseName ? [...editSeedUnits, ...suggested] : suggested;
+    return Array.from(new Set(base.map((u) => u.trim()).filter(Boolean)));
+  }, [editSeedName, editSeedUnits, formName, itemModalMode]);
+
+  useEffect(() => {
+    if (!formUnitOptions.length) return;
+    const current = formUnit.trim();
+    if (!current || !formUnitOptions.includes(current)) {
+      setFormUnit(formUnitOptions[0]);
+    }
+  }, [formUnit, formUnitOptions]);
 
   const onSaveAdd = () => {
     const snap = listRef.current;
@@ -462,6 +522,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       id: generateId(),
       name: formName.trim(),
       quantity: formQty.trim(),
+      unit: formUnit.trim(),
+      unitOptions: formUnitOptions,
       price: formPrice.trim(),
       checked: false,
       order: nextActiveOrder(),
@@ -476,7 +538,14 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     if (!formName.trim()) return;
     const items = snap.items.map((i) =>
       i.id === editingItemId
-        ? { ...i, name: formName.trim(), quantity: formQty.trim(), price: formPrice.trim() }
+        ? {
+            ...i,
+            name: formName.trim(),
+            quantity: formQty.trim(),
+            unit: formUnit.trim(),
+            unitOptions: formUnitOptions,
+            price: formPrice.trim(),
+          }
         : i
     );
     pushList({ ...snap, items: dedupeItemsByName(items) });
@@ -494,7 +563,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           const snap = listRef.current;
           if (!snap) return;
           clearTimer(editingItemId);
-          pushList({ ...snap, items: snap.items.filter((i) => i.id !== editingItemId) });
+          const items = snap.items.filter((i) => i.id !== editingItemId);
+          void commitOrFinishList(snap, items);
           closeItemModal();
         },
       },
@@ -507,7 +577,11 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       return;
     }
     setVoiceTarget("name");
-    await startSpeech((t) => setFormName(toTitleCaseWords(t)));
+    await startSpeech((t) => {
+      const parsed = extractUnitFromText(t);
+      setFormName(toTitleCaseWords(parsed.cleanedName || t));
+      if (parsed.unit) setFormUnit(parsed.unit);
+    });
   };
 
   const onMicPrice = async () => {
@@ -525,7 +599,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const showBulkListInfo = () => {
     Alert.alert(
       "Bulk List by Voice — format",
-      "1) Say the QUANTITY first, then the item name.\n2) Say AND before the next item (you can use a comma instead of AND).\n\nExample: “one bear brand and two eggs and one coffee and three cheese and five apples”\nOr: “3 milk, 2 bread, 1 butter”\n\nTap the mic to start, tap again when finished. Bulk lines don’t get spoken prices—use Item Price and edit if needed."
+      "1) Say the QUANTITY first, then the item name.\n2) Say AND before the next item.\n\nExample: “one milk 1L and two eggs and one coffee 25g and three apples”\n\nTap the mic to start, tap again when finished. Bulk lines don’t get spoken prices—use Item Price and edit if needed."
     );
   };
 
@@ -571,6 +645,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           id: generateId(),
           name: toTitleCaseWords(p.name),
           quantity: p.quantity,
+          unit: p.unit,
+          unitOptions: p.unitOptions,
           price: p.price,
           checked: false,
           order: nextOrder++,
@@ -719,7 +795,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         <View
           style={[
             styles.qtyStepperShell,
-            showPriceInForm ? styles.qtyStepperShellCompact : styles.qtyStepperShellGrow,
+            showPriceInForm ? styles.qtyStepperShellCompact : styles.qtyStepperShellNarrow,
           ]}
         >
           <TouchableOpacity
@@ -784,18 +860,81 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               />
             </TouchableOpacity>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.unitInlineWrap}>
+            {formUnitOptions.length > 1 ? (
+              <TouchableOpacity
+                style={styles.unitSelectBtn}
+                onPress={() => setUnitMenuVisible(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Select unit"
+              >
+                <Text style={styles.unitSelectText}>{formUnit || "Select unit"}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
+              </TouchableOpacity>
+            ) : (
+              <TextInput
+                value={formUnit}
+                onChangeText={setFormUnit}
+                style={styles.unitInput}
+                placeholder="Unit"
+                placeholderTextColor={colors.placeholder}
+              />
+            )}
+          </View>
+        )}
       </View>
-      {isEdit ? (
-        <TouchableOpacity style={styles.saveBtn} onPress={onSaveEdit}>
-          <Ionicons name="save-outline" size={20} color="#fff" />
-          <Text style={styles.saveBtnText}>Save</Text>
-        </TouchableOpacity>
+      {showPriceInForm ? (
+        <View style={styles.submitRowCompact}>
+          <View style={styles.submitRowUnitWrap}>
+            {formUnitOptions.length > 1 ? (
+              <TouchableOpacity
+                style={styles.unitSelectBtnCompact}
+                onPress={() => setUnitMenuVisible(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Select unit"
+              >
+                <Text style={styles.unitSelectText}>{formUnit || "Unit"}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
+              </TouchableOpacity>
+            ) : (
+              <TextInput
+                value={formUnit}
+                onChangeText={setFormUnit}
+                style={styles.unitInputCompact}
+                placeholder="Unit"
+                placeholderTextColor={colors.placeholder}
+              />
+            )}
+          </View>
+          {isEdit ? (
+            <TouchableOpacity style={styles.saveBtnCompact} onPress={onSaveEdit}>
+              <Ionicons name="save-outline" size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>Save</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.addBtnCompact} onPress={onSaveAdd}>
+              <Ionicons name="add-circle-outline" size={18} color="#fff" />
+              <Text style={styles.addBtnText}>Add Item</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
-        <TouchableOpacity style={styles.addBtn} onPress={onSaveAdd}>
-          <Ionicons name="add-circle-outline" size={20} color="#fff" />
-          <Text style={styles.addBtnText}>Add Item</Text>
-        </TouchableOpacity>
+        <>
+          {isEdit ? (
+            <TouchableOpacity style={styles.saveBtn} onPress={onSaveEdit}>
+              <Ionicons name="save-outline" size={20} color="#fff" />
+              <Text style={styles.saveBtnText}>Save</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.addBtn} onPress={onSaveAdd}>
+              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>Add Item</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
     </View>
   );
@@ -850,6 +989,16 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             accessibilityLabel={isSelected ? "Deselect item" : "Select item"}
           />
         ) : null}
+        {!bulkMode ? (
+          <Pressable
+            style={styles.rowCardTapOverlay}
+            onPress={() => openEditModal(item)}
+            onLongPress={() => enterBulkMode(item.id)}
+            delayLongPress={650}
+            accessibilityRole="button"
+            accessibilityLabel="Edit item"
+          />
+        ) : null}
         {opts.draggable && opts.drag ? (
           <TouchableOpacity
             onLongPress={() => {
@@ -858,30 +1007,15 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             delayLongPress={120}
             style={styles.handle}
           >
-            <Ionicons name="reorder-three" size={26} color={colors.textTertiary} />
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         ) : (
           <View style={[styles.handle, { opacity: 0.35 }]}>
-            <Ionicons name="reorder-three" size={26} color={colors.borderMuted} />
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.borderMuted} />
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.rowTap}
-          onPress={() => {
-            if (bulkMode) {
-              toggleSelected(item.id);
-              return;
-            }
-            openEditModal(item);
-          }}
-          onLongPress={() => {
-            if (!bulkMode) enterBulkMode(item.id);
-          }}
-          delayLongPress={650}
-          disabled={isPending && !bulkMode}
-          activeOpacity={0.75}
-        >
+        <View style={styles.rowTap}>
           <View style={styles.rowTitleLine}>
             {item.quantity ? (
               <>
@@ -893,7 +1027,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             ) : null}
             <Text
               style={[styles.itemNameText, rowMuted && styles.strikeText]}
-              numberOfLines={2}
+              numberOfLines={1}
             >
               {item.name || "Item"}
             </Text>
@@ -915,9 +1049,14 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               </Text>
             ) : null}
           </View>
-        </TouchableOpacity>
+        </View>
 
         <View style={styles.actionCol}>
+          {item.unit ? (
+            <Text style={[styles.unitMetaText, rowMuted && styles.strikeText]} numberOfLines={1}>
+              {item.unit}
+            </Text>
+          ) : null}
           <TouchableOpacity
             style={styles.starBtn}
             onPress={() => {
@@ -1246,13 +1385,13 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               Bulk List by Voice
             </Text>
             <Text style={styles.bulkModalHint}>
-              Say quantity first, then name. Separate items with AND (or a comma).
+              Say quantity first, then name. Separate items with AND.
             </Text>
 
             <View style={styles.bulkFormatCard}>
-              <Text style={styles.bulkFormatLine}>“one bear brand and two eggs and one coffee”</Text>
-              <Text style={styles.bulkFormatSub}>or</Text>
-              <Text style={styles.bulkFormatLine}>“3 milk, 2 bread”</Text>
+              <Text style={styles.bulkFormatLine}>“one milk 1L and two eggs and one coffee 25g”</Text>
+              <Text style={styles.bulkFormatSub}>and</Text>
+              <Text style={styles.bulkFormatLine}>“3 bread and 1 butter 225g and 2 coke 500ml”</Text>
             </View>
 
             <TouchableOpacity
@@ -1268,6 +1407,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               accessibilityLabel={listening && voiceTarget === "bulk" ? "Stop listening" : "Start listening"}
             >
               <View style={styles.bulkMicFill} pointerEvents="none" />
+              <View style={styles.bulkMicOctagon} pointerEvents="none" />
               <Animated.View
                 style={[styles.bulkMicBlobA, micBlobAAnimatedStyle]}
                 pointerEvents="none"
@@ -1338,6 +1478,37 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 >
                   <Text style={styles.currencyListSymbol}>{c.symbol}</Text>
                   <Text style={styles.currencyListLabel}>{c.label}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={unitMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setUnitMenuVisible(false)}
+      >
+        <View style={styles.currencyModalRoot}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setUnitMenuVisible(false)} />
+          <View style={[styles.currencyListCard, { paddingBottom: insets.bottom + 12 }]}>
+            <Text style={styles.currencyListTitle}>Select unit</Text>
+            <Text style={styles.currencyListHint}>Available for this item</Text>
+            <FlatList
+              data={formUnitOptions}
+              keyExtractor={(u) => u}
+              style={styles.currencyFlatList}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item: u }) => (
+                <TouchableOpacity
+                  style={[styles.currencyListRow, u === formUnit && styles.currencyListRowActive]}
+                  onPress={() => {
+                    setFormUnit(u);
+                    setUnitMenuVisible(false);
+                  }}
+                >
+                  <Text style={styles.unitOptionText}>{u}</Text>
                 </TouchableOpacity>
               )}
             />

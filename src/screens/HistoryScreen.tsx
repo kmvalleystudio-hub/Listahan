@@ -86,14 +86,13 @@ function createHistoryStyles(c: AppThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
-      backgroundColor: c.accentBlueSoft,
+      backgroundColor: c.primary,
       borderRadius: 14,
       paddingVertical: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.accentBlueBorder,
+      borderWidth: 0,
     },
     copyBtnText: {
-      color: c.primary,
+      color: "#fff",
       fontWeight: "700",
       fontSize: 15,
     },
@@ -213,7 +212,7 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
           </View>
         </View>
         <TouchableOpacity style={styles.copyBtn} onPress={() => openPicker(item)}>
-          <Ionicons name="duplicate-outline" size={18} color={colors.primary} />
+          <Ionicons name="duplicate-outline" size={18} color="#fff" />
           <Text style={styles.copyBtnText}>Create new list using this</Text>
         </TouchableOpacity>
       </TouchableOpacity>

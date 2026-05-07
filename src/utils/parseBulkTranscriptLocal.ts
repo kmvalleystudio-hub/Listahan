@@ -1,20 +1,24 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const wordsToNumbers = require("words-to-numbers") as (s: string) => string | number | null;
 
+import { extractUnitFromText, lookupUnitsForItem } from "./productRegistry";
+
 export type ParsedBulkItem = {
   name: string;
   quantity: string;
+  unit: string;
+  unitOptions: string[];
   price: string;
 };
 
 /**
  * Each chunk should be: **quantity first**, then the item name.
- * Separate items with the word **AND** (or a comma). Example:
+ * Separate items with the word **AND**. Example:
  * `one bear brand and two eggs and one coffee`
  */
 function splitItemChunks(transcript: string): string[] {
   return transcript
-    .split(/\s*,\s*|\s+\band\b\s+/i)
+    .split(/\s+\band\b\s+/i)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -134,19 +138,38 @@ function parseOneChunk(chunk: string): ParsedBulkItem[] {
 
   const lead = parseLeadingQty(seg);
   if (lead && lead.name) {
-    return [{ name: lead.name, quantity: lead.qty, price: "" }];
+    const unitParsed = extractUnitFromText(lead.name);
+    const cleanName = unitParsed.cleanedName || lead.name;
+    const options = lookupUnitsForItem(cleanName);
+    return [
+      {
+        name: cleanName,
+        quantity: lead.qty,
+        unit: unitParsed.unit,
+        unitOptions: options,
+        price: "",
+      },
+    ];
   }
 
   const chained = parseNameQtyChain(seg);
   return chained.map((c) => ({
-    name: c.name,
+    ...(() => {
+      const unitParsed = extractUnitFromText(c.name);
+      const cleanName = unitParsed.cleanedName || c.name;
+      return {
+        name: cleanName,
+        unit: unitParsed.unit,
+        unitOptions: lookupUnitsForItem(cleanName),
+      };
+    })(),
     quantity: c.qty,
     price: "",
   }));
 }
 
 /**
- * Turn speech into rows: split on **AND** / commas, then **quantity-first** in each chunk.
+ * Turn speech into rows: split on **AND**, then **quantity-first** in each chunk.
  * Spoken prices in bulk are not parsed; `price` stays empty.
  */
 export function parseBulkTranscriptLocal(transcript: string): ParsedBulkItem[] {
@@ -165,6 +188,8 @@ export function parseBulkTranscriptLocal(transcript: string): ParsedBulkItem[] {
     .map((r) => ({
       name: r.name.replace(/\s+/g, " ").trim(),
       quantity: r.quantity.trim() || "1",
+      unit: r.unit.trim(),
+      unitOptions: r.unitOptions,
       price: r.price,
     }))
     .filter((r) => r.name.length > 0);

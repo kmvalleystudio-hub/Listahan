@@ -40,6 +40,8 @@ function cloneItemsForNewList(items: GroceryItem[]): GroceryItem[] {
       checked: false,
       checkPending: false,
       priority: Boolean(it.priority),
+      unit: String(it.unit ?? "").trim(),
+      unitOptions: Array.isArray(it.unitOptions) ? [...it.unitOptions] : [],
       order: idx,
     }))
   );

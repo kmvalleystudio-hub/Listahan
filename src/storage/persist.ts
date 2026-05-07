@@ -12,10 +12,18 @@ export type PersistShape = {
 };
 
 function sanitizeItem(item: GroceryItem): GroceryItem {
+  const unitOptions = Array.isArray(item.unitOptions)
+    ? item.unitOptions
+        .map((u) => String(u ?? "").trim())
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
   return {
     ...item,
     name: item.name ?? "",
     quantity: item.quantity ?? "",
+    unit: String(item.unit ?? "").trim(),
+    unitOptions,
     price: item.price ?? "",
     priority: Boolean(item.priority),
     checkPending: false,

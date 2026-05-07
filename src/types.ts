@@ -2,6 +2,10 @@ export type GroceryItem = {
   id: string;
   name: string;
   quantity: string;
+  /** Selected unit/size for this item (e.g. 500ml, 1kg, pack). */
+  unit?: string;
+  /** Item-specific selectable units (used by Add/Edit dropdown). */
+  unitOptions?: string[];
   price: string;
   /** When true, item is prioritized and floats to top. */
   priority?: boolean;
