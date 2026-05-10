@@ -57,7 +57,7 @@ import {
   tokenizeScanText,
 } from "../utils/scanOcrLexicon";
 import { extractUnitFromText, lookupUnitsForItem, resolveTrustedProductName } from "../utils/productRegistry";
-import { useTheme } from "../context/ThemeContext";
+import { useToolTheme } from "../hooks/useToolTheme";
 import { createListDetailStyles } from "./listDetailStyles";
 
 function nowIso(): string {
@@ -88,7 +88,7 @@ const SCAN_DEBUG_PICKER_ALERTS = false;
 
 export default function ListDetailScreen({ navigation, route }: ListDetailProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors } = useToolTheme("grocery");
   const styles = useMemo(() => createListDetailStyles(colors), [colors]);
   const { listId, autoOpenAdd = false } = route.params;
   const { lists, upsertList, archiveCompletedList } = useAppData();
@@ -296,7 +296,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         finishingListRef.current = true;
         try {
           await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: snap.id });
+          navigation.replace("AllDone", { listId: snap.id, tool: "grocery" });
         } catch {
           finishingListRef.current = false;
         }
@@ -325,7 +325,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         finishingListRef.current = true;
         try {
           await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: base.id });
+          navigation.replace("AllDone", { listId: base.id, tool: "grocery" });
         } catch {
           finishingListRef.current = false;
         }

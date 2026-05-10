@@ -1,31 +1,57 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { AllDoneProps } from "../navigation/types";
+import { useToolTheme } from "../hooks/useToolTheme";
+import type { ToolId } from "../constants/toolsCatalog";
 
-export default function AllDoneScreen({ navigation }: AllDoneProps) {
+export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
   const insets = useSafeAreaInsets();
+  const tool: ToolId = route.params.tool === "todo" ? "todo" : "grocery";
+  const { colors } = useToolTheme(tool);
+
+  const subtitle = useMemo(
+    () =>
+      tool === "todo"
+        ? "Nice work — everything is checked off."
+        : "Nice work — enjoy unpacking.",
+    [tool]
+  );
+
+  const homeName = tool === "todo" ? "TodoHome" : "GroceryHome";
 
   useEffect(() => {
     const t = setTimeout(() => {
-      navigation.navigate("Home");
+      navigation.navigate(homeName);
     }, 2800);
     return () => clearTimeout(t);
-  }, [navigation]);
+  }, [navigation, homeName]);
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
+    <View
+      style={[
+        styles.screen,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 16,
+          backgroundColor: colors.primaryDark,
+        },
+      ]}
+    >
       <View style={styles.center}>
         <View style={styles.iconWrap}>
           <Ionicons name="checkmark" size={72} color="#fff" />
         </View>
         <Text style={styles.title}>All Done!</Text>
-        <Text style={styles.subtitle}>Nice work — enjoy unpacking.</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
 
-      <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate("Home")}>
-        <Text style={styles.btnText}>Back to Lists</Text>
+      <TouchableOpacity
+        style={styles.btn}
+        onPress={() => navigation.navigate(homeName)}
+      >
+        <Text style={[styles.btnText, { color: colors.primaryDark }]}>Back to Lists</Text>
       </TouchableOpacity>
     </View>
   );
@@ -34,7 +60,6 @@ export default function AllDoneScreen({ navigation }: AllDoneProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#16a34a",
     paddingHorizontal: 24,
   },
   center: {
@@ -72,6 +97,5 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#15803d",
   },
 });

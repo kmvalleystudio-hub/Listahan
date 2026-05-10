@@ -51,6 +51,9 @@ export type AppThemeColors = {
   iosSwitchBg: string;
   micIcon: string;
   linkBlue: string;
+  /** Home/list card icon blob (tool dashboard palette). */
+  iconBlobBg: string;
+  iconBlobFg: string;
 };
 
 export const lightColors: AppThemeColors = {
@@ -106,6 +109,8 @@ export const lightColors: AppThemeColors = {
   iosSwitchBg: "#d1d5db",
   micIcon: "#c2410c",
   linkBlue: "#7A872C",
+  iconBlobBg: "#E4EAC4",
+  iconBlobFg: "#5F6F22",
 };
 
 export const darkColors: AppThemeColors = {
@@ -161,4 +166,6 @@ export const darkColors: AppThemeColors = {
   iosSwitchBg: "#475569",
   micIcon: "#fb923c",
   linkBlue: "#BAC67A",
+  iconBlobBg: "#E4EAC4",
+  iconBlobFg: "#BAC67A",
 };

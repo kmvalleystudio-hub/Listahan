@@ -7,12 +7,19 @@ import { StatusBar } from "expo-status-bar";
 import { AppDataProvider } from "./src/context/AppDataContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import type { RootStackParamList } from "./src/navigation/types";
-import HomeScreen from "./src/screens/HomeScreen";
+import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
+import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
+import ToolPlaceholderScreen from "./src/screens/ToolPlaceholderScreen";
 import CreateListScreen from "./src/screens/CreateListScreen";
 import ListDetailScreen from "./src/screens/ListDetailScreen";
 import HistoryScreen from "./src/screens/HistoryScreen";
 import CompletedListPreviewScreen from "./src/screens/CompletedListPreviewScreen";
 import AllDoneScreen from "./src/screens/AllDoneScreen";
+import TodoHomeScreen from "./src/screens/TodoHomeScreen";
+import TodoCreateListScreen from "./src/screens/TodoCreateListScreen";
+import TodoListDetailScreen from "./src/screens/TodoListDetailScreen";
+import TodoRecentScreen from "./src/screens/TodoRecentScreen";
+import TodoRecentPreviewScreen from "./src/screens/TodoRecentPreviewScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -39,12 +46,24 @@ function NavigationRoot() {
     <NavigationContainer theme={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack.Navigator
+        initialRouteName="ToolsDashboard"
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
+        <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
+        <Stack.Screen name="ToolPlaceholder" component={ToolPlaceholderScreen} />
+        <Stack.Screen name="TodoHome" component={TodoHomeScreen} />
+        <Stack.Screen
+          name="TodoCreateList"
+          component={TodoCreateListScreen}
+          options={{ presentation: "modal" }}
+        />
+        <Stack.Screen name="TodoListDetail" component={TodoListDetailScreen} />
+        <Stack.Screen name="TodoRecent" component={TodoRecentScreen} />
+        <Stack.Screen name="TodoRecentPreview" component={TodoRecentPreviewScreen} />
         <Stack.Screen
           name="CreateList"
           component={CreateListScreen}

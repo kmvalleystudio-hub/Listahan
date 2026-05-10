@@ -39,3 +39,30 @@ export type HistoryEntry = {
   showItemPrice: boolean;
   currencySymbol: string;
 };
+
+export type TodoItem = {
+  id: string;
+  name: string;
+  priority?: boolean;
+  checked: boolean;
+  checkPending?: boolean;
+  order: number;
+};
+
+export type TodoList = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: TodoItem[];
+  pinned?: boolean;
+};
+
+export type TodoHistoryEntry = {
+  id: string;
+  sourceListId?: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: TodoItem[];
+};

@@ -12,20 +12,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import type { HistoryProps } from "../navigation/types";
+import type { TodoRecentProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import type { HistoryEntry } from "../types";
-import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
-import { formatMoney, totalFromItems } from "../utils/money";
+import type { TodoHistoryEntry } from "../types";
 
 function createHistoryStyles(c: AppThemeColors) {
   return StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: c.background,
-    },
+    screen: { flex: 1, backgroundColor: c.background },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -33,27 +28,10 @@ function createHistoryStyles(c: AppThemeColors) {
       paddingHorizontal: 12,
       paddingBottom: 8,
     },
-    back: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 8,
-      width: 72,
-    },
-    backText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: c.text,
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: c.text,
-    },
-    list: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      gap: 12,
-    },
+    back: { flexDirection: "row", alignItems: "center", padding: 8, width: 72 },
+    backText: { fontSize: 16, fontWeight: "600", color: c.text },
+    title: { fontSize: 18, fontWeight: "800", color: c.text },
+    list: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
     card: {
       backgroundColor: c.card,
       borderRadius: 16,
@@ -67,20 +45,9 @@ function createHistoryStyles(c: AppThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    cardTop: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    cardTitle: {
-      fontSize: 17,
-      fontWeight: "700",
-      color: c.text,
-    },
-    cardMeta: {
-      marginTop: 6,
-      fontSize: 13,
-      color: c.placeholder,
-    },
+    cardTop: { flexDirection: "row", gap: 12 },
+    cardTitle: { fontSize: 17, fontWeight: "700", color: c.text },
+    cardMeta: { marginTop: 6, fontSize: 13, color: c.placeholder },
     copyBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -89,30 +56,11 @@ function createHistoryStyles(c: AppThemeColors) {
       backgroundColor: c.primary,
       borderRadius: 14,
       paddingVertical: 14,
-      borderWidth: 0,
     },
-    copyBtnText: {
-      color: "#fff",
-      fontWeight: "700",
-      fontSize: 15,
-    },
-    empty: {
-      alignItems: "center",
-      paddingVertical: 48,
-      paddingHorizontal: 16,
-    },
-    emptyTitle: {
-      marginTop: 10,
-      fontSize: 17,
-      fontWeight: "700",
-      color: c.textTertiary,
-    },
-    emptyText: {
-      marginTop: 6,
-      fontSize: 14,
-      color: c.placeholder,
-      textAlign: "center",
-    },
+    copyBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+    empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 16 },
+    emptyTitle: { marginTop: 10, fontSize: 17, fontWeight: "700", color: c.textTertiary },
+    emptyText: { marginTop: 6, fontSize: 14, color: c.placeholder, textAlign: "center" },
     modalBackdrop: {
       flex: 1,
       backgroundColor: c.overlayStrong,
@@ -127,11 +75,7 @@ function createHistoryStyles(c: AppThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: c.text,
-    },
+    modalTitle: { fontSize: 18, fontWeight: "800", color: c.text },
     modalInput: {
       borderWidth: 1,
       borderColor: c.border,
@@ -142,82 +86,61 @@ function createHistoryStyles(c: AppThemeColors) {
       color: c.text,
       backgroundColor: c.inputBg,
     },
-    modalRow: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      gap: 10,
-      marginTop: 4,
-    },
-    modalGhost: {
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-    },
-    modalGhostText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: c.textTertiary,
-    },
+    modalRow: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 4 },
+    modalGhost: { paddingVertical: 12, paddingHorizontal: 14 },
+    modalGhostText: { fontSize: 16, fontWeight: "600", color: c.textTertiary },
     modalPrimary: {
       backgroundColor: c.primary,
       borderRadius: 12,
       paddingVertical: 12,
       paddingHorizontal: 18,
     },
-    modalPrimaryText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "700",
-    },
+    modalPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   });
 }
 
-export default function HistoryScreen({ navigation }: HistoryProps) {
+export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("grocery");
+  const { colors } = useToolTheme("todo");
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
-  const { history, createListFromHistory } = useAppData();
-  const [picker, setPicker] = useState<HistoryEntry | null>(null);
+  const { todoHistory, createTodoListFromHistory } = useAppData();
+  const [picker, setPicker] = useState<TodoHistoryEntry | null>(null);
   const [newName, setNewName] = useState("");
 
-  const openPicker = (h: HistoryEntry) => {
+  const openPicker = (h: TodoHistoryEntry) => {
     setNewName(`Copy of ${h.name}`);
     setPicker(h);
   };
 
   const confirmCopy = async () => {
     if (!picker) return;
-    const list = await createListFromHistory(picker.id, newName);
+    const list = await createTodoListFromHistory(picker.id, newName);
     setPicker(null);
-    if (list) navigation.navigate("ListDetail", { listId: list.id });
+    if (list) navigation.navigate("TodoListDetail", { listId: list.id });
   };
 
-  const renderItem = ({ item }: { item: HistoryEntry }) => {
-    const sym = item.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL;
-    const listTotal = totalFromItems(item.items);
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.92}
-        onPress={() => navigation.navigate("CompletedListPreview", { historyId: item.id })}
-      >
-        <View style={styles.cardTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.name}
-            </Text>
-            <Text style={styles.cardMeta}>
-              {new Date(item.updatedAt).toLocaleString()} · {item.items.length} items
-              {item.showItemPrice ? ` · Total ${formatMoney(listTotal, sym)}` : ""}
-            </Text>
-          </View>
+  const renderItem = ({ item }: { item: TodoHistoryEntry }) => (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.92}
+      onPress={() => navigation.navigate("TodoRecentPreview", { historyId: item.id })}
+    >
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={styles.cardMeta}>
+            {new Date(item.updatedAt).toLocaleString()} · {item.items.length} tasks
+          </Text>
         </View>
-        <TouchableOpacity style={styles.copyBtn} onPress={() => openPicker(item)}>
-          <Ionicons name="duplicate-outline" size={18} color="#fff" />
-          <Text style={styles.copyBtnText}>Create new list using this</Text>
-        </TouchableOpacity>
+      </View>
+      <TouchableOpacity style={styles.copyBtn} onPress={() => openPicker(item)}>
+        <Ionicons name="duplicate-outline" size={18} color="#fff" />
+        <Text style={styles.copyBtnText}>Create new list using this</Text>
       </TouchableOpacity>
-    );
-  };
+    </TouchableOpacity>
+  );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
@@ -226,25 +149,22 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
           <Ionicons name="chevron-back" size={22} color={colors.text} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Completed lists</Text>
+        <Text style={styles.title}>Recent</Text>
         <View style={{ width: 72 }} />
       </View>
 
       <FlatList
-        data={history}
+        data={todoHistory}
         keyExtractor={(h) => h.id}
         renderItem={renderItem}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: insets.bottom + 24 },
-        ]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="file-tray-outline" size={44} color={colors.borderMuted} />
             <Text style={styles.emptyTitle}>No completed lists yet</Text>
             <Text style={styles.emptyText}>
-              When you check off every item on a list, it moves here. You can start a new list from any
-              snapshot.
+              When you check off every task on a list, it moves here. Reuse any snapshot as a template
+              for a new list.
             </Text>
           </View>
         }
@@ -268,7 +188,7 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
               <TouchableOpacity style={styles.modalGhost} onPress={() => setPicker(null)}>
                 <Text style={styles.modalGhostText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalPrimary} onPress={confirmCopy}>
+              <TouchableOpacity style={styles.modalPrimary} onPress={() => void confirmCopy()}>
                 <Text style={styles.modalPrimaryText}>Create</Text>
               </TouchableOpacity>
             </View>

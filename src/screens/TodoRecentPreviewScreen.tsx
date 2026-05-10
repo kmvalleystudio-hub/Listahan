@@ -12,20 +12,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import type { CompletedListPreviewProps } from "../navigation/types";
+import type { TodoRecentPreviewProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import type { GroceryItem } from "../types";
-import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
-import { formatMoney, lineTotal, totalFromItems } from "../utils/money";
+import type { TodoItem } from "../types";
 
 function createPreviewStyles(c: AppThemeColors) {
   return StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: c.background,
-    },
+    screen: { flex: 1, backgroundColor: c.background },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -33,44 +28,13 @@ function createPreviewStyles(c: AppThemeColors) {
       paddingHorizontal: 12,
       paddingBottom: 8,
     },
-    back: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 8,
-      width: 72,
-    },
-    backText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: c.text,
-    },
-    headerTitle: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: c.text,
-      flex: 1,
-      textAlign: "center",
-    },
-    scrollContent: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-    },
-    listName: {
-      fontSize: 22,
-      fontWeight: "800",
-      color: c.text,
-    },
-    listMeta: {
-      marginTop: 6,
-      fontSize: 14,
-      color: c.textTertiary,
-    },
-    hint: {
-      marginTop: 10,
-      fontSize: 13,
-      color: c.placeholder,
-      lineHeight: 18,
-    },
+    back: { flexDirection: "row", alignItems: "center", padding: 8, width: 72 },
+    backText: { fontSize: 16, fontWeight: "600", color: c.text },
+    headerTitle: { fontSize: 18, fontWeight: "800", color: c.text, flex: 1, textAlign: "center" },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
+    listName: { fontSize: 22, fontWeight: "800", color: c.text },
+    listMeta: { marginTop: 6, fontSize: 14, color: c.textTertiary },
+    hint: { marginTop: 10, fontSize: 13, color: c.placeholder, lineHeight: 18 },
     itemsCard: {
       marginTop: 16,
       backgroundColor: c.card,
@@ -85,18 +49,8 @@ function createPreviewStyles(c: AppThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
-    rowBody: {
-      gap: 4,
-    },
-    rowName: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: c.text,
-    },
-    rowSub: {
-      fontSize: 14,
-      color: c.textTertiary,
-    },
+    rowName: { fontSize: 16, fontWeight: "700", color: c.text },
+    rowSub: { fontSize: 14, color: c.textTertiary, marginTop: 4 },
     footer: {
       position: "absolute",
       left: 0,
@@ -115,11 +69,7 @@ function createPreviewStyles(c: AppThemeColors) {
       justifyContent: "center",
       gap: 10,
     },
-    primaryBtnText: {
-      color: "#fff",
-      fontSize: 17,
-      fontWeight: "700",
-    },
+    primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
     modalBackdrop: {
       flex: 1,
       backgroundColor: c.overlayStrong,
@@ -134,11 +84,7 @@ function createPreviewStyles(c: AppThemeColors) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: c.text,
-    },
+    modalTitle: { fontSize: 18, fontWeight: "800", color: c.text },
     modalInput: {
       borderWidth: 1,
       borderColor: c.border,
@@ -149,77 +95,38 @@ function createPreviewStyles(c: AppThemeColors) {
       color: c.text,
       backgroundColor: c.inputBg,
     },
-    modalRow: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      gap: 10,
-      marginTop: 4,
-    },
-    modalGhost: {
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-    },
-    modalGhostText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: c.textTertiary,
-    },
+    modalRow: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 4 },
+    modalGhost: { paddingVertical: 12, paddingHorizontal: 14 },
+    modalGhostText: { fontSize: 16, fontWeight: "600", color: c.textTertiary },
     modalPrimary: {
       backgroundColor: c.primary,
       borderRadius: 12,
       paddingVertical: 12,
       paddingHorizontal: 18,
     },
-    modalPrimaryText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "700",
-    },
+    modalPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   });
 }
 
-function PreviewRow({
-  item,
-  showPrice,
-  sym,
-  styles: s,
-}: {
-  item: GroceryItem;
-  showPrice: boolean;
-  sym: string;
-  styles: ReturnType<typeof createPreviewStyles>;
-}) {
-  const qty = item.quantity?.trim() || "—";
-  const unit = item.unit?.trim() || "";
-  const lt = lineTotal(item.price, item.quantity);
+function PreviewRow({ item, styles: s }: { item: TodoItem; styles: ReturnType<typeof createPreviewStyles> }) {
   return (
     <View style={s.row}>
-      <View style={s.rowBody}>
-        <Text style={s.rowName}>{item.name}</Text>
-        <Text style={s.rowSub}>
-          Qty {qty}
-          {unit ? ` ${unit}` : ""}
-          {showPrice ? (
-            <>
-              {" · "}
-              {item.price ? `${sym}${item.price}` : "—"}
-              {" · "}
-              {formatMoney(lt, sym)}
-            </>
-          ) : null}
-        </Text>
-      </View>
+      <Text style={s.rowName}>{item.name}</Text>
+      <Text style={s.rowSub}>{item.priority ? "Prioritized · " : ""}Completed snapshot</Text>
     </View>
   );
 }
 
-export default function CompletedListPreviewScreen({ navigation, route }: CompletedListPreviewProps) {
+export default function TodoRecentPreviewScreen({ navigation, route }: TodoRecentPreviewProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("grocery");
+  const { colors } = useToolTheme("todo");
   const styles = useMemo(() => createPreviewStyles(colors), [colors]);
   const { historyId } = route.params;
-  const { history, createListFromHistory } = useAppData();
-  const entry = useMemo(() => history.find((h) => h.id === historyId) ?? null, [history, historyId]);
+  const { todoHistory, createTodoListFromHistory } = useAppData();
+  const entry = useMemo(
+    () => todoHistory.find((h) => h.id === historyId) ?? null,
+    [todoHistory, historyId]
+  );
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -230,9 +137,9 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
 
   const confirmCopy = async () => {
     if (!entry) return;
-    const list = await createListFromHistory(entry.id, newName);
+    const list = await createTodoListFromHistory(entry.id, newName);
     setPickerOpen(false);
-    if (list) navigation.replace("ListDetail", { listId: list.id });
+    if (list) navigation.replace("TodoListDetail", { listId: list.id });
   };
 
   const openCreateModal = () => {
@@ -243,10 +150,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
 
   if (!entry) return null;
 
-  const sym = entry.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL;
-  const showPrice = entry.showItemPrice;
   const sortedItems = [...entry.items].sort((a, b) => a.order - b.order);
-  const grandTotal = totalFromItems(entry.items);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
@@ -262,22 +166,20 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 120 },
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.listName}>{entry.name}</Text>
         <Text style={styles.listMeta}>
-          {new Date(entry.updatedAt).toLocaleString()} · {entry.items.length} items
-          {showPrice ? ` · Total ${formatMoney(grandTotal, sym)}` : ""}
+          {new Date(entry.updatedAt).toLocaleString()} · {entry.items.length} tasks
         </Text>
-        <Text style={styles.hint}>Read-only snapshot — use the button below to start a new list from this.</Text>
+        <Text style={styles.hint}>
+          Read-only snapshot — use the button below to start a new list from this template.
+        </Text>
 
         <View style={styles.itemsCard}>
           {sortedItems.map((item) => (
-            <PreviewRow key={item.id} item={item} showPrice={showPrice} sym={sym} styles={styles} />
+            <PreviewRow key={item.id} item={item} styles={styles} />
           ))}
         </View>
       </ScrollView>

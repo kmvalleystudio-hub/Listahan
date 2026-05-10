@@ -13,27 +13,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import type { HomeProps } from "../navigation/types";
+import type { TodoHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useTheme } from "../context/ThemeContext";
+import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import type { GroceryList } from "../types";
+import type { TodoList } from "../types";
 
 type ListSection = {
   title: string;
-  data: GroceryList[];
+  data: TodoList[];
 };
 
-function byUpdatedDesc(a: GroceryList, b: GroceryList): number {
+function byUpdatedDesc(a: TodoList, b: TodoList): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-function createHomeStyles(c: AppThemeColors) {
+function createStyles(c: AppThemeColors) {
   return StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: c.background,
-    },
+    screen: { flex: 1, backgroundColor: c.background },
     header: {
       paddingHorizontal: 20,
       paddingBottom: 12,
@@ -42,25 +39,12 @@ function createHomeStyles(c: AppThemeColors) {
       justifyContent: "space-between",
       gap: 12,
     },
-    headerTextCol: {
-      flex: 1,
-      minWidth: 0,
-    },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: "800",
-      color: c.text,
-    },
-    subtitle: {
-      marginTop: 4,
-      fontSize: 15,
-      color: c.textTertiary,
-    },
+    headerTextCol: { flex: 1, minWidth: 0 },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+    backRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
+    backTextSmall: { fontSize: 14, fontWeight: "600", color: c.linkBlue },
+    title: { fontSize: 28, fontWeight: "800", color: c.text },
+    subtitle: { marginTop: 4, fontSize: 15, color: c.textTertiary },
     iconBtn: {
       width: 44,
       height: 44,
@@ -68,24 +52,11 @@ function createHomeStyles(c: AppThemeColors) {
       backgroundColor: c.historyBtnBg,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: c.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 2,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    listContent: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      gap: 12,
-    },
-    sectionHeader: {
-      paddingHorizontal: 4,
-      paddingTop: 4,
-      paddingBottom: 2,
-    },
+    listContent: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+    sectionHeader: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 2 },
     sectionTitle: {
       fontSize: 12,
       fontWeight: "800",
@@ -93,34 +64,17 @@ function createHomeStyles(c: AppThemeColors) {
       letterSpacing: 0.6,
       textTransform: "uppercase",
     },
-    sectionRule: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: c.borderMuted,
-      marginTop: 8,
-    },
+    sectionRule: { height: StyleSheet.hairlineWidth, backgroundColor: c.borderMuted, marginTop: 8 },
     card: {
       backgroundColor: c.card,
       borderRadius: 16,
       padding: 16,
-      shadowColor: c.shadow,
-      shadowOpacity: 0.06,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 2,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
-    cardPressed: {
-      opacity: 0.92,
-    },
-    cardRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    pinIcon: {
-      marginRight: -4,
-    },
+    cardPressed: { opacity: 0.92 },
+    cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    pinIcon: { marginRight: -4 },
     cardIconBlob: {
       width: 48,
       height: 46,
@@ -128,51 +82,17 @@ function createHomeStyles(c: AppThemeColors) {
       borderTopRightRadius: 14,
       borderBottomLeftRadius: 18,
       borderBottomRightRadius: 26,
-      backgroundColor: c.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: c.primaryDark,
-      shadowOpacity: 0.35,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 3,
-    },
-    cardBody: {
-      flex: 1,
-      minWidth: 0,
-    },
-    cardTitle: {
-      fontSize: 17,
-      fontWeight: "700",
-      color: c.text,
-    },
-    cardMeta: {
-      marginTop: 4,
-      fontSize: 13,
-      color: c.placeholder,
-    },
-    empty: {
-      alignItems: "center",
-      paddingVertical: 48,
-      paddingHorizontal: 24,
-    },
-    emptyTitle: {
-      marginTop: 12,
-      fontSize: 18,
-      fontWeight: "700",
-      color: c.textTertiary,
-    },
-    emptyText: {
-      marginTop: 6,
-      fontSize: 14,
-      color: c.placeholder,
-      textAlign: "center",
-    },
-    center: {
-      flex: 1,
+      backgroundColor: c.iconBlobBg,
       alignItems: "center",
       justifyContent: "center",
     },
+    cardBody: { flex: 1, minWidth: 0 },
+    cardTitle: { fontSize: 17, fontWeight: "700", color: c.text },
+    cardMeta: { marginTop: 4, fontSize: 13, color: c.placeholder },
+    empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 24 },
+    emptyTitle: { marginTop: 12, fontSize: 18, fontWeight: "700", color: c.textTertiary },
+    emptyText: { marginTop: 6, fontSize: 14, color: c.placeholder, textAlign: "center" },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
     footer: {
       position: "absolute",
       left: 0,
@@ -190,39 +110,16 @@ function createHomeStyles(c: AppThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
-      shadowColor: c.primaryDark,
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 4,
     },
-    primaryBtnText: {
-      color: "#fff",
-      fontSize: 17,
-      fontWeight: "700",
-    },
-    menuBackdrop: {
-      flex: 1,
-      backgroundColor: c.overlayStrong,
-    },
-    menuBackdropInner: {
-      flex: 1,
-      justifyContent: "center",
-      padding: 24,
-    },
-    menuCardWrap: {
-      alignSelf: "stretch",
-    },
+    primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+    menuBackdrop: { flex: 1, backgroundColor: c.overlayStrong },
+    menuBackdropInner: { flex: 1, justifyContent: "center", padding: 24 },
+    menuCardWrap: { alignSelf: "stretch" },
     menuCard: {
       backgroundColor: c.card,
       borderRadius: 18,
       padding: 8,
       gap: 4,
-      shadowColor: c.shadow,
-      shadowOpacity: 0.12,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 8,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
     },
@@ -235,15 +132,8 @@ function createHomeStyles(c: AppThemeColors) {
       paddingBottom: 12,
       gap: 8,
     },
-    menuListName: {
-      flex: 1,
-      fontSize: 18,
-      fontWeight: "800",
-      color: c.text,
-    },
-    menuClose: {
-      padding: 4,
-    },
+    menuListName: { flex: 1, fontSize: 18, fontWeight: "800", color: c.text },
+    menuClose: { padding: 4 },
     menuRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -253,11 +143,7 @@ function createHomeStyles(c: AppThemeColors) {
       borderRadius: 12,
       backgroundColor: c.inputBg,
     },
-    menuRowText: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: c.text,
-    },
+    menuRowText: { fontSize: 16, fontWeight: "700", color: c.text },
     menuRowDanger: {
       flexDirection: "row",
       alignItems: "center",
@@ -267,20 +153,16 @@ function createHomeStyles(c: AppThemeColors) {
       borderRadius: 12,
       backgroundColor: c.trashBg,
     },
-    menuRowTextDanger: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: c.danger,
-    },
+    menuRowTextDanger: { fontSize: 16, fontWeight: "700", color: c.danger },
   });
 }
 
-export default function HomeScreen({ navigation }: HomeProps) {
+export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors, isDark, toggleScheme } = useTheme();
-  const styles = useMemo(() => createHomeStyles(colors), [colors]);
-  const { lists, loading, removeList, upsertList } = useAppData();
-  const [menuList, setMenuList] = useState<GroceryList | null>(null);
+  const { colors } = useToolTheme("todo");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { todoLists, loading, removeTodoList, upsertTodoList } = useAppData();
+  const [menuList, setMenuList] = useState<TodoList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -289,21 +171,17 @@ export default function HomeScreen({ navigation }: HomeProps) {
       return;
     }
     menuFade.setValue(0);
-    Animated.timing(menuFade, {
-      toValue: 1,
-      duration: 110,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(menuFade, { toValue: 1, duration: 110, useNativeDriver: true }).start();
   }, [menuList]);
 
   const sections = useMemo((): ListSection[] => {
-    const pinned = lists.filter((l) => l.pinned).sort(byUpdatedDesc);
-    const normal = lists.filter((l) => !l.pinned).sort(byUpdatedDesc);
+    const pinned = todoLists.filter((l) => l.pinned).sort(byUpdatedDesc);
+    const normal = todoLists.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
     if (normal.length) out.push({ title: pinned.length ? "Lists" : "", data: normal });
     return out;
-  }, [lists]);
+  }, [todoLists]);
 
   const closeMenu = () => setMenuList(null);
 
@@ -311,12 +189,12 @@ export default function HomeScreen({ navigation }: HomeProps) {
     if (!menuList) return;
     const id = menuList.id;
     closeMenu();
-    navigation.navigate("ListDetail", { listId: id });
+    navigation.navigate("TodoListDetail", { listId: id });
   };
 
   const prioritizeFromMenu = () => {
     if (!menuList) return;
-    void upsertList({ ...menuList, pinned: true });
+    void upsertTodoList({ ...menuList, pinned: true });
     closeMenu();
   };
 
@@ -329,29 +207,28 @@ export default function HomeScreen({ navigation }: HomeProps) {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => void removeList(target.id),
+        onPress: () => void removeTodoList(target.id),
       },
     ]);
   };
 
-  const renderItem = ({ item }: { item: GroceryList }) => (
+  const renderItem = ({ item }: { item: TodoList }) => (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => navigation.navigate("ListDetail", { listId: item.id })}
+      onPress={() => navigation.navigate("TodoListDetail", { listId: item.id })}
       onLongPress={() => setMenuList(item)}
       delayLongPress={800}
-      accessibilityHint="Hold briefly to open list options"
     >
       <View style={styles.cardRow}>
         <View style={styles.cardIconBlob}>
-          <Ionicons name="cart" size={22} color="#fff" />
+          <Ionicons name="checkmark-circle" size={22} color={colors.iconBlobFg} />
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {item.name}
           </Text>
           <Text style={styles.cardMeta}>
-            {item.items.length} item{item.items.length === 1 ? "" : "s"} · Updated{" "}
+            {item.items.length} task{item.items.length === 1 ? "" : "s"} · Updated{" "}
             {new Date(item.updatedAt).toLocaleDateString()}
           </Text>
         </View>
@@ -367,23 +244,24 @@ export default function HomeScreen({ navigation }: HomeProps) {
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
         <View style={styles.headerTextCol}>
-          <Text style={styles.title}>SayCart</Text>
-          <Text style={styles.subtitle}>Your grocery lists</Text>
+          <TouchableOpacity
+            style={styles.backRow}
+            onPress={() => navigation.navigate("ToolsDashboard")}
+            accessibilityRole="button"
+            accessibilityLabel="Back to tools"
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.linkBlue} />
+            <Text style={styles.backTextSmall}>Tools</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>To-do lists</Text>
+          <Text style={styles.subtitle}>Simple tasks — check them off when done</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={toggleScheme}
+            onPress={() => navigation.navigate("TodoRecent")}
             accessibilityRole="button"
-            accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => navigation.navigate("History")}
-            accessibilityRole="button"
-            accessibilityLabel="Open completed lists"
+            accessibilityLabel="Recent completed lists"
           >
             <Ionicons name="time-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -407,16 +285,13 @@ export default function HomeScreen({ navigation }: HomeProps) {
               </View>
             ) : null
           }
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 120 },
-          ]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
           stickySectionHeadersEnabled={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="basket-outline" size={48} color={colors.borderMuted} />
+              <Ionicons name="checkbox-outline" size={48} color={colors.borderMuted} />
               <Text style={styles.emptyTitle}>No lists yet</Text>
-              <Text style={styles.emptyText}>Create your first grocery list below.</Text>
+              <Text style={styles.emptyText}>Create your first to-do list below.</Text>
             </View>
           }
           SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -426,7 +301,7 @@ export default function HomeScreen({ navigation }: HomeProps) {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() => navigation.navigate("CreateList")}
+          onPress={() => navigation.navigate("TodoCreateList")}
           activeOpacity={0.9}
         >
           <Ionicons name="add-circle-outline" size={22} color="#fff" />
@@ -444,12 +319,7 @@ export default function HomeScreen({ navigation }: HomeProps) {
                   <Text style={styles.menuListName} numberOfLines={2}>
                     {menuList?.name}
                   </Text>
-                  <TouchableOpacity
-                    onPress={closeMenu}
-                    style={styles.menuClose}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close menu"
-                  >
+                  <TouchableOpacity onPress={closeMenu} style={styles.menuClose}>
                     <Ionicons name="close" size={26} color={colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
@@ -457,19 +327,11 @@ export default function HomeScreen({ navigation }: HomeProps) {
                   <Ionicons name="open-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuRow}
-                  onPress={prioritizeFromMenu}
-                  activeOpacity={0.85}
-                >
+                <TouchableOpacity style={styles.menuRow} onPress={prioritizeFromMenu} activeOpacity={0.85}>
                   <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Prioritize</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuRowDanger}
-                  onPress={deleteFromMenu}
-                  activeOpacity={0.85}
-                >
+                <TouchableOpacity style={styles.menuRowDanger} onPress={deleteFromMenu} activeOpacity={0.85}>
                   <Ionicons name="trash-outline" size={22} color={colors.danger} />
                   <Text style={styles.menuRowTextDanger}>Delete</Text>
                 </TouchableOpacity>
