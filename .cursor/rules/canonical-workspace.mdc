@@ -1,0 +1,10 @@
+---
+description: Use only C:\SayCart for edits; never write to the stale .cursor mirror.
+alwaysApply: true
+---
+
+# Canonical workspace
+
+- **All new files, edits, Git commits, and Expo/Metro runs** use this repo root: `C:\SayCart`.
+- **Do not create, modify, or save project files** under `C:\Users\admin\.cursor\projects\SayCart` (or similar Cursor cache paths). That tree is a **stale mirror** for reference only, to avoid duplicate/conflicting copies.
+- If comparing old snapshots, **read-only** reference is OK; **never** persist work there.
