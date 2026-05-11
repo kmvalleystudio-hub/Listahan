@@ -1,4 +1,5 @@
-import React, { useMemo, type ComponentProps } from "react";
+import React, { useCallback, useMemo, type ComponentProps } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import { TOOLS_CATALOG, type ToolDefinition } from "../constants/toolsCatalog";
 import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
 import { rgbaFromHex } from "../theme/toolTheme";
+import { usePrivateVault } from "../context/PrivateVaultContext";
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 
@@ -129,6 +131,13 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleScheme } = useTheme();
   const styles = useMemo(() => createDashboardStyles(colors), [colors]);
+  const { lock } = usePrivateVault();
+
+  useFocusEffect(
+    useCallback(() => {
+      lock();
+    }, [lock])
+  );
 
   const onToolPress = (tool: ToolDefinition) => {
     if (tool.status !== "live") {
@@ -137,6 +146,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
     }
     if (tool.id === "grocery") navigation.navigate("GroceryHome");
     if (tool.id === "todo") navigation.navigate("TodoHome");
+    if (tool.id === "private_list") navigation.navigate("PrivateHome");
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,13 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
+import Reanimated, {
+  FadeIn,
+  makeMutable,
+  type SharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -56,8 +63,9 @@ import {
   suggestOcrWordCorrections,
   tokenizeScanText,
 } from "../utils/scanOcrLexicon";
+import { ScanLexMirrorOverlay } from "../utils/ScanLexMirrorOverlay";
 import { extractUnitFromText, lookupUnitsForItem, resolveTrustedProductName } from "../utils/productRegistry";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useTheme } from "../context/ThemeContext";
 import { createListDetailStyles } from "./listDetailStyles";
 
 function nowIso(): string {
@@ -81,19 +89,113 @@ function dedupeItemsByName(items: GroceryItem[]): GroceryItem[] {
 }
 
 type ItemModalMode = "add" | "edit" | null;
-const UI_DEBUG_VERSION = "v1.0.0-scan-debug-30";
+
+/** Reserved unit-picker row; opens manual unit entry (not stored as the literal word). */
+const UNIT_OTHERS_LABEL = "Others";
+
+function buildFormPresetUnits(
+  formName: string,
+  mode: ItemModalMode,
+  editSeedName: string,
+  editSeedUnits: string[]
+): string[] {
+  const suggested = lookupUnitsForItem(formName);
+  const isSameAsEditBaseName = mode === "edit" && formName.trim().toLowerCase() === editSeedName;
+  const base = isSameAsEditBaseName ? [...editSeedUnits, ...suggested] : suggested;
+  return Array.from(new Set(base.map((u) => u.trim()).filter(Boolean))).filter(
+    (u) => u.toLowerCase() !== UNIT_OTHERS_LABEL.toLowerCase()
+  );
+}
+
+const UI_DEBUG_VERSION = "v1.0.0-scan-debug-31";
+
+/** Stop name/price dictation after this many ms with no new transcript, once speech has started. */
+const VOICE_IDLE_MS_AFTER_FIRST_WORD = 2000;
 
 /** Set `true` to show ImagePicker result alerts while debugging scan/camera. */
 const SCAN_DEBUG_PICKER_ALERTS = false;
 
+/** Matches `react-native-draggable-flatlist` DEFAULT_ANIMATION_CONFIG (cell shift during drag). */
+const REORDER_SPRING = {
+  damping: 20,
+  mass: 0.2,
+  stiffness: 100,
+  overshootClamping: false,
+  restDisplacementThreshold: 0.2,
+  restSpeedThreshold: 0.2,
+} as const;
+
+function activeIdsJoin(items: GroceryItem[]): string {
+  return splitActiveAndCompleted(items).active.map((i) => i.id).join(",");
+}
+
+function measureRowWindowY(
+  refs: React.MutableRefObject<Map<string, View>>,
+  ids: string[]
+): Promise<Record<string, number>> {
+  const ys: Record<string, number> = {};
+  return Promise.all(
+    ids.map(
+      (id) =>
+        new Promise<void>((resolve) => {
+          const node = refs.current.get(id);
+          if (!node) {
+            resolve();
+            return;
+          }
+          node.measureInWindow((_x, y) => {
+            ys[id] = y;
+            resolve();
+          });
+        })
+    )
+  ).then(() => ys);
+}
+
+function FlipTranslateShell({
+  itemId,
+  getFlipSv,
+  children,
+}: {
+  itemId: string;
+  getFlipSv: (id: string) => SharedValue<number>;
+  children: React.ReactNode;
+}) {
+  const sv = getFlipSv(itemId);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: sv.value }] }), [sv]);
+  return <Reanimated.View style={style}>{children}</Reanimated.View>;
+}
+
 export default function ListDetailScreen({ navigation, route }: ListDetailProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("grocery");
+  const { colors } = useTheme();
   const styles = useMemo(() => createListDetailStyles(colors), [colors]);
   const { listId, autoOpenAdd = false } = route.params;
   const { lists, upsertList, archiveCompletedList } = useAppData();
 
+  const checkedRowEntering = useMemo(() => FadeIn.duration(220), []);
+
+  /** Screen Y snapshot before reorder — FLIP springs match draggable-flatlist sibling shifts. */
+  const rowMeasureRefs = useRef<Map<string, View>>(new Map());
+  const flipSvRef = useRef<Map<string, SharedValue<number>>>(new Map());
+  const flipReorderPendingRef = useRef<{ beforeYs: Record<string, number> } | null>(null);
+
+  const getFlipSv = useCallback((id: string) => {
+    let v = flipSvRef.current.get(id);
+    if (!v) {
+      v = makeMutable(0);
+      flipSvRef.current.set(id, v);
+    }
+    return v;
+  }, []);
+
   const list = useMemo(() => lists.find((l) => l.id === listId) ?? null, [lists, listId]);
+  /** Helps FlatList reconcile when active sort/order changes. */
+  const activeReorderExtraData = useMemo(() => {
+    if (!list) return "";
+    const { active: a } = splitActiveAndCompleted(list.items);
+    return a.map((i) => `${i.id}:${i.priority ? 1 : 0}:${i.order}`).join("|");
+  }, [list]);
   const listRef = useRef<GroceryList | null>(list);
   listRef.current = list;
 
@@ -118,6 +220,29 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     clearLastError,
   } = useSpeechToText();
   const [voiceTarget, setVoiceTarget] = useState<"name" | "price" | "bulk" | null>(null);
+  const voiceIdleAfterWordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearVoiceIdleStopTimer = useCallback(() => {
+    const t = voiceIdleAfterWordTimerRef.current;
+    if (t) {
+      clearTimeout(t);
+      voiceIdleAfterWordTimerRef.current = null;
+    }
+  }, []);
+
+  /** Auto-stop after idle only for item name — price needs longer pauses between digits/phrases. */
+  const maybeScheduleVoiceIdleStopAfterFirstToken = useCallback(
+    (transcript: string, field: "name" | "price") => {
+      if (field === "price") return;
+      if (!transcript.trim()) return;
+      clearVoiceIdleStopTimer();
+      voiceIdleAfterWordTimerRef.current = setTimeout(() => {
+        voiceIdleAfterWordTimerRef.current = null;
+        stopSpeech();
+      }, VOICE_IDLE_MS_AFTER_FIRST_WORD);
+    },
+    [stopSpeech, clearVoiceIdleStopTimer]
+  );
 
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
   const [bulkTranscript, setBulkTranscript] = useState("");
@@ -132,18 +257,23 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const [formPrice, setFormPrice] = useState("");
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
   const [unitMenuVisible, setUnitMenuVisible] = useState(false);
+  /** User chose "Others" or item unit is not in preset list — free-text unit field. */
+  const [unitManualMode, setUnitManualMode] = useState(false);
   const [scanModalVisible, setScanModalVisible] = useState(false);
+  const [scanActiveTab, setScanActiveTab] = useState<"capture" | "results">("capture");
   const [scanImageUri, setScanImageUri] = useState("");
   const [scanRawText, setScanRawText] = useState("");
   const [scanLoading, setScanLoading] = useState(false);
   const [scanHintText, setScanHintText] = useState("");
-  const [scanRawEditMode, setScanRawEditMode] = useState(false);
   const [scanWordSuggest, setScanWordSuggest] = useState<{
     start: number;
     end: number;
     original: string;
     suggestions: string[];
+    anchor?: { x: number; y: number; width: number; height: number };
   } | null>(null);
+  const [scanLexFlashSpan, setScanLexFlashSpan] = useState<{ start: number; end: number } | null>(null);
+  const scanLexFlashOpacity = useRef(new Animated.Value(0)).current;
   const [scanLoadingLabel, setScanLoadingLabel] = useState("");
   const [editSeedUnits, setEditSeedUnits] = useState<string[]>([]);
   const [editSeedName, setEditSeedName] = useState("");
@@ -154,6 +284,32 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const bulkMicBlobAnim = useRef(new Animated.Value(0)).current;
   const autoOpenHandledRef = useRef(false);
   const scanModalScrollRef = useRef<ScrollView | null>(null);
+  const scanFlaggedChipRefs = useRef<Map<string, View>>(new Map());
+  const scanModalRootRef = useRef<View | null>(null);
+  const scanBubbleLayoutRef = useRef({ rootW: 400, rootH: 700 });
+
+  const clearScanLexFlash = useCallback(() => {
+    scanLexFlashOpacity.stopAnimation();
+    scanLexFlashOpacity.setValue(0);
+    setScanLexFlashSpan(null);
+  }, [scanLexFlashOpacity]);
+
+  const triggerScanLexReplaceFlash = useCallback(
+    (start: number, insert: string) => {
+      scanLexFlashOpacity.stopAnimation();
+      const end = start + insert.length;
+      setScanLexFlashSpan({ start, end });
+      scanLexFlashOpacity.setValue(1);
+      Animated.timing(scanLexFlashOpacity, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setScanLexFlashSpan(null);
+      });
+    },
+    [scanLexFlashOpacity]
+  );
 
   useEffect(() => {
     if (!itemModalOpen) {
@@ -174,7 +330,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   }, [itemModalOpen]);
 
   useEffect(() => {
-    if (!scanModalVisible || !scanRawEditMode) {
+    if (!scanModalVisible || scanActiveTab !== "results") {
       setScanModalKeyboardInset(0);
       return;
     }
@@ -190,7 +346,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       subShow.remove();
       subHide.remove();
     };
-  }, [scanModalVisible, scanRawEditMode]);
+  }, [scanModalVisible, scanActiveTab]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -219,15 +375,19 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         Object.values(timersRef.current).forEach(clearTimeout);
         timersRef.current = {};
         stopSpeech();
+        clearVoiceIdleStopTimer();
         setBulkModalVisible(false);
         setBulkProcessing(false);
       };
-    }, [stopSpeech])
+    }, [stopSpeech, clearVoiceIdleStopTimer])
   );
 
   useEffect(() => {
-    if (!listening) setVoiceTarget(null);
-  }, [listening]);
+    if (!listening) {
+      clearVoiceIdleStopTimer();
+      setVoiceTarget(null);
+    }
+  }, [listening, clearVoiceIdleStopTimer]);
 
   useEffect(() => {
     finishingListRef.current = false;
@@ -235,6 +395,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setBulkMode(false);
     setSelectedIds(new Set());
     wiggleIdRef.current = null;
+    rowMeasureRefs.current.clear();
+    flipSvRef.current.clear();
+    flipReorderPendingRef.current = null;
   }, [listId]);
 
   useEffect(() => {
@@ -256,6 +419,57 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     },
     [upsertList]
   );
+
+  /**
+   * When the active id sequence changes, measure row screen Y before/after commit and spring
+   * translateY so motion matches drag reorder (same spring as draggable-flatlist).
+   */
+  const pushListWithActiveFlip = useCallback(
+    (next: GroceryList) => {
+      const prev = listRef.current;
+      if (!prev) {
+        pushList(next);
+        return;
+      }
+      if (activeIdsJoin(prev.items) === activeIdsJoin(next.items)) {
+        pushList(next);
+        return;
+      }
+      const ids = new Set<string>();
+      splitActiveAndCompleted(prev.items).active.forEach((i) => ids.add(i.id));
+      splitActiveAndCompleted(next.items).active.forEach((i) => ids.add(i.id));
+      void measureRowWindowY(rowMeasureRefs, [...ids]).then((beforeYs) => {
+        flipReorderPendingRef.current = { beforeYs };
+        pushList(next);
+      });
+    },
+    [pushList]
+  );
+
+  useLayoutEffect(() => {
+    if (!list) return;
+    const pending = flipReorderPendingRef.current;
+    if (!pending) return;
+    flipReorderPendingRef.current = null;
+    const { beforeYs } = pending;
+    const activeIds = splitActiveAndCompleted(list.items).active.map((i) => i.id);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        void measureRowWindowY(rowMeasureRefs, activeIds).then((afterYs) => {
+        for (const id of activeIds) {
+          const b = beforeYs[id];
+          const a = afterYs[id];
+          if (b === undefined || a === undefined) continue;
+          const dy = b - a;
+          if (Math.abs(dy) < 2) continue;
+          const sv = getFlipSv(id);
+          sv.value = dy;
+          sv.value = withSpring(0, REORDER_SPRING);
+        }
+        });
+      });
+    });
+  }, [list, getFlipSv]);
 
   useEffect(() => {
     if (!list) return;
@@ -296,15 +510,15 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         finishingListRef.current = true;
         try {
           await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: snap.id, tool: "grocery" });
+          navigation.replace("AllDone", { listId: snap.id });
         } catch {
           finishingListRef.current = false;
         }
       } else {
-        pushList({ ...snap, items });
+        pushListWithActiveFlip({ ...snap, items });
       }
     },
-    [archiveCompletedList, navigation, pushList]
+    [archiveCompletedList, navigation, pushListWithActiveFlip]
   );
 
   const commitOrFinishList = useCallback(
@@ -325,15 +539,15 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         finishingListRef.current = true;
         try {
           await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: base.id, tool: "grocery" });
+          navigation.replace("AllDone", { listId: base.id });
         } catch {
           finishingListRef.current = false;
         }
         return;
       }
-      pushList({ ...base, items: nextItems });
+      pushListWithActiveFlip({ ...base, items: nextItems });
     },
-    [archiveCompletedList, navigation, pushList]
+    [archiveCompletedList, navigation, pushListWithActiveFlip]
   );
 
   const onTapCheck = (itemId: string) => {
@@ -353,7 +567,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     const items = snap.items.map((i) =>
       i.id === itemId ? { ...i, priority: next ?? !i.priority } : i
     );
-    pushList({ ...snap, items });
+    pushListWithActiveFlip({ ...snap, items });
   };
 
   const startWiggle = () => {
@@ -439,7 +653,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           const items = current.items.map((i) =>
             selectedIds.has(i.id) ? { ...i, priority: nextPriority } : i
           );
-          pushList({ ...current, items });
+          pushListWithActiveFlip({ ...current, items });
         },
       },
     ]);
@@ -452,7 +666,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     const items = snap.items.map((i) =>
       i.id === itemId ? { ...i, checked: false, checkPending: false } : i
     );
-    pushList({ ...snap, items });
+    pushListWithActiveFlip({ ...snap, items });
   };
 
   const onTapUncheck = (itemId: string) => {
@@ -466,7 +680,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         ? { ...i, checked: false, checkPending: false, order: maxActive + 1 }
         : i
     );
-    pushList({ ...snap, items });
+    pushListWithActiveFlip({ ...snap, items });
   };
 
   const onDragEnd = ({ data }: { data: GroceryItem[] }) => {
@@ -501,6 +715,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setFormPrice("");
     setEditSeedUnits([]);
     setEditSeedName("");
+    setUnitManualMode(false);
   };
 
   const setListCurrencySymbol = (symbol: string) => {
@@ -520,6 +735,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setFormPrice("");
     setEditSeedUnits([]);
     setEditSeedName("");
+    setUnitManualMode(false);
     setItemModalMode("add");
   };
 
@@ -536,32 +752,48 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const openEditModal = (item: GroceryItem) => {
     if (item.checkPending) return;
     stopSpeech();
+    const seeds = Array.from(
+      new Set([...(item.unitOptions ?? []), item.unit ?? ""].map((u) => u.trim()).filter(Boolean))
+    );
+    const presets = buildFormPresetUnits(item.name, "edit", item.name.trim().toLowerCase(), seeds);
+    const uNow = (item.unit ?? "").trim();
+    setUnitManualMode(presets.length > 0 && uNow !== "" && !presets.includes(uNow));
+
     setEditingItemId(item.id);
     setFormName(item.name);
     setFormQty(item.quantity);
     setFormUnit(item.unit ?? "");
     setFormPrice(item.price);
-    setEditSeedUnits(
-      Array.from(new Set([...(item.unitOptions ?? []), item.unit ?? ""].map((u) => u.trim()).filter(Boolean)))
-    );
+    setEditSeedUnits(seeds);
     setEditSeedName(item.name.trim().toLowerCase());
     setItemModalMode("edit");
   };
 
-  const formUnitOptions = useMemo(() => {
-    const suggested = lookupUnitsForItem(formName);
-    const isSameAsEditBaseName = itemModalMode === "edit" && formName.trim().toLowerCase() === editSeedName;
-    const base = isSameAsEditBaseName ? [...editSeedUnits, ...suggested] : suggested;
-    return Array.from(new Set(base.map((u) => u.trim()).filter(Boolean)));
-  }, [editSeedName, editSeedUnits, formName, itemModalMode]);
+  const formUnitOptions = useMemo(
+    () => buildFormPresetUnits(formName, itemModalMode, editSeedName, editSeedUnits),
+    [editSeedName, editSeedUnits, formName, itemModalMode]
+  );
+
+  const unitModalChoices = useMemo(() => {
+    if (!formUnitOptions.length) return [];
+    return [...formUnitOptions, UNIT_OTHERS_LABEL];
+  }, [formUnitOptions]);
+
+  const showUnitPresetPicker = formUnitOptions.length >= 1;
+
+  const persistUnitOptions = useMemo(
+    () => Array.from(new Set([...formUnitOptions, formUnit.trim()].filter(Boolean))),
+    [formUnit, formUnitOptions]
+  );
 
   useEffect(() => {
     if (!formUnitOptions.length) return;
+    if (unitManualMode) return;
     const current = formUnit.trim();
     if (!current || !formUnitOptions.includes(current)) {
       setFormUnit(formUnitOptions[0]);
     }
-  }, [formUnit, formUnitOptions]);
+  }, [formUnit, formUnitOptions, unitManualMode]);
 
   const onSaveAdd = () => {
     const snap = listRef.current;
@@ -572,7 +804,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       name: formName.trim(),
       quantity: formQty.trim(),
       unit: formUnit.trim(),
-      unitOptions: formUnitOptions,
+      unitOptions: persistUnitOptions,
       price: formPrice.trim(),
       checked: false,
       order: nextActiveOrder(),
@@ -592,7 +824,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             name: formName.trim(),
             quantity: formQty.trim(),
             unit: formUnit.trim(),
-            unitOptions: formUnitOptions,
+            unitOptions: persistUnitOptions,
             price: formPrice.trim(),
           }
         : i
@@ -622,22 +854,27 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
 
   const onMicName = async () => {
     if (listening) {
+      clearVoiceIdleStopTimer();
       stopSpeech();
       return;
     }
+    clearVoiceIdleStopTimer();
     setVoiceTarget("name");
     await startSpeech((t) => {
       const parsed = extractUnitFromText(t);
       setFormName(toTitleCaseWords(parsed.cleanedName || t));
       if (parsed.unit) setFormUnit(parsed.unit);
+      maybeScheduleVoiceIdleStopAfterFirstToken(t, "name");
     });
   };
 
   const onMicPrice = async () => {
     if (listening) {
+      clearVoiceIdleStopTimer();
       stopSpeech();
       return;
     }
+    clearVoiceIdleStopTimer();
     setVoiceTarget("price");
     await startSpeech((t) => {
       const p = parsePriceFromSpeech(t);
@@ -674,29 +911,79 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     setBulkProcessing(false);
   };
 
-  const scanSmartLines = useMemo(() => {
+  const scanFlaggedWords = useMemo(() => {
     const lines = scanRawText.split(/\r?\n/);
     let offset = 0;
-    return lines.map((line, idx) => {
-      const tokens = tokenizeScanText(line).map((tok) =>
-        tok.type === "word"
-          ? { ...tok, start: tok.start + offset, end: tok.end + offset }
-          : { ...tok, start: tok.start + offset, end: tok.end + offset }
-      );
+    const flagged: { key: string; start: number; end: number; text: string }[] = [];
+    lines.forEach((line, lineIndex) => {
+      const tokens = tokenizeScanText(line);
+      tokens.forEach((tok, tidx) => {
+        if (tok.type !== "word") return;
+        if (!shouldFlagOcrWord(tok.text)) return;
+        flagged.push({
+          key: `fw-${lineIndex}-${tok.start}-${tidx}`,
+          start: tok.start + offset,
+          end: tok.end + offset,
+          text: tok.text,
+        });
+      });
       offset += line.length;
-      // Count newline separator for every line except the last.
-      if (idx < lines.length - 1) offset += 1;
-      return { key: `scan-line-${idx}`, tokens };
+      if (lineIndex < lines.length - 1) offset += 1;
     });
+    return flagged;
   }, [scanRawText]);
+
+  const openScanWordSuggestFromChip = useCallback((w: { key: string; start: number; end: number; text: string }) => {
+    const suggestions = suggestOcrWordCorrections(w.text);
+    const base = { start: w.start, end: w.end, original: w.text, suggestions };
+
+    const measureAndOpen = (attempt: number) => {
+      clearScanLexFlash();
+      const root = scanModalRootRef.current;
+      const node = scanFlaggedChipRefs.current.get(w.key);
+      if (!root) {
+        if (attempt < 4) requestAnimationFrame(() => measureAndOpen(attempt + 1));
+        return;
+      }
+      root.measureInWindow((rx, ry, rw, rh) => {
+        scanBubbleLayoutRef.current = { rootW: rw, rootH: rh };
+        if (!node) {
+          setScanWordSuggest({
+            ...base,
+            anchor: { x: rw / 2 - 48, y: Math.min(rh * 0.22, 120), width: 96, height: 36 },
+          });
+          return;
+        }
+        node.measureInWindow((x, y, width, height) => {
+          if (width > 0 && height > 0) {
+            setScanWordSuggest({
+              ...base,
+              anchor: { x: x - rx, y: y - ry, width, height },
+            });
+          } else {
+            setScanWordSuggest({
+              ...base,
+              anchor: { x: rw / 2 - 48, y: Math.min(rh * 0.22, 120), width: 96, height: 36 },
+            });
+          }
+        });
+      });
+    };
+
+    requestAnimationFrame(() => measureAndOpen(0));
+  }, [clearScanLexFlash]);
 
   const openScanModal = () => {
     stopSpeech();
+    setScanActiveTab("capture");
     setScanModalVisible(true);
   };
 
   const closeScanModal = () => {
+    setScanWordSuggest(null);
+    clearScanLexFlash();
     setScanModalVisible(false);
+    setScanActiveTab("capture");
   };
 
   const onScanBackdropPress = () => {
@@ -774,7 +1061,10 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       hasUri: Boolean(asset?.uri),
       hasBase64: Boolean(asset?.base64),
     });
+    setScanWordSuggest(null);
+    clearScanLexFlash();
     setScanImageUri(asset.uri);
+    setScanActiveTab("results");
     setScanRawText("");
     setScanHintText("Reading text from image…");
     setScanLoading(true);
@@ -975,8 +1265,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       setScanImageUri("");
       setScanRawText("");
       setScanHintText("");
-      setScanRawEditMode(false);
       setScanWordSuggest(null);
+      setScanActiveTab("capture");
       closeScanModal();
     } finally {
       setScanLoading(false);
@@ -1053,10 +1343,14 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   }
 
   const { active, completed } = splitActiveAndCompleted(list.items);
+  const checkedCount = completed.length;
+  const productCount = list.items.length;
+  const progressRatio = productCount > 0 ? checkedCount / productCount : 0;
   const total = totalFromItems(list.items);
   const modalVisible = itemModalMode !== null;
   const showPriceInForm = list.showItemPrice;
   const sym = list.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL;
+  const canOpenScanResults = Boolean(scanImageUri.trim() || scanRawText.trim() || scanLoading);
   const floatingBarBottom = insets.bottom + 12;
   const bulkActionsBottom = floatingBarBottom + 70;
   const listBottomInset = bulkMode ? bulkActionsBottom + 62 : floatingBarBottom + 74 + 18;
@@ -1109,23 +1403,31 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     ],
   } as const;
 
-  const renderItemForm = (isEdit: boolean) => (
+  const renderItemForm = (isEdit: boolean) => {
+    const deferUnitForAdd = !isEdit && !formName.trim();
+
+    return (
     <View style={styles.modalForm}>
-      <View style={styles.modalTopControls}>
-        <TouchableOpacity
-          style={styles.bulkFromAddBtn}
-          onPress={openBulkFromItemModal}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Open bulk list by voice"
-        >
-          <Ionicons name="mic" size={16} color={colors.micIcon} />
-          <Text style={styles.bulkFromAddBtnText}>Bulk Add</Text>
-        </TouchableOpacity>
+      <View style={[styles.modalTopControls, isEdit && styles.modalTopControlsEdit]}>
+        {!isEdit ? (
+          <TouchableOpacity
+            style={styles.bulkFromAddBtn}
+            onPress={openBulkFromItemModal}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open bulk list by voice"
+          >
+            <Ionicons name="mic" size={16} color={colors.micIcon} />
+            <Text style={styles.bulkFromAddBtnText}>Bulk Add</Text>
+          </TouchableOpacity>
+        ) : null}
         <View style={styles.modalPriceToggleInline}>
-          <Text style={styles.modalPriceToggleInlineText}>Item Price</Text>
+          <View style={styles.modalPriceIconCircle} pointerEvents="none">
+            <Text style={styles.modalPriceIconDollar}>$</Text>
+          </View>
           <Switch
-            style={styles.priceSwitch}
+            style={styles.modalPriceSwitch}
+            accessibilityLabel="Show item price fields"
             value={showPriceInForm}
             onValueChange={togglePrice}
             trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
@@ -1135,26 +1437,38 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         </View>
       </View>
       <View style={styles.addRow}>
-        <TextInput
-          value={formName}
-          onChangeText={setFormName}
-          style={styles.addName}
-          placeholder="Item name"
-          placeholderTextColor={colors.placeholder}
-        />
-        <TouchableOpacity onPress={() => void onMicName()} style={styles.micBtn}>
-          <Ionicons
-            name="mic"
-            size={20}
-            color={listening && voiceTarget === "name" ? colors.danger : colors.primary}
+        <View style={styles.addNameShell}>
+          <TextInput
+            value={formName}
+            onChangeText={setFormName}
+            style={styles.addNameField}
+            placeholder="Item name"
+            placeholderTextColor={colors.placeholder}
           />
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => void onMicName()}
+            style={styles.fieldMicBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Voice input for item name"
+          >
+            <Ionicons
+              name="mic"
+              size={20}
+              color={listening && voiceTarget === "name" ? colors.danger : colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.addRowSecond}>
         <View
           style={[
             styles.qtyStepperShell,
-            showPriceInForm ? styles.qtyStepperShellCompact : styles.qtyStepperShellNarrow,
+            showPriceInForm
+              ? styles.qtyStepperShellCompact
+              : deferUnitForAdd
+                ? styles.qtyStepperShellGrow
+                : styles.qtyStepperShellNarrow,
           ]}
         >
           <TouchableOpacity
@@ -1210,18 +1524,24 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 <Text style={styles.priceFieldCurrencyText}>{sym}</Text>
                 <Ionicons name="chevron-down" size={14} color={colors.textTertiary} />
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void onMicPrice()}
+                style={styles.fieldMicBtn}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Voice input for price"
+              >
+                <Ionicons
+                  name="mic"
+                  size={20}
+                  color={listening && voiceTarget === "price" ? colors.danger : colors.primary}
+                />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => void onMicPrice()} style={styles.micBtn}>
-              <Ionicons
-                name="mic"
-                size={20}
-                color={listening && voiceTarget === "price" ? colors.danger : colors.primary}
-              />
-            </TouchableOpacity>
           </View>
-        ) : (
+        ) : deferUnitForAdd ? null : (
           <View style={styles.unitInlineWrap}>
-            {formUnitOptions.length > 1 ? (
+            {showUnitPresetPicker && !unitManualMode ? (
               <TouchableOpacity
                 style={styles.unitSelectBtn}
                 onPress={() => setUnitMenuVisible(true)}
@@ -1233,48 +1553,80 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
               </TouchableOpacity>
             ) : (
-              <TextInput
-                value={formUnit}
-                onChangeText={setFormUnit}
-                style={styles.unitInput}
-                placeholder="Unit"
-                placeholderTextColor={colors.placeholder}
-              />
+              <View style={styles.unitManualBlock}>
+                <TextInput
+                  value={formUnit}
+                  onChangeText={setFormUnit}
+                  style={styles.unitInput}
+                  placeholder="Unit"
+                  placeholderTextColor={colors.placeholder}
+                />
+                {showUnitPresetPicker && unitManualMode ? (
+                  <TouchableOpacity
+                    onPress={() => setUnitMenuVisible(true)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel="Choose unit from preset list"
+                  >
+                    <Text style={styles.unitChoosePresetLinkText}>Choose from list</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             )}
           </View>
         )}
       </View>
       {showPriceInForm ? (
         <View style={styles.submitRowCompact}>
-          <View style={styles.submitRowUnitWrap}>
-            {formUnitOptions.length > 1 ? (
-              <TouchableOpacity
-                style={styles.unitSelectBtnCompact}
-                onPress={() => setUnitMenuVisible(true)}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Select unit"
-              >
-                <Text style={styles.unitSelectText}>{formUnit || "Unit"}</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
-              </TouchableOpacity>
-            ) : (
-              <TextInput
-                value={formUnit}
-                onChangeText={setFormUnit}
-                style={styles.unitInputCompact}
-                placeholder="Unit"
-                placeholderTextColor={colors.placeholder}
-              />
-            )}
-          </View>
+          {!deferUnitForAdd ? (
+            <View style={styles.submitRowUnitWrap}>
+              {showUnitPresetPicker && !unitManualMode ? (
+                <TouchableOpacity
+                  style={styles.unitSelectBtnCompact}
+                  onPress={() => setUnitMenuVisible(true)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select unit"
+                >
+                  <Text style={styles.unitSelectText}>{formUnit || "Unit"}</Text>
+                  <Ionicons name="chevron-down" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.unitManualBlockCompact}>
+                  <TextInput
+                    value={formUnit}
+                    onChangeText={setFormUnit}
+                    style={styles.unitInputCompact}
+                    placeholder="Unit"
+                    placeholderTextColor={colors.placeholder}
+                  />
+                  {showUnitPresetPicker && unitManualMode ? (
+                    <TouchableOpacity
+                      onPress={() => setUnitMenuVisible(true)}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose unit from preset list"
+                    >
+                      <Text style={styles.unitChoosePresetLinkTextCompact}>Choose from list</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
+            </View>
+          ) : null}
           {isEdit ? (
-            <TouchableOpacity style={styles.saveBtnCompact} onPress={onSaveEdit}>
+            <TouchableOpacity
+              style={[styles.saveBtnCompact, deferUnitForAdd && { flex: 1 }]}
+              onPress={onSaveEdit}
+            >
               <Ionicons name="save-outline" size={18} color="#fff" />
               <Text style={styles.saveBtnText}>Save</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.addBtnCompact} onPress={onSaveAdd}>
+            <TouchableOpacity
+              style={[styles.addBtnCompact, deferUnitForAdd && { flex: 1 }]}
+              onPress={onSaveAdd}
+            >
               <Ionicons name="add-circle-outline" size={18} color="#fff" />
               <Text style={styles.addBtnText}>Add Item</Text>
             </TouchableOpacity>
@@ -1296,7 +1648,8 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         </>
       )}
     </View>
-  );
+    );
+  };
 
   const renderRow = (
     item: GroceryItem,
@@ -1487,7 +1840,18 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   };
 
   const renderDraggable = ({ item, drag, isActive }: RenderItemParams<GroceryItem>) => (
-    <ScaleDecorator>{renderRow(item, { drag, isActive, draggable: true })}</ScaleDecorator>
+    <View
+      ref={(r) => {
+        if (r) rowMeasureRefs.current.set(item.id, r);
+        else rowMeasureRefs.current.delete(item.id);
+      }}
+      collapsable={false}
+      style={{ width: "100%" }}
+    >
+      <FlipTranslateShell itemId={item.id} getFlipSv={getFlipSv}>
+        <ScaleDecorator>{renderRow(item, { drag, isActive, draggable: true })}</ScaleDecorator>
+      </FlipTranslateShell>
+    </View>
   );
 
   return (
@@ -1503,6 +1867,16 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             {list.name}
           </Text>
           <View style={{ width: 72 }} />
+        </View>
+        <View style={styles.progressWrap}>
+          <View style={styles.progressMetaRow}>
+            <Text style={styles.progressMetaText}>
+              {checkedCount}/{productCount} checked
+            </Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(1, progressRatio)) * 100}%` }]} />
+          </View>
         </View>
 
         {list.showItemPrice ? (
@@ -1521,9 +1895,11 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           style={{ flex: 1 }}
           containerStyle={{ flex: 1 }}
           data={active}
+          extraData={activeReorderExtraData}
           keyExtractor={(i) => i.id}
           onDragEnd={onDragEnd}
           renderItem={renderDraggable}
+          disableVirtualization
           contentContainerStyle={{ paddingTop: 8 }}
           ListEmptyComponent={
             completed.length === 0 ? (
@@ -1540,9 +1916,14 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 <Text style={styles.sectionLabel}>Checked</Text>
               ) : null}
               {completed.map((item) => (
-                <View key={item.id} style={{ width: "100%" }}>
+                <Reanimated.View
+                  key={item.id}
+                  entering={checkedRowEntering}
+                  style={{ width: "100%" }}
+                  collapsable={false}
+                >
                   {renderRow(item, { draggable: false })}
-                </View>
+                </Reanimated.View>
               ))}
             </View>
           }
@@ -1615,18 +1996,21 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       ) : null}
       <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
         <View style={styles.fabBar}>
-          <View style={styles.fabPriceToggle}>
-            <Text style={styles.fabPriceToggleLabel} numberOfLines={1}>
-              Item Price
-            </Text>
-            <Switch
-              style={styles.priceSwitch}
-              value={list.showItemPrice}
-              onValueChange={togglePrice}
-              trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
-              thumbColor={list.showItemPrice ? colors.primaryDark : colors.switchThumbOff}
-              ios_backgroundColor={colors.iosSwitchBg}
-            />
+          <View style={[styles.fabBarLane, styles.fabBarLaneLeft]}>
+            <View style={styles.fabPriceToggle}>
+              <View style={styles.fabPriceIconCircle} pointerEvents="none">
+                <Text style={styles.fabPriceIconDollar}>$</Text>
+              </View>
+              <Switch
+                style={styles.fabPriceSwitch}
+                accessibilityLabel="Show item prices on list"
+                value={list.showItemPrice}
+                onValueChange={togglePrice}
+                trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
+                thumbColor={list.showItemPrice ? colors.primaryDark : colors.switchThumbOff}
+                ios_backgroundColor={colors.iosSwitchBg}
+              />
+            </View>
           </View>
           <TouchableOpacity
             style={styles.fabIconBtn}
@@ -1647,24 +2031,26 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             <View style={styles.fabMicInnerRing} pointerEvents="none" />
             <Ionicons name="mic" size={22} color={colors.micIcon} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.fabScanBtn}
-            onPress={openScanModal}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Scan list from image"
-          >
-            <Ionicons name="scan-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.fabPrimaryBtn}
-            onPress={openAddModal}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Add item"
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={[styles.fabBarLane, styles.fabBarLaneRight]}>
+            <TouchableOpacity
+              style={styles.fabScanBtn}
+              onPress={openScanModal}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Scan list from image"
+            >
+              <Ionicons name="scan-outline" size={22} color={colors.primaryDark} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabPrimaryBtn}
+              onPress={openAddModal}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Add item"
+            >
+              <Ionicons name="add" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -1699,7 +2085,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                       style={styles.trashBtn}
                       accessibilityLabel="Delete item"
                     >
-                      <Ionicons name="trash-outline" size={24} color={colors.danger} />
+                      <Ionicons name="trash-outline" size={20} color={colors.danger} />
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.trashPlaceholder} />
@@ -1841,7 +2227,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         animationType="fade"
         onRequestClose={closeScanModal}
       >
-        <View style={styles.bulkModalRoot}>
+        <View ref={scanModalRootRef} style={styles.bulkModalRoot} collapsable={false}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={onScanBackdropPress} />
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -1862,205 +2248,335 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               }}
             >
               <View style={[styles.bulkModalCard, { paddingBottom: 28 }]}>
-            <View style={styles.bulkModalHeader}>
-              <View style={styles.bulkHeaderPill}>
-                <Ionicons name="scan-outline" size={14} color={colors.primaryDark} />
-                <Text style={styles.bulkHeaderPillText}>Scan list</Text>
-              </View>
-              <TouchableOpacity
-                onPress={closeScanModal}
-                style={styles.bulkHeaderIconBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Close scan modal"
-              >
-                <Ionicons name="close" size={22} color={colors.textTertiary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.scanVersionLabel}>{UI_DEBUG_VERSION}</Text>
-            {!scanImageUri ? (
-              <>
-                <Text style={styles.bulkModalTitle}>Capture or Upload List</Text>
-                <Text style={styles.bulkModalHint}>
-                  Take a photo of your paper list, then review/edit text before importing.
-                </Text>
-                {scanHintText ? <Text style={styles.scanMetaText}>{scanHintText}</Text> : null}
-              </>
-            ) : null}
-            {scanLoading ? (
-              <View style={styles.scanLoadingRow}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.scanLoadingText}>{scanLoadingLabel || "Preparing your items..."}</Text>
-              </View>
-            ) : null}
-            <View style={styles.scanActionRow}>
-              <TouchableOpacity style={styles.scanActionBtnScan} onPress={() => void onScanCameraPress()}>
-                <Ionicons name="scan-outline" size={18} color={colors.primary} />
-                <Text style={styles.scanActionBtnScanText}>Scan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.scanActionBtn} onPress={() => void onScanUploadPress()}>
-                <Ionicons name="images-outline" size={18} color={colors.primaryDark} />
-                <Text style={styles.scanActionBtnText}>Upload</Text>
-              </TouchableOpacity>
-            </View>
-            {scanImageUri ? (
-              <View style={styles.scanPreviewWrap}>
-                <Image source={{ uri: scanImageUri }} style={styles.scanPreviewImage} resizeMode="cover" />
-                <Text style={styles.scanMetaText} numberOfLines={1}>
-                  Selected image attached
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.scanTextModeRow}>
-              <TouchableOpacity
-                style={styles.scanTextModeBtn}
-                onPress={() => {
-                  setScanWordSuggest(null);
-                  setScanRawEditMode((v) => !v);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={scanRawEditMode ? "Switch to smart review" : "Edit raw OCR text"}
-              >
-                <Text style={styles.scanTextModeBtnText}>
-                  {scanRawEditMode ? "Smart review" : "Edit raw text"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {scanRawEditMode ? (
-              <TextInput
-                value={scanRawText}
-                onChangeText={(t) => {
-                  setScanRawText(t);
-                  setScanWordSuggest(null);
-                }}
-                multiline
-                textAlignVertical="top"
-                style={styles.scanTextInput}
-                placeholder="OCR text appears here. You can edit/paste lines before import."
-                placeholderTextColor={colors.placeholder}
-                onFocus={() => {
-                  requestAnimationFrame(() => {
-                    scanModalScrollRef.current?.scrollToEnd({ animated: true });
-                  });
-                  setTimeout(() => {
-                    scanModalScrollRef.current?.scrollToEnd({ animated: true });
-                  }, 160);
-                }}
-              />
-            ) : (
-              <ScrollView
-                style={styles.scanTokenScroll}
-                nestedScrollEnabled
-                keyboardShouldPersistTaps="handled"
-              >
-                <View style={styles.scanTokenWrap}>
-                  {scanSmartLines.every((line) => line.tokens.length === 0) ? (
-                    <Text style={styles.scanMetaText}>
-                      No text yet. Capture a photo or switch to Edit raw text.
+                <View style={styles.bulkHero} pointerEvents="none" />
+                <View style={styles.bulkHeroBlobA} pointerEvents="none" />
+                <View style={styles.bulkHeroBlobB} pointerEvents="none" />
+                <View style={styles.bulkModalHeader}>
+                  <View style={styles.bulkHeaderPill}>
+                    <Ionicons name="scan-outline" size={15} color={colors.micIcon} />
+                    <Text style={styles.bulkHeaderPillText}>Scan list</Text>
+                  </View>
+                  <View style={styles.scanHeaderAside}>
+                    <TouchableOpacity
+                      onPress={closeScanModal}
+                      style={styles.bulkHeaderIconBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close scan modal"
+                    >
+                      <Ionicons name="close" size={22} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                    <Text style={styles.scanVersionLabel} numberOfLines={2}>
+                      {UI_DEBUG_VERSION}
                     </Text>
-                  ) : (
-                    scanSmartLines.map((line, lineIndex) => (
-                      <View key={line.key} style={styles.scanTokenLine}>
-                        {line.tokens.map((tok, idx) => {
-                          if (tok.type === "sep") {
-                            return (
-                              <Text key={`sep-${tok.start}-${idx}`} style={styles.scanTokenSep} selectable>
-                                {tok.text}
-                              </Text>
-                            );
-                          }
-                          const flagged = shouldFlagOcrWord(tok.text);
-                          if (flagged) {
-                            return (
-                              <Pressable
-                                key={`w-${tok.start}-${idx}`}
-                                onPress={() => {
-                                  const suggestions = suggestOcrWordCorrections(tok.text);
-                                  setScanWordSuggest({
-                                    start: tok.start,
-                                    end: tok.end,
-                                    original: tok.text,
-                                    suggestions,
-                                  });
-                                }}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Suggestions for ${tok.text}`}
-                              >
-                                <Text style={[styles.scanTokenWord, styles.scanTokenWordFlagged]} selectable>
-                                  {tok.text}
-                                </Text>
-                              </Pressable>
-                            );
-                          }
-                          return (
-                            <Text key={`w-${tok.start}-${idx}`} style={styles.scanTokenWord} selectable>
-                              {tok.text}
-                            </Text>
-                          );
-                        })}
-                        {lineIndex < scanSmartLines.length - 1 ? <Text style={styles.scanTokenSep}>{"\n"}</Text> : null}
-                      </View>
-                    ))
-                  )}
+                  </View>
                 </View>
-              </ScrollView>
-            )}
-            {scanWordSuggest ? (
-              <View style={styles.scanSuggestSheet}>
-                <Text style={styles.scanSuggestTitle} numberOfLines={2}>
-                  Replace “{scanWordSuggest.original}”
-                </Text>
-                {scanWordSuggest.suggestions.length === 0 ? (
-                  <Text style={styles.scanSuggestHint}>
-                    No auto-suggestions for this token. Use Edit raw text to fix it, or import and edit the
-                    item later.
-                  </Text>
+                {scanActiveTab === "capture" ? (
+                  <>
+                    <Text style={styles.bulkModalTitle}>Capture or Upload List</Text>
+                    <Text style={styles.bulkModalHint}>
+                      Take a photo of your paper list, then review/edit text before importing.
+                    </Text>
+                  </>
+                ) : null}
+                <View style={styles.scanTabsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.scanTabBtn,
+                      scanActiveTab === "capture" && styles.scanTabBtnActive,
+                    ]}
+                    onPress={() => {
+                      setScanWordSuggest(null);
+                      clearScanLexFlash();
+                      setScanActiveTab("capture");
+                    }}
+                    activeOpacity={0.9}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open capture tab"
+                  >
+                    <Text
+                      style={[
+                        styles.scanTabBtnText,
+                        scanActiveTab === "capture" && styles.scanTabBtnTextActive,
+                      ]}
+                    >
+                      Capture
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={styles.scanTabsDivider} />
+                  <TouchableOpacity
+                    style={[
+                      styles.scanTabBtn,
+                      !canOpenScanResults && styles.scanTabBtnDisabled,
+                      scanActiveTab === "results" && styles.scanTabBtnActive,
+                    ]}
+                    onPress={() => {
+                      if (!canOpenScanResults) return;
+                      setScanWordSuggest(null);
+                      clearScanLexFlash();
+                      setScanActiveTab("results");
+                    }}
+                    activeOpacity={0.9}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open results tab"
+                    accessibilityState={{ disabled: !canOpenScanResults }}
+                    disabled={!canOpenScanResults}
+                  >
+                    <Text
+                      style={[
+                        styles.scanTabBtnText,
+                        !canOpenScanResults && styles.scanTabBtnTextDisabled,
+                        scanActiveTab === "results" && styles.scanTabBtnTextActive,
+                      ]}
+                    >
+                      Results
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {scanHintText ? (
+                  <View style={styles.scanHintBanner}>
+                    <Ionicons name="information-circle-outline" size={18} color={colors.micIcon} />
+                    <Text style={styles.scanHintBannerText}>{scanHintText}</Text>
+                  </View>
+                ) : null}
+                {scanActiveTab === "capture" ? (
+                  <>
+                    <View style={styles.scanActionsCard}>
+                      <View style={styles.scanActionRow}>
+                        <TouchableOpacity
+                          style={styles.scanActionPrimary}
+                          onPress={() => void onScanCameraPress()}
+                          activeOpacity={0.92}
+                          accessibilityRole="button"
+                          accessibilityLabel="Scan with camera"
+                        >
+                          <Ionicons name="scan-outline" size={19} color="#fff" />
+                          <Text style={styles.scanActionPrimaryText}>Scan</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.scanActionSecondary}
+                          onPress={() => void onScanUploadPress()}
+                          activeOpacity={0.92}
+                          accessibilityRole="button"
+                          accessibilityLabel="Upload list photo"
+                        >
+                          <Ionicons name="images-outline" size={19} color={colors.primaryDark} />
+                          <Text style={styles.scanActionSecondaryText}>Upload</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    {scanLoading ? (
+                      <View style={styles.scanLoadingRow}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={styles.scanLoadingText}>{scanLoadingLabel || "Preparing your items..."}</Text>
+                      </View>
+                    ) : null}
+                    {scanImageUri ? (
+                      <View style={styles.scanPreviewWrap}>
+                        <Image source={{ uri: scanImageUri }} style={styles.scanPreviewImage} resizeMode="cover" />
+                        <Text style={styles.scanPreviewCaption} numberOfLines={2}>
+                          Image is ready. Open Results to review OCR text and import items.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.scanCaptureTipCard}>
+                        <Ionicons name="sparkles-outline" size={16} color={colors.micIcon} />
+                        <Text style={styles.scanCaptureTipText}>
+                          Results tab unlocks after a successful scan or upload.
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 ) : (
-                  <View style={styles.scanSuggestChips}>
-                    {scanWordSuggest.suggestions.map((s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={styles.scanSuggestChip}
-                        onPress={() => {
-                          setScanRawText(
-                            replaceScanTextRange(
-                              scanRawText,
-                              scanWordSuggest.start,
-                              scanWordSuggest.end,
-                              s
-                            )
-                          );
+                  <View style={styles.scanEditorShell}>
+                    <View style={styles.scanSmartReviewHeader}>
+                      <Ionicons name="sparkles-outline" size={20} color={colors.micIcon} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.scanSmartReviewTitle}>Smart review</Text>
+                      </View>
+                    </View>
+                    {scanFlaggedWords.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        nestedScrollEnabled
+                        showsHorizontalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        style={styles.scanFlaggedChipsScroll}
+                        contentContainerStyle={styles.scanFlaggedChipsContent}
+                      >
+                        {scanFlaggedWords.map((w) => (
+                          <View
+                            key={w.key}
+                            collapsable={false}
+                            ref={(node) => {
+                              if (node) scanFlaggedChipRefs.current.set(w.key, node);
+                              else scanFlaggedChipRefs.current.delete(w.key);
+                            }}
+                          >
+                            <TouchableOpacity
+                              style={styles.scanFlaggedChip}
+                              onPress={() => openScanWordSuggestFromChip(w)}
+                              activeOpacity={0.88}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Suggestions for ${w.text}`}
+                            >
+                              <Text style={styles.scanFlaggedChipText} numberOfLines={1}>
+                                {w.text}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                    <View style={{ position: "relative", alignSelf: "stretch" }}>
+                      {scanActiveTab === "results" && (scanWordSuggest || scanLexFlashSpan) ? (
+                        <ScanLexMirrorOverlay
+                          text={scanRawText}
+                          suggestSpan={
+                            scanWordSuggest
+                              ? { start: scanWordSuggest.start, end: scanWordSuggest.end }
+                              : null
+                          }
+                          flashSpan={scanLexFlashSpan}
+                          flashOpacity={scanLexFlashOpacity}
+                          overlayStyle={styles.scanLexMirrorOverlay}
+                          textStyle={styles.scanLexMirrorText}
+                          suggestMarkStyle={styles.scanLexMirrorSuggestMark}
+                          successMarkStyle={styles.scanLexMirrorSuccessMark}
+                        />
+                      ) : null}
+                      <TextInput
+                        value={scanRawText}
+                        onChangeText={(t) => {
+                          clearScanLexFlash();
+                          setScanRawText(t);
                           setScanWordSuggest(null);
                         }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Replace with ${s}`}
-                      >
-                        <Text style={styles.scanSuggestChipText}>{s}</Text>
-                      </TouchableOpacity>
-                    ))}
+                        multiline
+                        textAlignVertical="top"
+                        style={[
+                          styles.scanUnifiedTextInput,
+                          { zIndex: 2 },
+                          scanActiveTab === "results" && (scanWordSuggest || scanLexFlashSpan)
+                            ? { color: "transparent" }
+                            : null,
+                        ]}
+                        caretColor={colors.text}
+                        placeholder="OCR text appears here. One line per item works well."
+                        placeholderTextColor={colors.placeholder}
+                        onFocus={() => {
+                          requestAnimationFrame(() => {
+                            scanModalScrollRef.current?.scrollToEnd({ animated: true });
+                          });
+                          setTimeout(() => {
+                            scanModalScrollRef.current?.scrollToEnd({ animated: true });
+                          }, 160);
+                        }}
+                      />
+                    </View>
                   </View>
                 )}
-                <TouchableOpacity
-                  style={styles.scanSuggestDismiss}
-                  onPress={() => setScanWordSuggest(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss suggestions"
-                >
-                  <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
-                </TouchableOpacity>
-              </View>
+            {scanActiveTab === "results" && scanLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : null}
-            {scanLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
-            <TouchableOpacity
-              style={[styles.addBtn, scanLoading && { opacity: 0.6 }]}
-              onPress={importScannedText}
-              disabled={scanLoading}
-            >
-              <Ionicons name="download-outline" size={20} color="#fff" />
-              <Text style={styles.addBtnText}>Import Items</Text>
-            </TouchableOpacity>
+            {scanActiveTab === "results" ? (
+                <TouchableOpacity
+                  style={[styles.scanImportBtn, scanLoading && { opacity: 0.6 }]}
+                  onPress={importScannedText}
+                  disabled={scanLoading}
+                >
+                  <Ionicons name="download-outline" size={20} color="#fff" />
+                  <Text style={styles.scanImportBtnText}>Import Items</Text>
+                </TouchableOpacity>
+            ) : null}
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
+          {scanActiveTab === "results" && scanWordSuggest?.anchor
+            ? (() => {
+                const anchor = scanWordSuggest.anchor;
+                const sg = scanWordSuggest;
+                const { rootW, rootH } = scanBubbleLayoutRef.current;
+                const edgePad = 8;
+                const maxW = Math.min(sg.suggestions.length <= 1 ? 236 : 276, Math.max(120, rootW - edgePad * 2));
+                const centerX = anchor.x + anchor.width / 2;
+                let left = centerX - maxW / 2;
+                left = Math.max(edgePad, Math.min(left, rootW - maxW - edgePad));
+                const estBubbleH = 104;
+                const gap = 6;
+                const preferTop = anchor.y - estBubbleH - gap;
+                const top =
+                  preferTop >= 10
+                    ? preferTop
+                    : Math.min(Math.max(10, rootH - estBubbleH - 12), anchor.y + anchor.height + gap);
+                const tailMarginLeft = Math.max(16, Math.min(maxW - 34, centerX - left - 9));
+                return (
+                  <>
+                    <Pressable
+                      style={[StyleSheet.absoluteFillObject, { zIndex: 900 }]}
+                      onPress={() => setScanWordSuggest(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dismiss word suggestions"
+                    />
+                    <View
+                      style={[styles.scanSuggestBubbleWrap, { left, top, width: maxW, zIndex: 1000 }]}
+                      pointerEvents="box-none"
+                    >
+                      <View style={styles.scanSuggestBubbleCard}>
+                        <Text style={styles.scanSuggestBubbleLabel} numberOfLines={1}>
+                          Replace “{sg.original}”
+                        </Text>
+                        {sg.suggestions.length === 0 ? (
+                          <View style={styles.scanSuggestBubbleFooter}>
+                            <Text style={[styles.scanSuggestHint, { flex: 1, minWidth: 0 }]}>
+                              No auto-suggestions. Edit the text, or import and fix the item later.
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.scanSuggestDismissCompact}
+                              onPress={() => setScanWordSuggest(null)}
+                              accessibilityRole="button"
+                              accessibilityLabel="Dismiss suggestions"
+                            >
+                              <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <View style={styles.scanSuggestBubbleFooter}>
+                            <View style={styles.scanSuggestChips}>
+                              {sg.suggestions.map((s) => (
+                                <TouchableOpacity
+                                  key={s}
+                                  style={styles.scanSuggestChip}
+                                  onPress={() => {
+                                    const start = sg.start;
+                                    const insert = s;
+                                    setScanRawText(replaceScanTextRange(scanRawText, start, sg.end, insert));
+                                    setScanWordSuggest(null);
+                                    triggerScanLexReplaceFlash(start, insert);
+                                  }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Replace with ${s}`}
+                                >
+                                  <Text style={styles.scanSuggestChipText}>{s}</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                            <TouchableOpacity
+                              style={styles.scanSuggestDismissCompact}
+                              onPress={() => setScanWordSuggest(null)}
+                              accessibilityRole="button"
+                              accessibilityLabel="Dismiss suggestions"
+                            >
+                              <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                      <View style={[styles.scanSuggestBubbleTail, { marginLeft: tailMarginLeft }]} />
+                    </View>
+                  </>
+                );
+              })()
+            : null}
         </View>
       </Modal>
       <Modal
@@ -2110,21 +2626,32 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             <Text style={styles.currencyListTitle}>Select unit</Text>
             <Text style={styles.currencyListHint}>Available for this item</Text>
             <FlatList
-              data={formUnitOptions}
-              keyExtractor={(u) => u}
+              data={unitModalChoices}
+              keyExtractor={(u, idx) => `${u}-${idx}`}
               style={styles.currencyFlatList}
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item: u }) => (
-                <TouchableOpacity
-                  style={[styles.currencyListRow, u === formUnit && styles.currencyListRowActive]}
-                  onPress={() => {
-                    setFormUnit(u);
-                    setUnitMenuVisible(false);
-                  }}
-                >
-                  <Text style={styles.unitOptionText}>{u}</Text>
-                </TouchableOpacity>
-              )}
+              renderItem={({ item: u }) => {
+                const isOthers = u === UNIT_OTHERS_LABEL;
+                const rowActive =
+                  !unitManualMode && !isOthers && u === formUnit.trim();
+                return (
+                  <TouchableOpacity
+                    style={[styles.currencyListRow, rowActive && styles.currencyListRowActive]}
+                    onPress={() => {
+                      if (isOthers) {
+                        setUnitManualMode(true);
+                        setFormUnit("");
+                      } else {
+                        setUnitManualMode(false);
+                        setFormUnit(u);
+                      }
+                      setUnitMenuVisible(false);
+                    }}
+                  >
+                    <Text style={styles.unitOptionText}>{u}</Text>
+                  </TouchableOpacity>
+                );
+              }}
             />
           </View>
         </View>

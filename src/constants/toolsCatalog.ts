@@ -44,12 +44,12 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
   {
     id: "private_list",
     title: "Private List",
-    tagline: "Biometric or PIN",
-    description: "Biometric or PIN",
+    tagline: "Passwords & secure notes",
+    description: "Passwords, PINs, and sensitive lines — no check-off flow",
     icon: "lock-closed",
-    dashboardIconFg: "#C2410C",
-    dashboardIconBg: "#FFE7D4",
-    status: "coming_soon",
+    dashboardIconFg: "#E5E7EB",
+    dashboardIconBg: "#374151",
+    status: "live",
     roadmapNotes: [],
   },
   {

@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.saycart.app",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "SayCart uses speech recognition so you can add groceries and prices by voice.",
-        "NSMicrophoneUsageDescription": "SayCart uses the microphone to capture your voice for item and price entry."
+        "NSMicrophoneUsageDescription": "SayCart uses the microphone to capture your voice for item and price entry.",
+        "NSFaceIDUsageDescription": "SayCart uses Face ID to unlock your private lists."
       }
     },
     "android": {
@@ -25,7 +26,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#BAC67A"
       },
-      "package": "com.saycart.app"
+      "package": "com.saycart.app",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       [
@@ -34,7 +36,8 @@
           "microphonePermission": "Allow SayCart to use the microphone for voice entry.",
           "speechRecognitionPermission": "Allow SayCart to use speech recognition for voice entry."
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

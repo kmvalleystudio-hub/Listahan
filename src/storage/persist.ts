@@ -1,19 +1,31 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
-import type { GroceryItem, GroceryList, HistoryEntry, TodoHistoryEntry, TodoItem, TodoList } from "../types";
+import type {
+  GroceryItem,
+  GroceryList,
+  HistoryEntry,
+  PrivateItem,
+  PrivateList,
+  TodoHistoryEntry,
+  TodoItem,
+  TodoList,
+} from "../types";
 import { normalizeItemsForPersist } from "../utils/items";
+import { normalizePrivateItemsForPersist } from "../utils/privateItems";
 import { normalizeTodoItemsForPersist } from "../utils/todoItems";
 
 const LISTS_KEY = "@saycart/lists_v1";
 const HISTORY_KEY = "@saycart/history_v1";
 const TODO_LISTS_KEY = "@saycart/todo_lists_v1";
 const TODO_HISTORY_KEY = "@saycart/todo_history_v1";
+const PRIVATE_LISTS_KEY = "@saycart/private_lists_v1";
 
 export type PersistShape = {
   lists: GroceryList[];
   history: HistoryEntry[];
   todoLists: TodoList[];
   todoHistory: TodoHistoryEntry[];
+  privateLists: PrivateList[];
 };
 
 function sanitizeItem(item: GroceryItem): GroceryItem {
@@ -67,6 +79,25 @@ function sanitizeTodoList(list: TodoList): TodoList {
   };
 }
 
+function sanitizePrivateItem(item: PrivateItem): PrivateItem {
+  return {
+    ...item,
+    name: item.name ?? "",
+    username: String(item.username ?? ""),
+    secret: String(item.secret ?? ""),
+    notes: String(item.notes ?? ""),
+    priority: Boolean(item.priority),
+  };
+}
+
+function sanitizePrivateList(list: PrivateList): PrivateList {
+  return {
+    ...list,
+    items: normalizePrivateItemsForPersist(list.items.map(sanitizePrivateItem)),
+    pinned: Boolean(list.pinned),
+  };
+}
+
 function sanitizeHistoryEntry(entry: HistoryEntry): HistoryEntry {
   return {
     ...entry,
@@ -84,23 +115,26 @@ function sanitizeTodoHistoryEntry(entry: TodoHistoryEntry): TodoHistoryEntry {
 }
 
 export async function loadPersisted(): Promise<PersistShape> {
-  const [listsJson, historyJson, todoListsJson, todoHistJson] = await Promise.all([
+  const [listsJson, historyJson, todoListsJson, todoHistJson, privateJson] = await Promise.all([
     AsyncStorage.getItem(LISTS_KEY),
     AsyncStorage.getItem(HISTORY_KEY),
     AsyncStorage.getItem(TODO_LISTS_KEY),
     AsyncStorage.getItem(TODO_HISTORY_KEY),
+    AsyncStorage.getItem(PRIVATE_LISTS_KEY),
   ]);
 
   const lists: GroceryList[] = listsJson ? JSON.parse(listsJson) : [];
   const history: HistoryEntry[] = historyJson ? JSON.parse(historyJson) : [];
   const todoLists: TodoList[] = todoListsJson ? JSON.parse(todoListsJson) : [];
   const todoHistory: TodoHistoryEntry[] = todoHistJson ? JSON.parse(todoHistJson) : [];
+  const privateLists: PrivateList[] = privateJson ? JSON.parse(privateJson) : [];
 
   return {
     lists: Array.isArray(lists) ? lists.map(sanitizeList) : [],
     history: Array.isArray(history) ? history.map(sanitizeHistoryEntry) : [],
     todoLists: Array.isArray(todoLists) ? todoLists.map(sanitizeTodoList) : [],
     todoHistory: Array.isArray(todoHistory) ? todoHistory.map(sanitizeTodoHistoryEntry) : [],
+    privateLists: Array.isArray(privateLists) ? privateLists.map(sanitizePrivateList) : [],
   };
 }
 
@@ -109,10 +143,12 @@ export async function savePersisted(data: PersistShape): Promise<void> {
   const history = data.history.map(sanitizeHistoryEntry);
   const todoLists = data.todoLists.map(sanitizeTodoList);
   const todoHistory = data.todoHistory.map(sanitizeTodoHistoryEntry);
+  const privateLists = (data.privateLists ?? []).map(sanitizePrivateList);
   await Promise.all([
     AsyncStorage.setItem(LISTS_KEY, JSON.stringify(lists)),
     AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history)),
     AsyncStorage.setItem(TODO_LISTS_KEY, JSON.stringify(todoLists)),
     AsyncStorage.setItem(TODO_HISTORY_KEY, JSON.stringify(todoHistory)),
+    AsyncStorage.setItem(PRIVATE_LISTS_KEY, JSON.stringify(privateLists)),
   ]);
 }

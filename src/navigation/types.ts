@@ -16,6 +16,11 @@ export type RootStackParamList = {
   TodoListDetail: { listId: string; autoOpenAdd?: boolean };
   TodoRecent: undefined;
   TodoRecentPreview: { historyId: string };
+
+  PrivateHome: undefined;
+  PrivateCreateList: undefined;
+  PrivateListDetail: { listId: string; autoOpenAdd?: boolean };
+  PrivateVaultSettings: undefined;
 };
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
@@ -38,3 +43,8 @@ export type TodoRecentPreviewProps = NativeStackScreenProps<
   RootStackParamList,
   "TodoRecentPreview"
 >;
+
+export type PrivateHomeProps = NativeStackScreenProps<RootStackParamList, "PrivateHome">;
+export type PrivateCreateListProps = NativeStackScreenProps<RootStackParamList, "PrivateCreateList">;
+export type PrivateListDetailProps = NativeStackScreenProps<RootStackParamList, "PrivateListDetail">;
+export type PrivateVaultSettingsProps = NativeStackScreenProps<RootStackParamList, "PrivateVaultSettings">;

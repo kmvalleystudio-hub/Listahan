@@ -66,3 +66,27 @@ export type TodoHistoryEntry = {
   updatedAt: string;
   items: TodoItem[];
 };
+
+/** Private vault entry — no “checked” state; optional secret + notes (e.g. passwords). */
+export type PrivateItem = {
+  id: string;
+  /** Label, e.g. site or account name */
+  name: string;
+  /** Login or email (plain text; optional) */
+  username?: string;
+  /** Sensitive value (stored locally; use secure field in UI) */
+  secret?: string;
+  /** Optional extra context (not masked) */
+  notes?: string;
+  priority?: boolean;
+  order: number;
+};
+
+export type PrivateList = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: PrivateItem[];
+  pinned?: boolean;
+};

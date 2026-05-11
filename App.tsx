@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppDataProvider } from "./src/context/AppDataContext";
+import { PrivateVaultProvider } from "./src/context/PrivateVaultContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
@@ -20,6 +21,10 @@ import TodoCreateListScreen from "./src/screens/TodoCreateListScreen";
 import TodoListDetailScreen from "./src/screens/TodoListDetailScreen";
 import TodoRecentScreen from "./src/screens/TodoRecentScreen";
 import TodoRecentPreviewScreen from "./src/screens/TodoRecentPreviewScreen";
+import PrivateHomeScreen from "./src/screens/PrivateHomeScreen";
+import PrivateCreateListScreen from "./src/screens/PrivateCreateListScreen";
+import PrivateListDetailScreen from "./src/screens/PrivateListDetailScreen";
+import PrivateVaultSettingsScreen from "./src/screens/PrivateVaultSettingsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -64,6 +69,14 @@ function NavigationRoot() {
         <Stack.Screen name="TodoListDetail" component={TodoListDetailScreen} />
         <Stack.Screen name="TodoRecent" component={TodoRecentScreen} />
         <Stack.Screen name="TodoRecentPreview" component={TodoRecentPreviewScreen} />
+        <Stack.Screen name="PrivateHome" component={PrivateHomeScreen} />
+        <Stack.Screen
+          name="PrivateCreateList"
+          component={PrivateCreateListScreen}
+          options={{ presentation: "modal" }}
+        />
+        <Stack.Screen name="PrivateListDetail" component={PrivateListDetailScreen} />
+        <Stack.Screen name="PrivateVaultSettings" component={PrivateVaultSettingsScreen} />
         <Stack.Screen
           name="CreateList"
           component={CreateListScreen}
@@ -87,7 +100,9 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AppDataProvider>
-          <NavigationRoot />
+          <PrivateVaultProvider>
+            <NavigationRoot />
+          </PrivateVaultProvider>
         </AppDataProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

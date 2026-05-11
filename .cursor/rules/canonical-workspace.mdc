@@ -8,3 +8,7 @@ alwaysApply: true
 - **All new files, edits, Git commits, and Expo/Metro runs** use this repo root: `C:\SayCart`.
 - **Do not create, modify, or save project files** under `C:\Users\admin\.cursor\projects\SayCart` (or similar Cursor cache paths). That tree is a **stale mirror** for reference only, to avoid duplicate/conflicting copies.
 - If comparing old snapshots, **read-only** reference is OK; **never** persist work there.
+
+## Deferred: AI subscription & Improve with AI
+
+When **all list tools** (voice, scan, grocery/todo parity, etc.) are **feature-complete**, revisit **`docs/FUTURE_AI_SUBSCRIPTION_AND_IMPROVE.md`**. Search the repo for tag **`SAYCART_REMINDER_LIST_TOOLS_DONE_AI_SUB`** to find the same note.
