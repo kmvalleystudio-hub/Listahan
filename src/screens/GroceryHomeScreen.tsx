@@ -312,7 +312,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     const normal = lists.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
-    if (normal.length) out.push({ title: pinned.length ? "Lists" : "", data: normal });
+    if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
     return out;
   }, [lists]);
 
@@ -335,7 +335,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     if (!menuList) return;
     const target = menuList;
     closeMenu();
-    Alert.alert("Delete list", `Remove "${target.name}"? This cannot be undone.`, [
+    Alert.alert("Remove groceries?", `Remove "${target.name}"? This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -351,7 +351,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
       onPress={() => navigation.navigate("ListDetail", { listId: item.id })}
       onLongPress={() => setMenuList(item)}
       delayLongPress={800}
-      accessibilityHint="Hold briefly to open list options"
+      accessibilityHint="Hold briefly to open options"
     >
       <View style={styles.cardRow}>
         <View style={styles.cardIconBlob}>
@@ -387,15 +387,15 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
             <Ionicons name="chevron-back" size={18} color={colors.linkBlue} />
             <Text style={styles.backTextSmall}>Tools</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Grocery lists</Text>
-          <Text style={styles.subtitle}>Lists, prices, voice & scan</Text>
+          <Text style={styles.title}>Groceries</Text>
+          <Text style={styles.subtitle}>Groceries, prices, voice & scan</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => navigation.navigate("History")}
             accessibilityRole="button"
-            accessibilityLabel="Open completed lists"
+            accessibilityLabel="Open completed groceries"
           >
             <Ionicons name="time-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -427,8 +427,8 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="basket-outline" size={48} color={colors.borderMuted} />
-              <Text style={styles.emptyTitle}>No lists yet</Text>
-              <Text style={styles.emptyText}>Create your first grocery list below.</Text>
+              <Text style={styles.emptyTitle}>Nothing here yet</Text>
+              <Text style={styles.emptyText}>Tap below to add your first groceries.</Text>
             </View>
           }
           SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -442,7 +442,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
           activeOpacity={0.9}
         >
           <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Create New List</Text>
+          <Text style={styles.primaryBtnText}>Add groceries</Text>
         </TouchableOpacity>
       </View>
 

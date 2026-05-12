@@ -169,7 +169,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
     const normal = privateLists.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
-    if (normal.length) out.push({ title: pinned.length ? "Lists" : "", data: normal });
+    if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
     return out;
   }, [privateLists]);
 
@@ -192,7 +192,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
     if (!menuList) return;
     const target = menuList;
     closeMenu();
-    Alert.alert("Delete list", `Remove "${target.name}"? This cannot be undone.`, [
+    Alert.alert("Remove sheet?", `Remove "${target.name}"? This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -244,7 +244,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
             <Ionicons name="chevron-back" size={18} color={colors.linkBlue} />
             <Text style={styles.backTextSmall}>Tools</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Private lists</Text>
+          <Text style={styles.title}>Vault</Text>
           <Text style={styles.subtitle}>
             Labels, secrets, and notes — stored on this device only (not encrypted)
           </Text>
@@ -281,9 +281,9 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="lock-closed-outline" size={48} color={colors.borderMuted} />
-              <Text style={styles.emptyTitle}>No lists yet</Text>
+              <Text style={styles.emptyTitle}>Nothing here yet</Text>
               <Text style={styles.emptyText}>
-                Create a list for passwords, PINs, recovery codes, or other private notes.
+                Add a sheet for passwords, PINs, recovery codes, or other private notes.
               </Text>
             </View>
           }
@@ -298,7 +298,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
           activeOpacity={0.9}
         >
           <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Create New List</Text>
+          <Text style={styles.primaryBtnText}>New sheet</Text>
         </TouchableOpacity>
       </View>
 

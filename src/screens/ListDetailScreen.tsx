@@ -835,7 +835,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
 
   const onConfirmDelete = () => {
     if (!editingItemId) return;
-    Alert.alert("Delete item", "Remove this item from the list?", [
+    Alert.alert("Delete item", "Remove this item from your groceries?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -884,7 +884,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
 
   const showBulkListInfo = () => {
     Alert.alert(
-      "Bulk List by Voice — format",
+      "Bulk voice — format",
       "1) Say the QUANTITY first, then the item name.\n2) Say AND before the next item.\n\nExample: “one milk 1L and two eggs and one coffee 25g and three apples”\n\nTap the mic to start, tap again when finished. Bulk lines don’t get spoken prices—use Item Price and edit if needed."
     );
   };
@@ -1121,7 +1121,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Camera permission needed", "Please allow camera access to scan handwritten lists.");
+        Alert.alert("Camera permission needed", "Please allow camera access to scan handwritten notes.");
         return null;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -1175,7 +1175,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Photos permission needed", "Please allow photo access to upload a list image.");
+        Alert.alert("Photos permission needed", "Please allow photo access to upload a photo of your notes.");
         return null;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1305,7 +1305,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       pushList({ ...snap, items: dedupeItemsByName([...snap.items, ...newItems]) });
       closeBulkVoiceModal();
     } catch (e) {
-      Alert.alert("Bulk list", e instanceof Error ? e.message : "Something went wrong.");
+      Alert.alert("Bulk add", e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBulkProcessing(false);
     }
@@ -1415,7 +1415,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             onPress={openBulkFromItemModal}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Open bulk list by voice"
+            accessibilityLabel="Open bulk voice add"
           >
             <Ionicons name="mic" size={16} color={colors.micIcon} />
             <Text style={styles.bulkFromAddBtnText}>Bulk Add</Text>
@@ -1566,9 +1566,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                     onPress={() => setUnitMenuVisible(true)}
                     activeOpacity={0.75}
                     accessibilityRole="button"
-                    accessibilityLabel="Choose unit from preset list"
+                    accessibilityLabel="Choose unit from presets"
                   >
-                    <Text style={styles.unitChoosePresetLinkText}>Choose from list</Text>
+                    <Text style={styles.unitChoosePresetLinkText}>Choose preset</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -1605,9 +1605,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                       onPress={() => setUnitMenuVisible(true)}
                       activeOpacity={0.75}
                       accessibilityRole="button"
-                      accessibilityLabel="Choose unit from preset list"
+                      accessibilityLabel="Choose unit from presets"
                     >
-                      <Text style={styles.unitChoosePresetLinkTextCompact}>Choose from list</Text>
+                      <Text style={styles.unitChoosePresetLinkTextCompact}>Choose preset</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -1861,7 +1861,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
             <Ionicons name="chevron-back" size={22} color={colors.text} />
-            <Text style={styles.backText}>Lists</Text>
+            <Text style={styles.backText}>Groceries</Text>
           </TouchableOpacity>
           <Text style={styles.listTitle} numberOfLines={1}>
             {list.name}
@@ -2003,7 +2003,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               </View>
               <Switch
                 style={styles.fabPriceSwitch}
-                accessibilityLabel="Show item prices on list"
+                accessibilityLabel="Show item prices on this run"
                 value={list.showItemPrice}
                 onValueChange={togglePrice}
                 trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
@@ -2017,7 +2017,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             onPress={openBulkVoiceModal}
             activeOpacity={0.9}
             accessibilityRole="button"
-            accessibilityLabel="Bulk list by voice"
+            accessibilityLabel="Bulk voice add"
           >
             <View style={styles.fabMicGradientBase} pointerEvents="none" />
             <Animated.View
@@ -2037,7 +2037,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               onPress={openScanModal}
               activeOpacity={0.9}
               accessibilityRole="button"
-              accessibilityLabel="Scan list from image"
+              accessibilityLabel="Scan from image"
             >
               <Ionicons name="scan-outline" size={22} color={colors.primaryDark} />
             </TouchableOpacity>
@@ -2127,7 +2127,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                   onPress={showBulkListInfo}
                   style={styles.bulkHeaderIconBtn}
                   accessibilityRole="button"
-                  accessibilityLabel="About bulk list by voice"
+                  accessibilityLabel="About bulk voice add"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons name="information-circle-outline" size={22} color={colors.textTertiary} />
@@ -2144,7 +2144,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             </View>
 
             <Text style={styles.bulkModalTitle} numberOfLines={2}>
-              Bulk List by Voice
+              Bulk voice add
             </Text>
             <Text style={styles.bulkModalHint}>
               Say quantity first, then name. Separate items with AND.
@@ -2254,7 +2254,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 <View style={styles.bulkModalHeader}>
                   <View style={styles.bulkHeaderPill}>
                     <Ionicons name="scan-outline" size={15} color={colors.micIcon} />
-                    <Text style={styles.bulkHeaderPillText}>Scan list</Text>
+                    <Text style={styles.bulkHeaderPillText}>Scan notes</Text>
                   </View>
                   <View style={styles.scanHeaderAside}>
                     <TouchableOpacity
@@ -2272,9 +2272,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 </View>
                 {scanActiveTab === "capture" ? (
                   <>
-                    <Text style={styles.bulkModalTitle}>Capture or Upload List</Text>
+                    <Text style={styles.bulkModalTitle}>Capture or upload</Text>
                     <Text style={styles.bulkModalHint}>
-                      Take a photo of your paper list, then review/edit text before importing.
+                      Take a photo of your paper notes, then review/edit text before importing.
                     </Text>
                   </>
                 ) : null}
@@ -2357,7 +2357,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                           onPress={() => void onScanUploadPress()}
                           activeOpacity={0.92}
                           accessibilityRole="button"
-                          accessibilityLabel="Upload list photo"
+                          accessibilityLabel="Upload photo"
                         >
                           <Ionicons name="images-outline" size={19} color={colors.primaryDark} />
                           <Text style={styles.scanActionSecondaryText}>Upload</Text>
@@ -2592,7 +2592,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           />
           <View style={[styles.currencyListCard, { paddingBottom: insets.bottom + 12 }]}>
             <Text style={styles.currencyListTitle}>Select currency</Text>
-            <Text style={styles.currencyListHint}>Applies to this whole list</Text>
+            <Text style={styles.currencyListHint}>Applies to all items here</Text>
             <FlatList
               data={CURRENCY_OPTIONS}
               keyExtractor={(c) => c.code}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,12 +20,24 @@ export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
   );
 
   const homeName = tool === "todo" ? "TodoHome" : "GroceryHome";
+  const autoNavRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const goHome = () => {
+    if (autoNavRef.current) {
+      clearTimeout(autoNavRef.current);
+      autoNavRef.current = null;
+    }
+    navigation.navigate(homeName);
+  };
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    autoNavRef.current = setTimeout(() => {
+      autoNavRef.current = null;
       navigation.navigate(homeName);
     }, 2800);
-    return () => clearTimeout(t);
+    return () => {
+      if (autoNavRef.current) clearTimeout(autoNavRef.current);
+    };
   }, [navigation, homeName]);
 
   return (
@@ -39,6 +51,18 @@ export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
         },
       ]}
     >
+      <View style={[styles.topBar, { paddingHorizontal: 8 }]}>
+        <TouchableOpacity
+          style={styles.backRow}
+          onPress={goHome}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.95)" />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.center}>
         <View style={styles.iconWrap}>
           <Ionicons name="checkmark" size={72} color="#fff" />
@@ -47,11 +71,10 @@ export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate(homeName)}
-      >
-        <Text style={[styles.btnText, { color: colors.primaryDark }]}>Back to Lists</Text>
+      <TouchableOpacity style={styles.btn} onPress={goHome}>
+        <Text style={[styles.btnText, { color: colors.primaryDark }]}>
+          {tool === "todo" ? "Back to To-dos" : "Back to Groceries"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -61,6 +84,23 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingBottom: 4,
+  },
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.95)",
   },
   center: {
     flex: 1,

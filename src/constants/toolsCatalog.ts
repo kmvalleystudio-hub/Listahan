@@ -21,9 +21,9 @@ export type ToolDefinition = {
 export const TOOLS_CATALOG: ToolDefinition[] = [
   {
     id: "grocery",
-    title: "Grocery List",
-    tagline: "Lists, prices, voice & scan",
-    description: "Lists, prices, voice & scan",
+    title: "Grocery",
+    tagline: "Groceries, prices, voice & scan",
+    description: "Groceries, prices, voice & scan",
     icon: "cart",
     dashboardIconFg: "#5F6F22",
     dashboardIconBg: "#E4EAC4",
@@ -32,7 +32,7 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
   },
   {
     id: "todo",
-    title: "To-do List",
+    title: "To-do",
     tagline: "Simple tasks, timers, chimes",
     description: "Simple tasks, timers, chimes",
     icon: "checkmark-circle",
@@ -43,7 +43,7 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
   },
   {
     id: "private_list",
-    title: "Private List",
+    title: "Vault",
     tagline: "Passwords & secure notes",
     description: "Passwords, PINs, and sensitive lines — no check-off flow",
     icon: "lock-closed",
@@ -54,7 +54,7 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
   },
   {
     id: "reminder",
-    title: "Reminder List",
+    title: "Reminder",
     tagline: "Nudges at the right time",
     description: "Nudges at the right time",
     icon: "alarm",
@@ -71,7 +71,7 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
     icon: "document-text",
     dashboardIconFg: "#A16207",
     dashboardIconBg: "#FEF3C7",
-    status: "coming_soon",
+    status: "live",
     roadmapNotes: [],
   },
 ];

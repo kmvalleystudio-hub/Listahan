@@ -329,7 +329,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       const ts = nowIso();
       const list: PrivateList = {
         id: generateId(),
-        name: name.trim() || "Private list",
+        name: name.trim() || "Untitled sheet",
         createdAt: ts,
         updatedAt: ts,
         items: [],

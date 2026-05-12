@@ -883,7 +883,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Camera permission needed", "Please allow camera access to scan handwritten lists.");
+        Alert.alert("Camera permission needed", "Please allow camera access to scan handwritten notes.");
         return null;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -929,7 +929,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Photos permission needed", "Please allow photo access to upload a list image.");
+        Alert.alert("Photos permission needed", "Please allow photo access to upload a photo of your notes.");
         return null;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1122,7 +1122,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
       pushList({ ...snap, items: dedupeTodoItemsByName([...snap.items, ...newItems]) });
       closeBulkVoiceModal();
     } catch (e) {
-      Alert.alert("Bulk tasks", e instanceof Error ? e.message : "Something went wrong.");
+      Alert.alert("Bulk add", e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBulkProcessing(false);
     }
@@ -1390,7 +1390,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
             <Ionicons name="chevron-back" size={22} color={colors.text} />
-            <Text style={styles.backText}>Lists</Text>
+            <Text style={styles.backText}>To-dos</Text>
           </TouchableOpacity>
           <Text style={styles.listTitle} numberOfLines={1}>
             {list.name}
@@ -1831,7 +1831,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                   <>
                     <Text style={styles.bulkModalTitle}>Capture or upload</Text>
                     <Text style={styles.bulkModalHint}>
-                      Photograph your paper list, then review the text before importing tasks.
+                      Photograph your paper notes, then review the text before importing tasks.
                     </Text>
                   </>
                 ) : null}
@@ -1911,7 +1911,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                           onPress={() => void onScanUploadPress()}
                           activeOpacity={0.92}
                           accessibilityRole="button"
-                          accessibilityLabel="Upload list photo"
+                          accessibilityLabel="Upload photo"
                         >
                           <Ionicons name="images-outline" size={19} color={colors.primaryDark} />
                           <Text style={styles.scanActionSecondaryText}>Upload</Text>

@@ -21,6 +21,9 @@ export type RootStackParamList = {
   PrivateCreateList: undefined;
   PrivateListDetail: { listId: string; autoOpenAdd?: boolean };
   PrivateVaultSettings: undefined;
+
+  NotesHome: undefined;
+  NoteEditor: { noteId?: string };
 };
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
@@ -48,3 +51,5 @@ export type PrivateHomeProps = NativeStackScreenProps<RootStackParamList, "Priva
 export type PrivateCreateListProps = NativeStackScreenProps<RootStackParamList, "PrivateCreateList">;
 export type PrivateListDetailProps = NativeStackScreenProps<RootStackParamList, "PrivateListDetail">;
 export type PrivateVaultSettingsProps = NativeStackScreenProps<RootStackParamList, "PrivateVaultSettings">;
+export type NotesHomeProps = NativeStackScreenProps<RootStackParamList, "NotesHome">;
+export type NoteEditorProps = NativeStackScreenProps<RootStackParamList, "NoteEditor">;

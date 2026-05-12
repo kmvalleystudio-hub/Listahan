@@ -179,7 +179,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
     const normal = todoLists.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
-    if (normal.length) out.push({ title: pinned.length ? "Lists" : "", data: normal });
+    if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
     return out;
   }, [todoLists]);
 
@@ -202,7 +202,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
     if (!menuList) return;
     const target = menuList;
     closeMenu();
-    Alert.alert("Delete list", `Remove "${target.name}"? This cannot be undone.`, [
+    Alert.alert("Remove to-dos?", `Remove "${target.name}"? This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -253,7 +253,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
             <Ionicons name="chevron-back" size={18} color={colors.linkBlue} />
             <Text style={styles.backTextSmall}>Tools</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>To-do lists</Text>
+          <Text style={styles.title}>To-dos</Text>
           <Text style={styles.subtitle}>Simple tasks — check them off when done</Text>
         </View>
         <View style={styles.headerActions}>
@@ -261,7 +261,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
             style={styles.iconBtn}
             onPress={() => navigation.navigate("TodoRecent")}
             accessibilityRole="button"
-            accessibilityLabel="Recent completed lists"
+            accessibilityLabel="Recent completed to-dos"
           >
             <Ionicons name="time-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -290,8 +290,8 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="checkbox-outline" size={48} color={colors.borderMuted} />
-              <Text style={styles.emptyTitle}>No lists yet</Text>
-              <Text style={styles.emptyText}>Create your first to-do list below.</Text>
+              <Text style={styles.emptyTitle}>Nothing here yet</Text>
+              <Text style={styles.emptyText}>Tap below to add your first to-dos.</Text>
             </View>
           }
           SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -305,7 +305,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
           activeOpacity={0.9}
         >
           <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Create New List</Text>
+          <Text style={styles.primaryBtnText}>Add to-dos</Text>
         </TouchableOpacity>
       </View>
 

@@ -9,6 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import type { CreateListProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
@@ -27,6 +28,12 @@ function createCreateListStyles(c: AppThemeColors) {
       paddingHorizontal: 16,
       paddingVertical: 12,
     },
+    headerBack: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      minWidth: 72,
+    },
     headerTitle: {
       fontSize: 17,
       fontWeight: "700",
@@ -36,7 +43,6 @@ function createCreateListStyles(c: AppThemeColors) {
       fontSize: 16,
       color: c.linkBlue,
       fontWeight: "600",
-      width: 56,
     },
     body: {
       padding: 20,
@@ -97,15 +103,22 @@ export default function CreateListScreen({ navigation }: CreateListProps) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-          <Text style={styles.link}>Cancel</Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={styles.headerBack}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
+          <Text style={styles.link}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>New list</Text>
-        <View style={{ width: 56 }} />
+        <Text style={styles.headerTitle}>New groceries</Text>
+        <View style={{ width: 72 }} />
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.label}>List name</Text>
+        <Text style={styles.label}>Name</Text>
         <TextInput
           value={name}
           onChangeText={setName}

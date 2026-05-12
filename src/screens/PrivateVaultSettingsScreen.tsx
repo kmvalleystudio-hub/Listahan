@@ -322,7 +322,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
-            <Text style={styles.backText}>Private lists</Text>
+            <Text style={styles.backText}>Vault</Text>
           </TouchableOpacity>
         </View>
         <Text
@@ -344,7 +344,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
                     <Text style={styles.rowLabel}>Face ID / Touch ID / device lock</Text>
                     <Text style={styles.rowHint}>
                       {bioHardware
-                        ? "When off, only your app PIN unlocks private lists."
+                        ? "When off, only your app PIN unlocks the vault."
                         : "Biometrics are not available on this device."}
                     </Text>
                   </View>
@@ -386,7 +386,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
           </View>
 
           <Text style={styles.foot}>
-            Private lists are stored on this device only. Your PIN and recovery answer are stored in the device keychain
+            Vault data is stored on this device only. Your PIN and recovery answer are stored in the device keychain
             when supported, with a fallback store when not.
           </Text>
         </ScrollView>

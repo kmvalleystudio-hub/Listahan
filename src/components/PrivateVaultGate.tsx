@@ -8,9 +8,10 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
-  KeyboardAvoidingView,
   ScrollView,
   Keyboard,
+  Dimensions,
+  type KeyboardEvent,
 } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,6 +47,7 @@ function createGateStyles(c: AppThemeColors) {
     keyboard: { flex: 1 },
     scrollContent: {
       flexGrow: 1,
+      /** Short PIN flows stay visually anchored above the home inset; tall flows still scroll. */
       justifyContent: "flex-end",
       paddingHorizontal: 24,
     },
@@ -131,7 +133,7 @@ async function authenticateWithBiometrics(): Promise<boolean> {
     const enrolled = await LocalAuthentication.isEnrolledAsync();
     if (!has || !enrolled) return false;
     const r = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Unlock private lists",
+      promptMessage: "Unlock vault",
       fallbackLabel: "Use PIN",
       cancelLabel: "Cancel",
       disableDeviceFallback: false,
@@ -182,19 +184,48 @@ export default function PrivateVaultGate({ children }: Props) {
   const [frAns2, setFrAns2] = useState("");
 
   const scrollRef = useRef<ScrollView>(null);
-  const [kbPad, setKbPad] = useState(0);
+  /** Window height when keyboard was last dismissed — used to detect adjustResize vs overlay. */
+  const idleWindowHeightRef = useRef(Dimensions.get("window").height);
+  const [keyboardBottomGap, setKeyboardBottomGap] = useState(0);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
     const showEv = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEv = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const subShow = Keyboard.addListener(showEv, (e) => setKbPad(e.endCoordinates.height));
-    const subHide = Keyboard.addListener(hideEv, () => setKbPad(0));
+    const onShow = (e: KeyboardEvent) => {
+      const kb = e.endCoordinates.height;
+      const hNow = Dimensions.get("window").height;
+      const idle = idleWindowHeightRef.current;
+      const shrunk = idle - hNow;
+      // If the activity already resized for the keyboard, avoid stacking the same inset again.
+      const osAlreadyInset = kb > 0 && shrunk > kb * 0.45;
+      setKeyboardBottomGap(osAlreadyInset ? 0 : kb);
+    };
+    const onHide = () => {
+      setKeyboardBottomGap(0);
+      idleWindowHeightRef.current = Dimensions.get("window").height;
+    };
+    const subShow = Keyboard.addListener(showEv, onShow);
+    const subHide = Keyboard.addListener(hideEv, onHide);
     return () => {
       subShow.remove();
       subHide.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const sub = Dimensions.addEventListener("change", () => {
+      idleWindowHeightRef.current = Dimensions.get("window").height;
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (isFocused && !unlocked) {
+      idleWindowHeightRef.current = Dimensions.get("window").height;
+    }
+  }, [isFocused, unlocked]);
 
   const scrollFormToEnd = useCallback(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -256,7 +287,7 @@ export default function PrivateVaultGate({ children }: Props) {
     if (busy || !hasPin) return;
     const pref = await getBiometricsPreference();
     if (!pref) {
-      Alert.alert("Biometrics off", "Turn on Face ID / Touch ID in Private lists → Settings.");
+      Alert.alert("Biometrics off", "Turn on Face ID / Touch ID in Vault → Settings.");
       return;
     }
     setBusy(true);
@@ -359,7 +390,7 @@ export default function PrivateVaultGate({ children }: Props) {
     if (!has) {
       Alert.alert(
         "No recovery phrase",
-        "You have not set a secret question yet. Open Private lists (after unlocking with your PIN if you remember it), go to Settings, and add recovery there—or you will need to clear app data to reset the vault."
+        "You have not set a secret question yet. Open the vault (after unlocking with your PIN if you remember it), go to Settings, and add recovery there—or you will need to clear app data to reset the vault."
       );
       return;
     }
@@ -468,7 +499,7 @@ export default function PrivateVaultGate({ children }: Props) {
     }
     if (forgotPhase === "answer") return "Forgot PIN";
     if (forgotPhase === "reset") return "Choose a new PIN";
-    return "Private lists locked";
+    return "Vault locked";
   })();
 
   const headerSubtitle = (() => {
@@ -490,13 +521,14 @@ export default function PrivateVaultGate({ children }: Props) {
     return "Confirm your identity to view passwords and private notes stored on this device.";
   })();
 
+  /**
+   * Float the form above the keyboard: reserve `keyboardBottomGap` on the overlay root when the OS
+   * did not already shrink the window (common for full-screen absolute layers). When adjustResize
+   * did shrink the window, gap stays 0 so we do not double-count.
+   */
   const lockLayer = isFocused && !unlocked ? (
-    <View style={styles.root} pointerEvents="auto">
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior="padding"
-        keyboardVerticalOffset={insets.top}
-      >
+    <View style={[styles.root, { paddingBottom: keyboardBottomGap }]} pointerEvents="auto">
+      <View style={styles.keyboard}>
         <ScrollView
           ref={scrollRef}
           keyboardShouldPersistTaps="handled"
@@ -507,11 +539,19 @@ export default function PrivateVaultGate({ children }: Props) {
             styles.scrollContent,
             {
               paddingTop: insets.top + 16,
-              paddingBottom: insets.bottom + 24 + kbPad,
-              justifyContent: kbPad > 0 ? ("flex-start" as const) : ("flex-end" as const),
+              paddingBottom: insets.bottom + 24,
             },
           ]}
         >
+          {renderVaultGateBody()}
+        </ScrollView>
+      </View>
+    </View>
+  ) : null;
+
+  function renderVaultGateBody() {
+    return (
+      <>
           <View style={{ alignItems: "center", marginBottom: 20 }}>
             <View style={styles.iconWrap}>
               <Ionicons name="lock-closed" size={36} color={colors.iconBlobFg} />
@@ -532,6 +572,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 secureTextEntry
                 maxLength={PIN_LENGTH_MAX}
                 editable={!busy}
+                onFocus={scrollFormToEnd}
               />
               <Text style={[styles.hint, styles.rowGap]}>Confirm PIN</Text>
               <TextInput
@@ -544,6 +585,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 secureTextEntry
                 maxLength={PIN_LENGTH_MAX}
                 editable={!busy}
+                onFocus={scrollFormToEnd}
               />
               <TouchableOpacity
                 style={[styles.primaryBtn, busy && { opacity: 0.7 }]}
@@ -616,7 +658,7 @@ export default function PrivateVaultGate({ children }: Props) {
           {showCreate && setupStep === 3 ? (
             <View>
               <Text style={styles.hint}>
-                Allow Face ID, Touch ID, or your device passcode to unlock private lists? You can change this later
+                Allow Face ID, Touch ID, or your device passcode to unlock the vault? You can change this later
                 in Settings.
               </Text>
               <TouchableOpacity
@@ -774,6 +816,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 secureTextEntry
                 maxLength={PIN_LENGTH_MAX}
                 editable={!busy}
+                onFocus={scrollFormToEnd}
                 onSubmitEditing={() => void onUnlockWithPin()}
               />
               <TouchableOpacity
@@ -789,10 +832,9 @@ export default function PrivateVaultGate({ children }: Props) {
               {busy ? <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} /> : null}
             </View>
           ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
-  ) : null;
+      </>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>

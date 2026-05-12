@@ -273,7 +273,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
           {new Date(entry.updatedAt).toLocaleString()} · {entry.items.length} items
           {showPrice ? ` · Total ${formatMoney(grandTotal, sym)}` : ""}
         </Text>
-        <Text style={styles.hint}>Read-only snapshot — use the button below to start a new list from this.</Text>
+        <Text style={styles.hint}>Read-only snapshot — reuse it with the button below.</Text>
 
         <View style={styles.itemsCard}>
           {sortedItems.map((item) => (
@@ -285,7 +285,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity style={styles.primaryBtn} onPress={openCreateModal} activeOpacity={0.9}>
           <Ionicons name="duplicate-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Create new list using this</Text>
+          <Text style={styles.primaryBtnText}>Start fresh from this</Text>
         </TouchableOpacity>
       </View>
 
@@ -295,12 +295,12 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Name your new list</Text>
+            <Text style={styles.modalTitle}>Name your groceries</Text>
             <TextInput
               value={newName}
               onChangeText={setNewName}
               style={styles.modalInput}
-              placeholder="List name"
+              placeholder="e.g. Weekly shop"
               placeholderTextColor={colors.placeholder}
             />
             <View style={styles.modalRow}>

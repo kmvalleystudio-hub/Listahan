@@ -137,7 +137,7 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
       </View>
       <TouchableOpacity style={styles.copyBtn} onPress={() => openPicker(item)}>
         <Ionicons name="duplicate-outline" size={18} color="#fff" />
-        <Text style={styles.copyBtnText}>Create new list using this</Text>
+        <Text style={styles.copyBtnText}>Start fresh from this</Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -161,10 +161,9 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="file-tray-outline" size={44} color={colors.borderMuted} />
-            <Text style={styles.emptyTitle}>No completed lists yet</Text>
+            <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyText}>
-              When you check off every task on a list, it moves here. Reuse any snapshot as a template
-              for a new list.
+              When you check off every task, the snapshot is saved here. Reuse any snapshot as a template.
             </Text>
           </View>
         }
@@ -176,12 +175,12 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Name your new list</Text>
+            <Text style={styles.modalTitle}>Name your to-dos</Text>
             <TextInput
               value={newName}
               onChangeText={setNewName}
               style={styles.modalInput}
-              placeholder="List name"
+              placeholder="e.g. Today"
               placeholderTextColor={colors.placeholder}
             />
             <View style={styles.modalRow}>

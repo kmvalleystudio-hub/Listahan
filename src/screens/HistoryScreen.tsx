@@ -213,7 +213,7 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
         </View>
         <TouchableOpacity style={styles.copyBtn} onPress={() => openPicker(item)}>
           <Ionicons name="duplicate-outline" size={18} color="#fff" />
-          <Text style={styles.copyBtnText}>Create new list using this</Text>
+          <Text style={styles.copyBtnText}>Start fresh from this</Text>
         </TouchableOpacity>
       </TouchableOpacity>
     );
@@ -226,7 +226,7 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
           <Ionicons name="chevron-back" size={22} color={colors.text} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Completed lists</Text>
+        <Text style={styles.title}>Past groceries</Text>
         <View style={{ width: 72 }} />
       </View>
 
@@ -241,10 +241,9 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="file-tray-outline" size={44} color={colors.borderMuted} />
-            <Text style={styles.emptyTitle}>No completed lists yet</Text>
+            <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyText}>
-              When you check off every item on a list, it moves here. You can start a new list from any
-              snapshot.
+              When you check off every item, the run is saved here. Reuse any snapshot as a starting point.
             </Text>
           </View>
         }
@@ -256,12 +255,12 @@ export default function HistoryScreen({ navigation }: HistoryProps) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Name your new list</Text>
+            <Text style={styles.modalTitle}>Name your groceries</Text>
             <TextInput
               value={newName}
               onChangeText={setNewName}
               style={styles.modalInput}
-              placeholder="List name"
+              placeholder="e.g. Weekly shop"
               placeholderTextColor={colors.placeholder}
             />
             <View style={styles.modalRow}>

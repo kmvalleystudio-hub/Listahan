@@ -41,7 +41,7 @@ function nowIso(): string {
 
 const VOICE_IDLE_MS_AFTER_FIRST_WORD = 2000;
 
-/** Row / bulk chrome: readable on light private list cards. */
+/** Row / bulk chrome: readable on light vault sheet cards. */
 const PRIVATE_ROW_ICON = "#374151";
 const PRIVATE_ROW_ICON_MUTED = "#9CA3AF";
 const PRIVATE_STAR_FILLED = "#B45309";
@@ -951,7 +951,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
             <Ionicons name="chevron-back" size={22} color={colors.text} />
-            <Text style={styles.backText}>Lists</Text>
+            <Text style={styles.backText}>Vault</Text>
           </TouchableOpacity>
           <Text style={styles.listTitle} numberOfLines={1}>
             {list.name}

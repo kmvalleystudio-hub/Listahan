@@ -25,6 +25,8 @@ import PrivateHomeScreen from "./src/screens/PrivateHomeScreen";
 import PrivateCreateListScreen from "./src/screens/PrivateCreateListScreen";
 import PrivateListDetailScreen from "./src/screens/PrivateListDetailScreen";
 import PrivateVaultSettingsScreen from "./src/screens/PrivateVaultSettingsScreen";
+import NotesHomeScreen from "./src/screens/NotesHomeScreen";
+import NoteEditorScreen from "./src/screens/NoteEditorScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -77,6 +79,8 @@ function NavigationRoot() {
         />
         <Stack.Screen name="PrivateListDetail" component={PrivateListDetailScreen} />
         <Stack.Screen name="PrivateVaultSettings" component={PrivateVaultSettingsScreen} />
+        <Stack.Screen name="NotesHome" component={NotesHomeScreen} />
+        <Stack.Screen name="NoteEditor" component={NoteEditorScreen} />
         <Stack.Screen
           name="CreateList"
           component={CreateListScreen}
