@@ -25,6 +25,7 @@ import {
 function createStyles(c: AppThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
+    /** No border or elevation — avoids a visible rule/shadow under the header. */
     header: {
       paddingHorizontal: 16,
       paddingBottom: 8,
@@ -33,10 +34,6 @@ function createStyles(c: AppThemeColors) {
       justifyContent: "space-between",
       gap: 8,
       backgroundColor: c.background,
-      zIndex: 4,
-      elevation: 6,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.borderMuted,
     },
     backRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8 },
     backText: { fontSize: 16, fontWeight: "600", color: c.linkBlue },
@@ -184,16 +181,20 @@ export default function NoteEditorScreen({ navigation, route }: NoteEditorProps)
           <Text style={styles.backText}>Notes</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Edit
+          {paramId ? "Edit" : "New"}
         </Text>
-        <TouchableOpacity
-          style={styles.trashBtn}
-          onPress={onDelete}
-          accessibilityRole="button"
-          accessibilityLabel="Delete note"
-        >
-          <Ionicons name="trash-outline" size={22} color={colors.danger} />
-        </TouchableOpacity>
+        {paramId ? (
+          <TouchableOpacity
+            style={styles.trashBtn}
+            onPress={onDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Delete note"
+          >
+            <Ionicons name="trash-outline" size={22} color={colors.danger} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       <View style={styles.inputWrap}>

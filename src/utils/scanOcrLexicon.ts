@@ -282,3 +282,12 @@ export function shouldFlagOcrWord(raw: string): boolean {
 export function replaceScanTextRange(text: string, start: number, end: number, insert: string): string {
   return `${text.slice(0, start)}${insert}${text.slice(end)}`;
 }
+
+/** Start (inclusive) and end (exclusive) character indices of the line containing `index`. */
+export function scanTextLineRangeAtIndex(text: string, index: number): { lineStart: number; lineEnd: number } {
+  const safe = Math.max(0, Math.min(index, text.length));
+  const lineStart = text.lastIndexOf("\n", safe - 1) + 1;
+  const nextNl = text.indexOf("\n", safe);
+  const lineEnd = nextNl === -1 ? text.length : nextNl;
+  return { lineStart, lineEnd };
+}

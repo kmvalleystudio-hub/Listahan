@@ -58,9 +58,9 @@ export const TOOLS_CATALOG: ToolDefinition[] = [
     tagline: "Nudges at the right time",
     description: "Nudges at the right time",
     icon: "alarm",
-    dashboardIconFg: "#5B21B6",
-    dashboardIconBg: "#EDE9FE",
-    status: "coming_soon",
+    dashboardIconFg: "#8B5CF6",
+    dashboardIconBg: "#F5F3FF",
+    status: "live",
     roadmapNotes: [],
   },
   {

@@ -1,5 +1,6 @@
 import "react-native-gesture-handler";
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
+import { AppState } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -27,11 +28,26 @@ import PrivateListDetailScreen from "./src/screens/PrivateListDetailScreen";
 import PrivateVaultSettingsScreen from "./src/screens/PrivateVaultSettingsScreen";
 import NotesHomeScreen from "./src/screens/NotesHomeScreen";
 import NoteEditorScreen from "./src/screens/NoteEditorScreen";
+import ReminderHomeScreen from "./src/screens/ReminderHomeScreen";
+import ReminderEditorScreen from "./src/screens/ReminderEditorScreen";
+import { reconcileScheduledReminders, registerForegroundReminderFeedback } from "./src/utils/reminderNotifications";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function NavigationRoot() {
   const { colors, isDark } = useTheme();
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void reconcileScheduledReminders();
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const remove = registerForegroundReminderFeedback();
+    return remove;
+  }, []);
 
   const navTheme = useMemo(
     () => ({
@@ -81,6 +97,8 @@ function NavigationRoot() {
         <Stack.Screen name="PrivateVaultSettings" component={PrivateVaultSettingsScreen} />
         <Stack.Screen name="NotesHome" component={NotesHomeScreen} />
         <Stack.Screen name="NoteEditor" component={NoteEditorScreen} />
+        <Stack.Screen name="ReminderHome" component={ReminderHomeScreen} />
+        <Stack.Screen name="ReminderEditor" component={ReminderEditorScreen} />
         <Stack.Screen
           name="CreateList"
           component={CreateListScreen}

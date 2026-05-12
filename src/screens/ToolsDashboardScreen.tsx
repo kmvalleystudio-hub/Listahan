@@ -343,6 +343,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
       if (tool.id === "todo") navigation.navigate("TodoHome");
       if (tool.id === "private_list") navigation.navigate("PrivateHome");
       if (tool.id === "notes") navigation.navigate("NotesHome");
+      if (tool.id === "reminder") navigation.navigate("ReminderHome");
     },
     [enterReorderBusy, navigation, reorderMode]
   );

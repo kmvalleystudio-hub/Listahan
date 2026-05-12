@@ -6,6 +6,57 @@ function catalogEntry(id: ToolId) {
   return TOOLS_CATALOG.find((t) => t.id === id);
 }
 
+/** True when `base` is a dark UI palette (tool patches often use deep accent hexes meant for light cards). */
+function isDarkThemeBase(base: AppThemeColors): boolean {
+  const hex = base.background.replace("#", "").trim();
+  if (hex.length !== 6) return false;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.22;
+}
+
+/** Reminder accents on dark: pastel violet so links, chips, and picker values read like the primary CTA. */
+const REMINDER_DARK_READABLE: Pick<
+  AppThemeColors,
+  | "linkBlue"
+  | "micIcon"
+  | "totalBg"
+  | "totalBorder"
+  | "totalLabel"
+  | "totalValue"
+  | "bulkMicBorder"
+  | "bulkMicActiveBorder"
+  | "currencyActiveRow"
+  | "accentBlueSoft"
+  | "accentBlueBorder"
+  | "switchTrackOn"
+  | "switchThumbOn"
+  | "saveGreen"
+  | "success"
+  | "iconBlobBg"
+  | "iconBlobFg"
+> = {
+  linkBlue: "#DDD6FE",
+  micIcon: "#C4B5FD",
+  totalBg: "rgba(196, 181, 253, 0.14)",
+  totalBorder: "rgba(196, 181, 253, 0.38)",
+  totalLabel: "#E9D5FF",
+  totalValue: "#F5F3FF",
+  bulkMicBorder: "rgba(196, 181, 253, 0.45)",
+  bulkMicActiveBorder: "rgba(167, 139, 250, 0.55)",
+  currencyActiveRow: "rgba(196, 181, 253, 0.12)",
+  accentBlueSoft: "rgba(196, 181, 253, 0.16)",
+  accentBlueBorder: "rgba(196, 181, 253, 0.42)",
+  switchTrackOn: "rgba(167, 139, 250, 0.42)",
+  switchThumbOn: "#C4B5FD",
+  saveGreen: "#A78BFA",
+  success: "#C4B5FD",
+  iconBlobBg: "rgba(91, 33, 182, 0.45)",
+  iconBlobFg: "#EDE9FE",
+};
+
 export function rgbaFromHex(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   if (h.length !== 6) return `rgba(15,23,42,${alpha})`;
@@ -157,5 +208,9 @@ const TOOL_PATCH: Record<
 export function applyToolTheme(base: AppThemeColors, toolId: ToolId): AppThemeColors {
   if (!catalogEntry(toolId)) return base;
   const patch = TOOL_PATCH[toolId];
-  return { ...base, ...patch };
+  let next: AppThemeColors = { ...base, ...patch };
+  if (toolId === "reminder" && isDarkThemeBase(base)) {
+    next = { ...next, ...REMINDER_DARK_READABLE };
+  }
+  return next;
 }

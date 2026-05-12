@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import type { AppThemeColors } from "../theme/colors";
 
 export function createListDetailStyles(c: AppThemeColors) {
@@ -511,15 +511,14 @@ export function createListDetailStyles(c: AppThemeColors) {
     },
     scanEditorShell: {
       position: "relative",
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bulkTranscriptBg,
+      borderRadius: 0,
+      borderWidth: 0,
+      backgroundColor: "transparent",
       marginBottom: 12,
       minHeight: 176,
       overflow: "visible",
       paddingTop: 12,
-      paddingHorizontal: 12,
+      paddingHorizontal: 0,
       paddingBottom: 10,
       gap: 10,
     },
@@ -590,23 +589,25 @@ export function createListDetailStyles(c: AppThemeColors) {
     scanUnifiedTextInput: {
       minHeight: 200,
       maxHeight: 320,
-      paddingHorizontal: 2,
+      paddingHorizontal: 0,
       paddingTop: 4,
       paddingBottom: 4,
       color: c.text,
       fontSize: 14,
       lineHeight: 22,
-      backgroundColor: c.card,
-      borderRadius: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
+      backgroundColor: "transparent",
+      borderRadius: 0,
+      borderWidth: 0,
     },
     scanLexMirrorOverlay: {
       ...StyleSheet.absoluteFillObject,
-      zIndex: 1,
-      paddingHorizontal: 2,
+      /** Above TextInput so only the mirror is visible; elevation fixes Android draw order vs zIndex. */
+      zIndex: 3,
+      paddingHorizontal: 0,
       paddingTop: 4,
       paddingBottom: 4,
+      overflow: "hidden",
+      ...(Platform.OS === "android" ? { elevation: 8 } : {}),
     },
     scanLexMirrorText: {
       fontSize: 14,
@@ -673,18 +674,19 @@ export function createListDetailStyles(c: AppThemeColors) {
     scanSuggestBubbleWrap: {
       position: "absolute",
       zIndex: 1000,
-      alignItems: "center",
+      /** Stretch so card + tail share one coordinate system; centering each child broke tail vs chip alignment. */
+      alignItems: "stretch",
     },
     scanSuggestBubbleCard: {
-      maxWidth: "100%",
-      alignSelf: "center",
+      width: "100%",
+      alignSelf: "stretch",
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.totalBorder,
       backgroundColor: c.totalBg,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 8,
       shadowColor: c.shadow,
       shadowOpacity: 0.12,
       shadowRadius: 12,
@@ -692,22 +694,28 @@ export function createListDetailStyles(c: AppThemeColors) {
       elevation: 8,
     },
     scanSuggestBubbleLabel: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: "800",
       color: c.text,
+      lineHeight: 18,
     },
+    /** Chips on one block, Dismiss on its own row — avoids overlap with short suggestion tokens (e.g. “No”). */
     scanSuggestBubbleFooter: {
+      width: "100%",
+      gap: 10,
+    },
+    scanSuggestBubbleActions: {
       flexDirection: "row",
-      flexWrap: "wrap",
+      justifyContent: "flex-end",
       alignItems: "center",
-      gap: 8,
+      width: "100%",
     },
     scanSuggestDismissCompact: {
-      marginLeft: "auto",
-      paddingVertical: 2,
-      paddingHorizontal: 4,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
     },
     scanSuggestBubbleTail: {
+      alignSelf: "flex-start",
       width: 0,
       height: 0,
       marginTop: -1,
@@ -726,13 +734,13 @@ export function createListDetailStyles(c: AppThemeColors) {
     scanSuggestHint: {
       fontSize: 12,
       color: c.textTertiary,
-      lineHeight: 16,
+      lineHeight: 17,
     },
     scanSuggestChips: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 6,
-      flexShrink: 1,
+      width: "100%",
     },
     scanSuggestChip: {
       paddingHorizontal: 10,

@@ -27,7 +27,12 @@
         "backgroundColor": "#BAC67A"
       },
       "package": "com.saycart.app",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.VIBRATE"
+      ]
     },
     "plugins": [
       [
@@ -37,7 +42,15 @@
           "speechRecognitionPermission": "Allow SayCart to use speech recognition for voice entry."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#5B21B6"
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }

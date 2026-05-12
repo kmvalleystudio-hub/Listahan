@@ -1,5 +1,8 @@
 import React from "react";
-import { Animated, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, Platform, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+
+const mirrorTextMetrics =
+  Platform.OS === "android" ? ({ includeFontPadding: false } satisfies TextStyle) : null;
 
 export type ScanLexSpan = { start: number; end: number };
 
@@ -14,6 +17,8 @@ type Props = {
   suggestSpan: ScanLexSpan | null;
   flashSpan: ScanLexSpan | null;
   flashOpacity: Animated.Value;
+  /** Match multiline `TextInput` `contentOffset.y` so the mirror shows the same lines as the field. */
+  contentScrollY: number;
   overlayStyle: StyleProp<ViewStyle>;
   textStyle: StyleProp<TextStyle>;
   suggestMarkStyle: StyleProp<TextStyle>;
@@ -25,11 +30,14 @@ export function ScanLexMirrorOverlay({
   suggestSpan,
   flashSpan,
   flashOpacity,
+  contentScrollY,
   overlayStyle,
   textStyle,
   suggestMarkStyle,
   successMarkStyle,
 }: Props) {
+  const shiftStyle = { transform: [{ translateY: -contentScrollY }] };
+
   if (suggestSpan) {
     const { start, end } = clampSpan(text.length, suggestSpan);
     const before = text.slice(0, start);
@@ -37,11 +45,13 @@ export function ScanLexMirrorOverlay({
     const after = text.slice(end);
     return (
       <View pointerEvents="none" style={overlayStyle}>
-        <Text style={textStyle} selectable={false}>
-          {before}
-          <Text style={[textStyle, suggestMarkStyle]}>{mid}</Text>
-          {after}
-        </Text>
+        <View style={shiftStyle}>
+          <Text style={[textStyle, mirrorTextMetrics]} selectable={false}>
+            {before}
+            <Text style={[textStyle, mirrorTextMetrics, suggestMarkStyle]}>{mid}</Text>
+            {after}
+          </Text>
+        </View>
       </View>
     );
   }
@@ -52,11 +62,15 @@ export function ScanLexMirrorOverlay({
     const after = text.slice(end);
     return (
       <View pointerEvents="none" style={overlayStyle}>
-        <Text style={textStyle} selectable={false}>
-          {before}
-          <Animated.Text style={[textStyle, successMarkStyle, { opacity: flashOpacity }]}>{mid}</Animated.Text>
-          {after}
-        </Text>
+        <View style={shiftStyle}>
+          <Text style={[textStyle, mirrorTextMetrics]} selectable={false}>
+            {before}
+            <Animated.Text style={[textStyle, mirrorTextMetrics, successMarkStyle, { opacity: flashOpacity }]}>
+              {mid}
+            </Animated.Text>
+            {after}
+          </Text>
+        </View>
       </View>
     );
   }

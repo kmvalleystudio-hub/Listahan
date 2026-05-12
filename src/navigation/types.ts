@@ -24,6 +24,9 @@ export type RootStackParamList = {
 
   NotesHome: undefined;
   NoteEditor: { noteId?: string };
+
+  ReminderHome: undefined;
+  ReminderEditor: { reminderId?: string };
 };
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
@@ -53,3 +56,5 @@ export type PrivateListDetailProps = NativeStackScreenProps<RootStackParamList, 
 export type PrivateVaultSettingsProps = NativeStackScreenProps<RootStackParamList, "PrivateVaultSettings">;
 export type NotesHomeProps = NativeStackScreenProps<RootStackParamList, "NotesHome">;
 export type NoteEditorProps = NativeStackScreenProps<RootStackParamList, "NoteEditor">;
+export type ReminderHomeProps = NativeStackScreenProps<RootStackParamList, "ReminderHome">;
+export type ReminderEditorProps = NativeStackScreenProps<RootStackParamList, "ReminderEditor">;

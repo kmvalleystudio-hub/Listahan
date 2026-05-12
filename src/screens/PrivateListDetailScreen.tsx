@@ -680,7 +680,8 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
     if (list.items.length !== 0) return;
     autoOpenHandledRef.current = true;
     openAddModal();
-  }, [autoOpenAdd, itemModalMode, viewItem, list]);
+    navigation.setParams({ autoOpenAdd: false });
+  }, [autoOpenAdd, itemModalMode, viewItem, list, navigation]);
 
   const onSaveAdd = () => {
     const snap = listRef.current;

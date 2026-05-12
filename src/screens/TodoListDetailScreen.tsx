@@ -48,6 +48,7 @@ import { parseScannedTodoListLocal } from "../utils/parseScannedTodoListLocal";
 import { runOcrFromImageBase64, runOcrFromImageUri } from "../utils/scanListOcr";
 import {
   replaceScanTextRange,
+  scanTextLineRangeAtIndex,
   shouldFlagOcrWord,
   suggestOcrWordCorrections,
   tokenizeScanText,
@@ -237,6 +238,8 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const scanFlaggedChipRefs = useRef<Map<string, View>>(new Map());
   const scanModalRootRef = useRef<View | null>(null);
   const scanBubbleLayoutRef = useRef({ rootW: 400, rootH: 700 });
+  const scanOcrInputRef = useRef<TextInput | null>(null);
+  const [scanOcrScrollY, setScanOcrScrollY] = useState(0);
 
   const clearScanLexFlash = useCallback(() => {
     scanLexFlashOpacity.stopAnimation();
@@ -296,6 +299,12 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
       subShow.remove();
       subHide.remove();
     };
+  }, [scanModalVisible, scanActiveTab]);
+
+  useEffect(() => {
+    if (!scanModalVisible || scanActiveTab !== "results") {
+      setScanOcrScrollY(0);
+    }
   }, [scanModalVisible, scanActiveTab]);
 
   useEffect(() => {
@@ -683,7 +692,8 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     if (list.items.length !== 0) return;
     autoOpenHandledRef.current = true;
     openAddModal();
-  }, [autoOpenAdd, itemModalMode, list]);
+    navigation.setParams({ autoOpenAdd: false });
+  }, [autoOpenAdd, itemModalMode, list, navigation]);
 
   const onSaveAdd = () => {
     const snap = listRef.current;
@@ -796,6 +806,21 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     return flagged;
   }, [scanRawText]);
 
+  const scanOcrLineFocus = useMemo(() => {
+    if (!scanWordSuggest || scanActiveTab !== "results") return null;
+    const { lineStart, lineEnd } = scanTextLineRangeAtIndex(scanRawText, scanWordSuggest.start);
+    const slice = scanRawText.slice(lineStart, lineEnd);
+    return {
+      lineStart,
+      lineEnd,
+      slice,
+      suggestLocal: {
+        start: scanWordSuggest.start - lineStart,
+        end: scanWordSuggest.end - lineStart,
+      },
+    };
+  }, [scanWordSuggest, scanActiveTab, scanRawText]);
+
   const openScanWordSuggestFromChip = useCallback((w: { key: string; start: number; end: number; text: string }) => {
     const suggestions = suggestOcrWordCorrections(w.text);
     const base = { start: w.start, end: w.end, original: w.text, suggestions };
@@ -815,6 +840,10 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
             ...base,
             anchor: { x: rw / 2 - 48, y: Math.min(rh * 0.22, 120), width: 96, height: 36 },
           });
+          setTimeout(() => {
+            setScanOcrScrollY(0);
+            requestAnimationFrame(() => scanOcrInputRef.current?.scrollTo?.({ y: 0, animated: false }));
+          }, 64);
           return;
         }
         node.measureInWindow((x, y, width, height) => {
@@ -829,12 +858,16 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
               anchor: { x: rw / 2 - 48, y: Math.min(rh * 0.22, 120), width: 96, height: 36 },
             });
           }
+          setTimeout(() => {
+            setScanOcrScrollY(0);
+            requestAnimationFrame(() => scanOcrInputRef.current?.scrollTo?.({ y: 0, animated: false }));
+          }, 64);
         });
       });
     };
 
     requestAnimationFrame(() => measureAndOpen(0));
-  }, [clearScanLexFlash]);
+  }, [clearScanLexFlash, scanRawText]);
 
   const openScanModal = () => {
     stopSpeech();
@@ -1984,36 +2017,32 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                       </ScrollView>
                     ) : null}
                     <View style={{ position: "relative", alignSelf: "stretch" }}>
-                      {scanActiveTab === "results" && (scanWordSuggest || scanLexFlashSpan) ? (
-                        <ScanLexMirrorOverlay
-                          text={scanRawText}
-                          suggestSpan={
-                            scanWordSuggest
-                              ? { start: scanWordSuggest.start, end: scanWordSuggest.end }
-                              : null
-                          }
-                          flashSpan={scanLexFlashSpan}
-                          flashOpacity={scanLexFlashOpacity}
-                          overlayStyle={styles.scanLexMirrorOverlay}
-                          textStyle={styles.scanLexMirrorText}
-                          suggestMarkStyle={styles.scanLexMirrorSuggestMark}
-                          successMarkStyle={styles.scanLexMirrorSuccessMark}
-                        />
-                      ) : null}
                       <TextInput
-                        value={scanRawText}
+                        ref={scanOcrInputRef}
+                        value={scanOcrLineFocus ? scanOcrLineFocus.slice : scanRawText}
                         onChangeText={(t) => {
                           clearScanLexFlash();
+                          if (scanOcrLineFocus) {
+                            const { lineStart, lineEnd } = scanOcrLineFocus;
+                            setScanRawText((prev) => prev.slice(0, lineStart) + t + prev.slice(lineEnd));
+                            setScanWordSuggest(null);
+                            return;
+                          }
                           setScanRawText(t);
                           setScanWordSuggest(null);
                         }}
                         multiline
+                        nestedScrollEnabled
                         textAlignVertical="top"
+                        scrollEventThrottle={16}
+                        onScroll={(e) => setScanOcrScrollY(e.nativeEvent.contentOffset.y)}
                         style={[
                           styles.scanUnifiedTextInput,
                           { zIndex: 2 },
+                          Platform.OS === "android" ? { elevation: 0 } : null,
                           scanActiveTab === "results" && (scanWordSuggest || scanLexFlashSpan)
-                            ? { color: "transparent" }
+                            ? /* Hide real input glyphs; mirror overlay is the visible text (color tricks still ghost on Android). */
+                              { opacity: 0 }
                             : null,
                         ]}
                         caretColor={colors.text}
@@ -2028,6 +2057,25 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                           }, 160);
                         }}
                       />
+                      {scanActiveTab === "results" && (scanWordSuggest || scanLexFlashSpan) ? (
+                        <ScanLexMirrorOverlay
+                          text={scanOcrLineFocus ? scanOcrLineFocus.slice : scanRawText}
+                          suggestSpan={
+                            scanWordSuggest
+                              ? scanOcrLineFocus
+                                ? scanOcrLineFocus.suggestLocal
+                                : { start: scanWordSuggest.start, end: scanWordSuggest.end }
+                              : null
+                          }
+                          flashSpan={scanLexFlashSpan}
+                          flashOpacity={scanLexFlashOpacity}
+                          contentScrollY={scanOcrScrollY}
+                          overlayStyle={styles.scanLexMirrorOverlay}
+                          textStyle={styles.scanLexMirrorText}
+                          suggestMarkStyle={styles.scanLexMirrorSuggestMark}
+                          successMarkStyle={styles.scanLexMirrorSuccessMark}
+                        />
+                      ) : null}
                     </View>
                   </View>
                 )}
@@ -2053,11 +2101,12 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                 const sg = scanWordSuggest;
                 const { rootW, rootH } = scanBubbleLayoutRef.current;
                 const edgePad = 8;
-                const maxW = Math.min(sg.suggestions.length <= 1 ? 236 : 276, Math.max(120, rootW - edgePad * 2));
+                const maxW = Math.min(sg.suggestions.length <= 1 ? 260 : 300, Math.max(120, rootW - edgePad * 2));
                 const centerX = anchor.x + anchor.width / 2;
                 let left = centerX - maxW / 2;
                 left = Math.max(edgePad, Math.min(left, rootW - maxW - edgePad));
-                const estBubbleH = 104;
+                const estBubbleH =
+                  sg.suggestions.length === 0 ? 118 : 128 + Math.min(48, sg.suggestions.length * 14);
                 const gap = 6;
                 const preferTop = anchor.y - estBubbleH - gap;
                 const top =
@@ -2078,22 +2127,24 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                       pointerEvents="box-none"
                     >
                       <View style={styles.scanSuggestBubbleCard}>
-                        <Text style={styles.scanSuggestBubbleLabel} numberOfLines={1}>
+                        <Text style={styles.scanSuggestBubbleLabel} numberOfLines={2}>
                           Replace “{sg.original}”
                         </Text>
                         {sg.suggestions.length === 0 ? (
                           <View style={styles.scanSuggestBubbleFooter}>
-                            <Text style={[styles.scanSuggestHint, { flex: 1, minWidth: 0 }]}>
+                            <Text style={styles.scanSuggestHint}>
                               No auto-suggestions. Edit the text, or import and fix the task later.
                             </Text>
-                            <TouchableOpacity
-                              style={styles.scanSuggestDismissCompact}
-                              onPress={() => setScanWordSuggest(null)}
-                              accessibilityRole="button"
-                              accessibilityLabel="Dismiss suggestions"
-                            >
-                              <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
-                            </TouchableOpacity>
+                            <View style={styles.scanSuggestBubbleActions}>
+                              <TouchableOpacity
+                                style={styles.scanSuggestDismissCompact}
+                                onPress={() => setScanWordSuggest(null)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Dismiss suggestions"
+                              >
+                                <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         ) : (
                           <View style={styles.scanSuggestBubbleFooter}>
@@ -2116,14 +2167,16 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                                 </TouchableOpacity>
                               ))}
                             </View>
-                            <TouchableOpacity
-                              style={styles.scanSuggestDismissCompact}
-                              onPress={() => setScanWordSuggest(null)}
-                              accessibilityRole="button"
-                              accessibilityLabel="Dismiss suggestions"
-                            >
-                              <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
-                            </TouchableOpacity>
+                            <View style={styles.scanSuggestBubbleActions}>
+                              <TouchableOpacity
+                                style={styles.scanSuggestDismissCompact}
+                                onPress={() => setScanWordSuggest(null)}
+                                accessibilityRole="button"
+                                accessibilityLabel="Dismiss suggestions"
+                              >
+                                <Text style={styles.scanSuggestDismissText}>Dismiss</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         )}
                       </View>
