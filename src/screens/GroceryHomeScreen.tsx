@@ -18,6 +18,7 @@ import type { GroceryHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
 import type { GroceryList } from "../types";
 
 type ListSection = {
@@ -29,7 +30,7 @@ function byUpdatedDesc(a: GroceryList, b: GroceryList): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-function createHomeStyles(c: AppThemeColors) {
+function createHomeStyles(c: AppThemeColors, isDark: boolean) {
   return StyleSheet.create({
     screen: {
       flex: 1,
@@ -231,6 +232,7 @@ function createHomeStyles(c: AppThemeColors) {
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 6 },
       elevation: 4,
+      ...toolHomeFloatingAddButtonDarkLift(isDark, c),
     },
     primaryBtnText: {
       color: "#fff",
@@ -316,8 +318,8 @@ function createHomeStyles(c: AppThemeColors) {
 
 export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("grocery");
-  const styles = useMemo(() => createHomeStyles(colors), [colors]);
+  const { colors, isDark } = useToolTheme("grocery");
+  const styles = useMemo(() => createHomeStyles(colors, isDark), [colors, isDark]);
   const { lists, loading, removeList, upsertList } = useAppData();
   const [menuList, setMenuList] = useState<GroceryList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
@@ -358,7 +360,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     if (!menuList) return;
     const id = menuList.id;
     closeMenu();
-    navigation.navigate("GroceryShare", { listId: id });
+    navigation.navigate("ShareExport", { tool: "grocery", listId: id });
   };
 
   const prioritizeFromMenu = () => {
@@ -436,7 +438,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => navigation.navigate("GroceryImport")}
+            onPress={() => navigation.navigate("ShareImport", { expectingTool: "grocery" })}
             accessibilityRole="button"
             accessibilityLabel="Import a shared grocery list"
           >

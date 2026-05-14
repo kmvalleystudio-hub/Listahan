@@ -28,6 +28,7 @@ export type SavedReminder = {
   /** When an early nudge is used: second scheduled id for the lead-in alert */
   earlyNotificationId: string | null;
   updatedAt: string;
+  importedFromShare?: boolean;
 };
 
 function newId(): string {
@@ -228,6 +229,7 @@ function parseReminders(raw: unknown): SavedReminder[] {
       notificationId,
       earlyNotificationId,
       updatedAt,
+      importedFromShare: o.importedFromShare === true,
     });
   }
   return out;

@@ -93,7 +93,7 @@ function createStyles(c: AppThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: 8,
+      gap: 4,
       backgroundColor: c.background,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.borderMuted,
@@ -540,14 +540,24 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
           {paramId ? "Edit" : "New"}
         </Text>
         {paramId ? (
-          <TouchableOpacity
-            style={styles.trashBtn}
-            onPress={onDelete}
-            accessibilityRole="button"
-            accessibilityLabel="Delete reminder"
-          >
-            <Ionicons name="trash-outline" size={22} color={colors.danger} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("ShareExport", { tool: "reminder", reminderId: paramId })}
+              style={styles.trashBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Share reminder"
+            >
+              <Ionicons name="share-outline" size={22} color={colors.linkBlue} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.trashBtn}
+              onPress={onDelete}
+              accessibilityRole="button"
+              accessibilityLabel="Delete reminder"
+            >
+              <Ionicons name="trash-outline" size={22} color={colors.danger} />
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={{ width: 40 }} />
         )}

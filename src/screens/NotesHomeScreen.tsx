@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NotesHomeProps } from "../navigation/types";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
 import {
   deleteQuickNote,
   loadQuickNotes,
@@ -43,7 +44,7 @@ function formatUpdated(iso: string): string {
 }
 
 /** Mirrors `GroceryHomeScreen` / `TodoHomeScreen` — header + list + bottom primary CTA. */
-function createStyles(c: AppThemeColors) {
+function createStyles(c: AppThemeColors, isDark: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     /** Match `GroceryHomeScreen` / `TodoHomeScreen` — no header elevation (avoids shadow under title). */
@@ -99,6 +100,7 @@ function createStyles(c: AppThemeColors) {
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 6 },
       elevation: 4,
+      ...toolHomeFloatingAddButtonDarkLift(isDark, c),
     },
     primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
   });
@@ -106,8 +108,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("notes");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, isDark } = useToolTheme("notes");
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [notes, setNotes] = useState<QuickNote[]>([]);
   const [loading, setLoading] = useState(true);

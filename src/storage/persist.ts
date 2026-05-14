@@ -80,6 +80,7 @@ function sanitizeTodoList(list: TodoList): TodoList {
     ...list,
     items: normalizeTodoItemsForPersist(list.items.map(sanitizeTodoItem)),
     pinned: Boolean(list.pinned),
+    importedFromShare: list.importedFromShare === true,
   };
 }
 

@@ -1435,7 +1435,15 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           <Text style={styles.listTitle} numberOfLines={1}>
             {list.name}
           </Text>
-          <View style={{ width: 72 }} />
+          <TouchableOpacity
+            style={styles.topShareBtn}
+            onPress={() => navigation.navigate("ShareExport", { tool: "todo", listId: list.id })}
+            accessibilityRole="button"
+            accessibilityLabel="Share this to-do list"
+          >
+            <Ionicons name="share-outline" size={20} color={colors.linkBlue} />
+            <Text style={styles.topShareBtnText}>Share</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.progressWrap}>
           <View style={styles.progressMetaRow}>
@@ -1584,9 +1592,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
               onPress={openScanModal}
               activeOpacity={0.9}
               accessibilityRole="button"
-              accessibilityLabel="Scan tasks from image"
+              accessibilityLabel="Capture or upload tasks from photo"
             >
-              <Ionicons name="scan-outline" size={22} color={colors.primaryDark} />
+              <Ionicons name="camera" size={22} color={colors.primaryDark} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.fabPrimaryBtn}

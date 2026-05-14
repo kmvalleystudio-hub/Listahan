@@ -15,18 +15,19 @@ import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import type { GroceryImportProps } from "../navigation/types";
+import type { ShareImportProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { isSupabaseConfigured } from "../services/supabaseClient";
-import { fetchGroceryShareFromCloud } from "../services/groceryShareCloud";
-import {
-  extractShareUuidFromText,
-  groceryListFromSharePayload,
-  type GroceryShareFileV1,
-} from "../utils/grocerySharePayload";
+import { fetchShareExport } from "../services/shareExportCloud";
+import { extractShareUuidFromText, groceryListFromSharePayload } from "../utils/grocerySharePayload";
+import { todoListFromSharePayload } from "../utils/todoSharePayload";
+import { savedReminderFromSharePayload } from "../utils/reminderSharePayload";
+import { parseShareEnvelope, type ParsedShareEnvelope } from "../utils/shareEnvelope";
 import { scanQrDataStringsFromImage } from "../utils/groceryImportQrScan";
+import { requestReminderNotificationPermission, scheduleReminderNotification } from "../utils/reminderNotifications";
+import { upsertReminder } from "../utils/remindersStorage";
 
 function QrScanBracketIcon({ color, frameSize = 36 }: { color: string; frameSize?: number }) {
   const qrSize = Math.round(frameSize * 0.36);
@@ -41,6 +42,56 @@ function QrScanBracketIcon({ color, frameSize = 36 }: { color: string; frameSize
       <Ionicons name="qr-code" size={qrSize} color={color} />
     </View>
   );
+}
+
+function errorMessageFromUnknown(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (typeof e === "object" && e !== null && "message" in e && typeof (e as { message: string }).message === "string") {
+    return (e as { message: string }).message;
+  }
+  return fallback;
+}
+
+type ShareImportExpectTool = "grocery" | "todo" | "reminder";
+
+function importScreenContextLabel(t: ShareImportExpectTool): string {
+  switch (t) {
+    case "grocery":
+      return "Groceries";
+    case "todo":
+      return "To-dos";
+    case "reminder":
+      return "Reminders";
+  }
+}
+
+function sharePayloadKindPhrase(t: ShareImportExpectTool): string {
+  switch (t) {
+    case "grocery":
+      return "a grocery list";
+    case "todo":
+      return "a to-do list";
+    case "reminder":
+      return "a reminder";
+  }
+}
+
+/** If user opened import from a tool screen but the code is another kind, confirm before importing. */
+function confirmImportContextMismatch(
+  expecting: ShareImportExpectTool | undefined,
+  parsed: ParsedShareEnvelope
+): Promise<boolean> {
+  if (!expecting || expecting === parsed.tool) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    Alert.alert(
+      "Different kind of share",
+      `You opened import from ${importScreenContextLabel(expecting)}, but this code is for ${sharePayloadKindPhrase(parsed.tool)}. SayCart will still import it in the right place.`,
+      [
+        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+        { text: "Continue", onPress: () => resolve(true) },
+      ]
+    );
+  });
 }
 
 function createStyles(c: AppThemeColors) {
@@ -78,16 +129,6 @@ function createStyles(c: AppThemeColors) {
       color: c.text,
       backgroundColor: c.inputBg,
     },
-    primaryBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      backgroundColor: c.primary,
-      borderRadius: 14,
-      paddingVertical: 14,
-    },
-    primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
     shareCodeRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -139,11 +180,11 @@ function createStyles(c: AppThemeColors) {
   });
 }
 
-export default function GroceryImportScreen({ navigation }: GroceryImportProps) {
+export default function ShareImportScreen({ navigation, route }: ShareImportProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { createList, upsertList } = useAppData();
+  const { createList, upsertList, createTodoList, upsertTodoList } = useAppData();
 
   const [paste, setPaste] = useState("");
   const [loading, setLoading] = useState(false);
@@ -152,14 +193,107 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
 
-  const applyParsed = useCallback(
-    async (parsed: GroceryShareFileV1) => {
-      const base = await createList(parsed.list.name);
-      const next = groceryListFromSharePayload(base, parsed);
-      await upsertList(next);
-      navigation.replace("ListDetail", { listId: next.id });
+  const applyEnvelope = useCallback(
+    async (parsed: ParsedShareEnvelope, importOpenedWithExpecting?: ShareImportExpectTool) => {
+      const crossToolImport =
+        importOpenedWithExpecting !== undefined && importOpenedWithExpecting !== parsed.tool;
+
+      switch (parsed.tool) {
+        case "grocery": {
+          const base = await createList(parsed.payload.list.name);
+          const next = groceryListFromSharePayload(base, parsed.payload);
+          await upsertList(next);
+          if (crossToolImport) {
+            navigation.reset({
+              index: 2,
+              routes: [
+                { name: "ToolsDashboard" },
+                { name: "GroceryHome" },
+                { name: "ListDetail", params: { listId: next.id } },
+              ],
+            });
+          } else {
+            navigation.replace("ListDetail", { listId: next.id });
+          }
+          break;
+        }
+        case "todo": {
+          const base = await createTodoList(parsed.payload.list.name);
+          const next = todoListFromSharePayload(base, parsed.payload);
+          await upsertTodoList(next);
+          if (crossToolImport) {
+            navigation.reset({
+              index: 2,
+              routes: [
+                { name: "ToolsDashboard" },
+                { name: "TodoHome" },
+                { name: "TodoListDetail", params: { listId: next.id } },
+              ],
+            });
+          } else {
+            navigation.replace("TodoListDetail", { listId: next.id });
+          }
+          break;
+        }
+        case "reminder": {
+          if (Platform.OS === "web") {
+            Alert.alert("Reminders", "Importing shared reminders is available in the iOS/Android app.");
+            return;
+          }
+          const draft = savedReminderFromSharePayload(parsed.payload);
+          const granted = await requestReminderNotificationPermission();
+          let notificationId: string | null = null;
+          let earlyNotificationId: string | null = null;
+          if (granted) {
+            const rowForSchedule = { ...draft, notificationId: null, earlyNotificationId: null };
+            const ids = await scheduleReminderNotification(rowForSchedule);
+            notificationId = ids.notificationId;
+            earlyNotificationId = ids.earlyNotificationId;
+          } else {
+            Alert.alert("Notifications", "Allow notifications for SayCart to schedule this reminder’s alerts.");
+          }
+          const row = {
+            ...draft,
+            notificationId,
+            earlyNotificationId,
+            updatedAt: new Date().toISOString(),
+          };
+          await upsertReminder(row);
+          if (crossToolImport) {
+            navigation.reset({
+              index: 2,
+              routes: [
+                { name: "ToolsDashboard" },
+                { name: "ReminderHome" },
+                { name: "ReminderEditor", params: { reminderId: row.id } },
+              ],
+            });
+          } else {
+            navigation.replace("ReminderEditor", { reminderId: row.id });
+          }
+          break;
+        }
+        default:
+          break;
+      }
     },
-    [createList, upsertList, navigation]
+    [createList, createTodoList, navigation, upsertList, upsertTodoList]
+  );
+
+  const loadAndApply = useCallback(
+    async (uuid: string) => {
+      const raw = await fetchShareExport(uuid);
+      const parsed = parseShareEnvelope(raw);
+      if (!parsed) {
+        Alert.alert("Import", "This code is not a SayCart share, or the data is unreadable.");
+        return false;
+      }
+      const ok = await confirmImportContextMismatch(route.params?.expectingTool, parsed);
+      if (!ok) return false;
+      await applyEnvelope(parsed, route.params?.expectingTool);
+      return true;
+    },
+    [applyEnvelope, route.params?.expectingTool]
   );
 
   const onImportPaste = useCallback(async () => {
@@ -167,7 +301,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
     if (!uuid) {
       Alert.alert(
         "Import",
-        "Enter the share list code from the other person, or a message/link that contains it. You can also scan or upload a QR."
+        "Enter the share code from the other person, or a message/link that contains it. You can also scan or upload a QR."
       );
       return;
     }
@@ -177,19 +311,14 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
     }
     setLoading(true);
     try {
-      const file = await fetchGroceryShareFromCloud(uuid);
-      if (!file) {
-        Alert.alert("Import", "No list found for this code, or it has expired.");
-        return;
-      }
-      await applyParsed(file);
+      const ok = await loadAndApply(uuid);
+      if (!ok) return;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not load this share.";
-      Alert.alert("Import", msg);
+      Alert.alert("Import", errorMessageFromUnknown(e, "Could not load this share."));
     } finally {
       setLoading(false);
     }
-  }, [paste, applyParsed]);
+  }, [loadAndApply, paste]);
 
   const importFromScannedData = useCallback(
     async (data: string): Promise<boolean> => {
@@ -204,22 +333,15 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
       }
       setLoading(true);
       try {
-        const file = await fetchGroceryShareFromCloud(uuid);
-        if (!file) {
-          Alert.alert("Import", "No list found for this QR, or it has expired.");
-          return false;
-        }
-        await applyParsed(file);
-        return true;
+        return await loadAndApply(uuid);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Import failed.";
-        Alert.alert("Import", msg);
+        Alert.alert("Import", errorMessageFromUnknown(err, "Import failed."));
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [applyParsed]
+    [loadAndApply]
   );
 
   const onBarcodeScanned = useCallback(
@@ -269,7 +391,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
       }
       Alert.alert(
         "Import",
-        "That image has QR codes, but none look like a SayCart share link or code. Try the share screen’s “Download” QR, or paste the list code."
+        "That image has QR codes, but none look like a SayCart share link or code. Try the share screen’s Download QR export, or paste the share code."
       );
     } catch (e) {
       Alert.alert("Import", e instanceof Error ? e.message : "Could not read that image.");
@@ -300,25 +422,25 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
           <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Import list</Text>
+        <Text style={styles.headerTitle}>Import shared</Text>
         <View style={{ width: 88 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
-          Enter or paste the share list code (or a link that contains it), scan the QR with the camera, or choose a
-          photo or screenshot that contains the QR.
+          Paste a share code (grocery list, to-do list, or reminder), scan the QR with the camera, or pick a photo or
+          screenshot that contains the QR. SayCart opens the right tool automatically.
         </Text>
 
         <View>
-          <Text style={styles.sectionTitle}>SHARE LIST CODE</Text>
+          <Text style={styles.sectionTitle}>SHARE CODE</Text>
           <View style={[styles.card, { marginTop: 8 }]}>
             <View style={styles.shareCodeRow}>
               <TextInput
                 style={[styles.input, styles.shareCodeInput]}
                 value={paste}
                 onChangeText={setPaste}
-                placeholder="Share list code or link"
+                placeholder="Share code or link"
                 placeholderTextColor={colors.placeholder}
                 multiline
                 autoCapitalize="none"
@@ -330,7 +452,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
                 disabled={loading || !paste.trim()}
                 activeOpacity={0.88}
                 accessibilityRole="button"
-                accessibilityLabel="Import list from code"
+                accessibilityLabel="Import from share code"
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />

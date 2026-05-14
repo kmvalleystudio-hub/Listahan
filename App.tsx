@@ -12,8 +12,8 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
-import GroceryShareScreen from "./src/screens/GroceryShareScreen";
-import GroceryImportScreen from "./src/screens/GroceryImportScreen";
+import ShareExportScreen from "./src/screens/ShareExportScreen";
+import ShareImportScreen from "./src/screens/ShareImportScreen";
 import ToolPlaceholderScreen from "./src/screens/ToolPlaceholderScreen";
 import CreateListScreen from "./src/screens/CreateListScreen";
 import ListDetailScreen from "./src/screens/ListDetailScreen";
@@ -84,8 +84,8 @@ function NavigationRoot() {
       >
         <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
-        <Stack.Screen name="GroceryShare" component={GroceryShareScreen} />
-        <Stack.Screen name="GroceryImport" component={GroceryImportScreen} />
+        <Stack.Screen name="ShareExport" component={ShareExportScreen} />
+        <Stack.Screen name="ShareImport" component={ShareImportScreen} />
         <Stack.Screen name="ToolPlaceholder" component={ToolPlaceholderScreen} />
         <Stack.Screen name="TodoHome" component={TodoHomeScreen} />
         <Stack.Screen

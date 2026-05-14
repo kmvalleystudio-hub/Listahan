@@ -58,6 +58,8 @@ export type TodoList = {
   updatedAt: string;
   items: TodoItem[];
   pinned?: boolean;
+  /** True when this list was created from a cloud share import. */
+  importedFromShare?: boolean;
 };
 
 export type TodoHistoryEntry = {

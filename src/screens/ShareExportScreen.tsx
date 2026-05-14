@@ -16,17 +16,19 @@ import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import type { GroceryShareProps } from "../navigation/types";
+import type { ShareExportProps, ShareExportRouteParams } from "../navigation/types";
+import type { ToolId } from "../constants/toolsCatalog";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { isSupabaseConfigured } from "../services/supabaseClient";
-import {
-  fetchGroceryShareFromCloud,
-  replaceGroceryShareInCloud,
-  uploadGroceryShareToCloud,
-} from "../services/groceryShareCloud";
+import { fetchShareExport, replaceShareExport, uploadShareExport } from "../services/shareExportCloud";
 import { buildGroceryShareFileFromList } from "../utils/grocerySharePayload";
+import { buildTodoShareFileFromList } from "../utils/todoSharePayload";
+import { buildReminderShareFileFromReminder } from "../utils/reminderSharePayload";
+import { parseShareEnvelope } from "../utils/shareEnvelope";
+import { loadRemindersRaw } from "../utils/remindersStorage";
+import type { SavedReminder } from "../utils/remindersStorage";
 import { embedQrPngInShareLetterhead } from "../utils/shareQrExportCanvas";
 
 function createStyles(c: AppThemeColors) {
@@ -122,7 +124,7 @@ function createStyles(c: AppThemeColors) {
 }
 
 function shareWebBase(): string | null {
-  const b = process.env.EXPO_PUBLIC_GROCERY_SHARE_WEB_BASE;
+  const b = process.env.EXPO_PUBLIC_SHARE_WEB_BASE ?? process.env.EXPO_PUBLIC_GROCERY_SHARE_WEB_BASE;
   if (typeof b !== "string" || !b.trim()) return null;
   return b.replace(/\/+$/, "");
 }
@@ -132,13 +134,13 @@ function qrValueForShareId(shareId: string): string {
   return base ? `${base}/${shareId}` : shareId;
 }
 
-function groceryShareExportStorageKey(listId: string): string {
-  return `saycart:groceryShareExport:${listId}`;
+function shareExportStorageKey(params: ShareExportRouteParams): string {
+  if (params.tool === "reminder") return `saycart:shareExport:reminder:${params.reminderId}`;
+  return `saycart:shareExport:${params.tool}:${params.listId}`;
 }
 
 const SHARE_INFO_TITLE = "About sharing";
 
-/** PostgREST / Supabase errors are often plain objects, not `Error` instances. */
 function errorMessageFromUnknown(e: unknown, fallback: string): string {
   if (e == null) return fallback;
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -158,13 +160,19 @@ function errorMessageFromUnknown(e: unknown, fallback: string): string {
   return s === "" || s === "[object Object]" ? fallback : s;
 }
 
-function shareInfoBody(): string {
+function shareInfoBody(tool: ToolId): string {
+  const importHint =
+    tool === "grocery"
+      ? "Groceries → Import shared data"
+      : tool === "todo"
+        ? "To-dos → Import shared data"
+        : "Reminder → Import shared data (from the tool’s home screen)";
   const lines = [
-    "Tap Generate Code to save a snapshot of this list in the cloud. You get a share code and QR that anyone can use to import the list in SayCart. Codes and links work for 7 days.",
+    "Tap Generate Code to save a snapshot in the cloud. You get a share code and QR that anyone can use to import in SayCart. Codes and links work for 7 days.",
     "",
-    "After you edit the list, tap “Update cloud snapshot” so imports use your latest items (the code and QR stay the same).",
+    "After you edit, tap “Update cloud snapshot” so imports use the latest version (the code and QR stay the same).",
     "",
-    "Recipients: Groceries → Import → paste the code or scan the QR.",
+    `Recipients: ${importHint} → paste the code or scan the QR.`,
   ];
   return lines.join("\n");
 }
@@ -173,13 +181,48 @@ type QrSvgHandle = {
   toDataURL: (callback: (data: string) => void, options?: { width?: number; height?: number }) => void;
 };
 
-export default function GroceryShareScreen({ navigation, route }: GroceryShareProps) {
+export default function ShareExportScreen({ navigation, route }: ShareExportProps) {
   const insets = useSafeAreaInsets();
-  const { listId } = route.params;
-  const { colors } = useToolTheme("grocery");
+  const params = route.params;
+  const tool: ToolId = params.tool;
+  const { colors } = useToolTheme(tool);
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { lists } = useAppData();
-  const list = useMemo(() => lists.find((l) => l.id === listId) ?? null, [lists, listId]);
+  const { lists, todoLists } = useAppData();
+
+  const [reminder, setReminder] = useState<SavedReminder | null>(null);
+  const [reminderLoading, setReminderLoading] = useState(params.tool === "reminder");
+
+  useEffect(() => {
+    if (params.tool !== "reminder") return;
+    let cancelled = false;
+    const id = params.reminderId;
+    void loadRemindersRaw().then((all) => {
+      if (cancelled) return;
+      const r = all.find((x) => x.id === id) ?? null;
+      setReminder(r);
+      setReminderLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [params]);
+
+  const groceryList = useMemo(() => {
+    if (params.tool !== "grocery") return null;
+    return lists.find((l) => l.id === params.listId) ?? null;
+  }, [lists, params]);
+
+  const todoList = useMemo(() => {
+    if (params.tool !== "todo") return null;
+    return todoLists.find((l) => l.id === params.listId) ?? null;
+  }, [params, todoLists]);
+
+  const entityLabel =
+    params.tool === "reminder"
+      ? (reminder?.title.trim() || "Reminder")
+      : params.tool === "todo"
+        ? todoList?.name
+        : groceryList?.name;
 
   const [uploading, setUploading] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
@@ -190,9 +233,14 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
   const qrExportSvgRef = useRef<QrSvgHandle | null>(null);
 
   const payload = useMemo(() => {
-    if (!list) return null;
-    return buildGroceryShareFileFromList(list, new Date().toISOString());
-  }, [list]);
+    const iso = new Date().toISOString();
+    if (params.tool === "grocery" && groceryList) return buildGroceryShareFileFromList(groceryList, iso);
+    if (params.tool === "todo" && todoList) return buildTodoShareFileFromList(todoList, iso);
+    if (params.tool === "reminder" && reminder) return buildReminderShareFileFromReminder(reminder, iso);
+    return null;
+  }, [groceryList, params.tool, reminder, todoList]);
+
+  const storageKey = shareExportStorageKey(params);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -200,18 +248,26 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
       return;
     }
     let cancelled = false;
-    const key = groceryShareExportStorageKey(listId);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(key);
+        let raw = await AsyncStorage.getItem(storageKey);
+        if (!raw && params.tool === "grocery") {
+          const legacy = `saycart:groceryShareExport:${params.listId}`;
+          raw = await AsyncStorage.getItem(legacy);
+          if (raw) {
+            await AsyncStorage.setItem(storageKey, raw);
+            await AsyncStorage.removeItem(legacy);
+          }
+        }
         const id = typeof raw === "string" ? raw.trim() : "";
         if (!id) return;
-        const file = await fetchGroceryShareFromCloud(id);
+        const data = await fetchShareExport(id);
         if (cancelled) return;
-        if (file) setShareId(id);
-        else await AsyncStorage.removeItem(key);
+        const parsed = parseShareEnvelope(data);
+        if (parsed?.tool === params.tool) setShareId(id);
+        else await AsyncStorage.removeItem(storageKey);
       } catch {
-        // Network or RPC failure: leave share unset; user can generate again.
+        // leave share unset
       }
     })().finally(() => {
       if (!cancelled) setRestoringShare(false);
@@ -219,7 +275,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
     return () => {
       cancelled = true;
     };
-  }, [listId]);
+  }, [params.tool, storageKey]);
 
   const onUploadCloud = useCallback(async () => {
     if (!payload) return;
@@ -232,18 +288,18 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
     }
     setUploading(true);
     try {
-      const id = await uploadGroceryShareToCloud(payload);
+      const id = await uploadShareExport(payload as unknown as Record<string, unknown>);
       setShareId(id);
-      await AsyncStorage.setItem(groceryShareExportStorageKey(listId), id);
+      await AsyncStorage.setItem(storageKey, id);
     } catch (e) {
       Alert.alert("Cloud share", errorMessageFromUnknown(e, "Upload failed."));
     } finally {
       setUploading(false);
     }
-  }, [listId, payload]);
+  }, [payload, storageKey]);
 
   const onReplaceSnapshot = useCallback(async () => {
-    if (!shareId || !list) return;
+    if (!shareId || !payload) return;
     if (!isSupabaseConfigured()) {
       Alert.alert(
         "Cloud share",
@@ -251,13 +307,12 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
       );
       return;
     }
-    const nextPayload = buildGroceryShareFileFromList(list, new Date().toISOString());
     setReplacingSnapshot(true);
     try {
-      await replaceGroceryShareInCloud(shareId, nextPayload);
+      await replaceShareExport(shareId, payload as unknown as Record<string, unknown>);
       Alert.alert(
         "Snapshot updated",
-        "Your share code and QR are unchanged. Anyone who imports now gets this version of the list."
+        "Your share code and QR are unchanged. Anyone who imports now gets this version."
       );
     } catch (e) {
       const msg = errorMessageFromUnknown(e, "Could not update the share.");
@@ -272,17 +327,17 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
     } finally {
       setReplacingSnapshot(false);
     }
-  }, [shareId, list]);
+  }, [payload, shareId]);
 
   const onPressShareCodeCopyIcon = useCallback(async () => {
     if (!shareId) return;
     await Clipboard.setStringAsync(shareId);
-    Alert.alert("Copied", "List code copied to the clipboard.");
+    Alert.alert("Copied", "Share code copied to the clipboard.");
   }, [shareId]);
 
   const onPressShareInfo = useCallback(() => {
-    Alert.alert(SHARE_INFO_TITLE, shareInfoBody());
-  }, []);
+    Alert.alert(SHARE_INFO_TITLE, shareInfoBody(tool));
+  }, [tool]);
 
   const onDownloadQrPng = useCallback(async () => {
     if (!shareId) return;
@@ -315,7 +370,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
       try {
         outBase64 = embedQrPngInShareLetterhead(data);
       } catch {
-        // If compositing fails, fall back to the raw QR bitmap.
+        // fall back to raw QR
       }
       const safe = shareId.replace(/[^a-zA-Z0-9_-]+/g, "").slice(0, 24) || "share";
       const path = `${cacheDir}saycart-qr-${safe}.png`;
@@ -338,16 +393,38 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
     }
   }, [shareId]);
 
-  if (!list || !payload) {
+  const missingEntity =
+    params.tool === "reminder"
+      ? !reminderLoading && !reminder
+      : params.tool === "todo"
+        ? !todoList
+        : !groceryList;
+
+  if (missingEntity || (params.tool === "reminder" && reminderLoading)) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top + 8, justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: colors.placeholder }}>List not found.</Text>
+        <Text style={{ color: colors.placeholder }}>
+          {params.tool === "reminder" && reminderLoading ? "Loading…" : "Nothing to share here."}
+        </Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
           <Text style={{ color: colors.linkBlue, fontWeight: "700" }}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  if (!payload) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top + 8, justifyContent: "center", alignItems: "center" }]}>
+        <Text style={{ color: colors.placeholder }}>Nothing to share here.</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          <Text style={{ color: colors.linkBlue, fontWeight: "700" }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const headerTitle = params.tool === "reminder" ? "Share reminder" : "Share list";
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
@@ -357,7 +434,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Share list
+          {headerTitle}
         </Text>
         <View style={styles.headerSide}>
           <TouchableOpacity
@@ -375,6 +452,11 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
         <View>
           <Text style={styles.sectionTitle}>CLOUD LINK & QR</Text>
           <View style={[styles.card, { marginTop: 8 }]}>
+            {entityLabel ? (
+              <Text style={styles.muted} numberOfLines={2}>
+                {entityLabel}
+              </Text>
+            ) : null}
             {restoringShare ? (
               <View style={{ alignItems: "center", paddingVertical: 16, gap: 10 }}>
                 <ActivityIndicator color={colors.primary} />
@@ -431,7 +513,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
                     style={styles.codeCopyBtn}
                     onPress={() => void onPressShareCodeCopyIcon()}
                     accessibilityRole="button"
-                    accessibilityLabel="Copy list code"
+                    accessibilityLabel="Copy share code"
                   >
                     <Ionicons name="copy-outline" size={22} color={colors.primary} />
                   </TouchableOpacity>
@@ -473,7 +555,9 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
                     )}
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.muted}>Receiver: Groceries → Import → paste the code or scan this QR.</Text>
+                <Text style={styles.muted}>
+                  Receiver: open SayCart → this tool’s Import shared data → paste the code or scan this QR.
+                </Text>
                 <TouchableOpacity
                   style={styles.ghostBtn}
                   onPress={() => void onReplaceSnapshot()}

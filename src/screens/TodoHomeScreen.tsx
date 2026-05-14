@@ -10,6 +10,7 @@ import {
   Modal,
   Pressable,
   Animated,
+  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +18,7 @@ import type { TodoHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
 import type { TodoList } from "../types";
 
 type ListSection = {
@@ -28,7 +30,7 @@ function byUpdatedDesc(a: TodoList, b: TodoList): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-function createStyles(c: AppThemeColors) {
+function createStyles(c: AppThemeColors, isDark: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     header: {
@@ -87,7 +89,29 @@ function createStyles(c: AppThemeColors) {
       justifyContent: "center",
     },
     cardBody: { flex: 1, minWidth: 0 },
-    cardTitle: { fontSize: 17, fontWeight: "700", color: c.text },
+    cardTitleRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+    },
+    cardTitle: { fontSize: 17, fontWeight: "700", color: c.text, flex: 1, minWidth: 0 },
+    importedPill: {
+      flexShrink: 0,
+      marginTop: 2,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.iconBlobBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    importedPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: c.primaryDark,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
     cardMeta: { marginTop: 4, fontSize: 13, color: c.placeholder },
     empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 24 },
     emptyTitle: { marginTop: 12, fontSize: 18, fontWeight: "700", color: c.textTertiary },
@@ -110,6 +134,7 @@ function createStyles(c: AppThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
+      ...toolHomeFloatingAddButtonDarkLift(isDark, c),
     },
     primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
     menuBackdrop: { flex: 1, backgroundColor: c.overlayStrong },
@@ -159,8 +184,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("todo");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, isDark } = useToolTheme("todo");
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { todoLists, loading, removeTodoList, upsertTodoList } = useAppData();
   const [menuList, setMenuList] = useState<TodoList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
@@ -171,7 +196,12 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
       return;
     }
     menuFade.setValue(0);
-    Animated.timing(menuFade, { toValue: 1, duration: 110, useNativeDriver: true }).start();
+    Animated.timing(menuFade, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
   }, [menuList]);
 
   const sections = useMemo((): ListSection[] => {
@@ -190,6 +220,13 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
     const id = menuList.id;
     closeMenu();
     navigation.navigate("TodoListDetail", { listId: id });
+  };
+
+  const shareFromMenu = () => {
+    if (!menuList) return;
+    const id = menuList.id;
+    closeMenu();
+    navigation.navigate("ShareExport", { tool: "todo", listId: id });
   };
 
   const prioritizeFromMenu = () => {
@@ -217,16 +254,24 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => navigation.navigate("TodoListDetail", { listId: item.id })}
       onLongPress={() => setMenuList(item)}
-      delayLongPress={800}
+      delayLongPress={400}
+      accessibilityHint="Hold briefly to open options"
     >
       <View style={styles.cardRow}>
         <View style={styles.cardIconBlob}>
           <Ionicons name="checkmark-circle" size={22} color={colors.iconBlobFg} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {item.name}
-          </Text>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {item.name}
+            </Text>
+            {item.importedFromShare ? (
+              <View style={styles.importedPill} accessibilityLabel="Imported list">
+                <Text style={styles.importedPillText}>Imported</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.cardMeta}>
             {item.items.length} task{item.items.length === 1 ? "" : "s"} · Updated{" "}
             {new Date(item.updatedAt).toLocaleDateString()}
@@ -257,6 +302,14 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
           <Text style={styles.subtitle}>Simple tasks — check them off when done</Text>
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate("ShareImport", { expectingTool: "todo" })}
+            accessibilityRole="button"
+            accessibilityLabel="Import shared data"
+          >
+            <Ionicons name="download-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => navigation.navigate("TodoRecent")}
@@ -326,6 +379,10 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
                 <TouchableOpacity style={styles.menuRow} onPress={openEditFromMenu} activeOpacity={0.85}>
                   <Ionicons name="open-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuRow} onPress={shareFromMenu} activeOpacity={0.85}>
+                  <Ionicons name="share-outline" size={22} color={colors.primary} />
+                  <Text style={styles.menuRowText}>Share</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.menuRow} onPress={prioritizeFromMenu} activeOpacity={0.85}>
                   <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />

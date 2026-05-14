@@ -1,11 +1,17 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ToolId } from "../constants/toolsCatalog";
 
+/** Cloud share export for groceries, to-dos, or a single reminder. */
+export type ShareExportRouteParams =
+  | { tool: "grocery"; listId: string }
+  | { tool: "todo"; listId: string }
+  | { tool: "reminder"; reminderId: string };
+
 export type RootStackParamList = {
   ToolsDashboard: undefined;
   GroceryHome: undefined;
-  GroceryShare: { listId: string };
-  GroceryImport: undefined;
+  ShareExport: ShareExportRouteParams;
+  ShareImport: { expectingTool?: "grocery" | "todo" | "reminder" } | undefined;
   ToolPlaceholder: { toolId: ToolId };
   CreateList: undefined;
   ListDetail: { listId: string; autoOpenAdd?: boolean };
@@ -33,8 +39,8 @@ export type RootStackParamList = {
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;
-export type GroceryShareProps = NativeStackScreenProps<RootStackParamList, "GroceryShare">;
-export type GroceryImportProps = NativeStackScreenProps<RootStackParamList, "GroceryImport">;
+export type ShareExportProps = NativeStackScreenProps<RootStackParamList, "ShareExport">;
+export type ShareImportProps = NativeStackScreenProps<RootStackParamList, "ShareImport">;
 export type ToolPlaceholderProps = NativeStackScreenProps<RootStackParamList, "ToolPlaceholder">;
 export type CreateListProps = NativeStackScreenProps<RootStackParamList, "CreateList">;
 export type ListDetailProps = NativeStackScreenProps<RootStackParamList, "ListDetail">;

@@ -17,6 +17,7 @@ import type { PrivateHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
 import type { PrivateList } from "../types";
 import PrivateVaultGate from "../components/PrivateVaultGate";
 
@@ -29,7 +30,7 @@ function byUpdatedDesc(a: PrivateList, b: PrivateList): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-function createStyles(c: AppThemeColors) {
+function createStyles(c: AppThemeColors, isDark: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     header: {
@@ -100,6 +101,7 @@ function createStyles(c: AppThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
+      ...toolHomeFloatingAddButtonDarkLift(isDark, c),
     },
     primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
     menuBackdrop: { flex: 1, backgroundColor: c.overlayStrong },
@@ -149,8 +151,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("private_list");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, isDark } = useToolTheme("private_list");
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { privateLists, loading, removePrivateList, upsertPrivateList } = useAppData();
   const [menuList, setMenuList] = useState<PrivateList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;

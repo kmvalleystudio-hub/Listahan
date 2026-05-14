@@ -108,23 +108,6 @@ function buildFormPresetUnits(
   );
 }
 
-/** QR centered inside a light scan frame for a balanced FAB glyph (56pt target). */
-function FabScanGlyph({ frameColor, glyphColor }: { frameColor: string; glyphColor: string }) {
-  const box = 28;
-  const qr = 13;
-  return (
-    <View style={{ width: box, height: box, alignItems: "center", justifyContent: "center" }}>
-      <Ionicons
-        name="scan-outline"
-        size={box + 6}
-        color={frameColor}
-        style={{ position: "absolute", opacity: 0.36 }}
-      />
-      <Ionicons name="qr-code" size={qr} color={glyphColor} />
-    </View>
-  );
-}
-
 const UI_DEBUG_VERSION = "v1.0.0-scan-debug-31";
 
 /** Stop name/price dictation after this many ms with no new transcript, once speech has started. */
@@ -1919,7 +1902,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
             {list.name}
           </Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate("GroceryShare", { listId: list.id })}
+            onPress={() => navigation.navigate("ShareExport", { tool: "grocery", listId: list.id })}
             style={styles.topShareBtn}
             accessibilityRole="button"
             accessibilityLabel="Share this grocery list"
@@ -2097,9 +2080,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               onPress={openScanModal}
               activeOpacity={0.9}
               accessibilityRole="button"
-              accessibilityLabel="Scan from image"
+              accessibilityLabel="Capture or upload from photo"
             >
-              <FabScanGlyph frameColor={colors.primaryDark} glyphColor={colors.primaryDark} />
+              <Ionicons name="camera" size={22} color={colors.primaryDark} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.fabPrimaryBtn}

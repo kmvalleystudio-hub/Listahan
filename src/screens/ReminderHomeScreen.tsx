@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ReminderHomeProps } from "../navigation/types";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
 import {
   deleteReminder,
   loadReminders,
@@ -39,16 +40,31 @@ function formatFireAt(iso: string): string {
   });
 }
 
-function createStyles(c: AppThemeColors) {
+function createStyles(c: AppThemeColors, isDark: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     header: {
       paddingHorizontal: 20,
       paddingBottom: 12,
       flexShrink: 0,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
     },
     bodyFill: { flex: 1, minHeight: 0 },
-    headerTextCol: { alignSelf: "stretch" },
+    headerTextCol: { alignSelf: "stretch", flex: 1, minWidth: 0 },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+    iconBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: c.historyBtnBg,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
     backRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
     backTextSmall: { fontSize: 14, fontWeight: "600", color: c.linkBlue },
     title: { fontSize: 28, fontWeight: "800", color: c.text },
@@ -68,7 +84,25 @@ function createStyles(c: AppThemeColors) {
       borderColor: c.border,
     },
     cardPressed: { opacity: 0.92 },
-    rowTitle: { fontSize: 16, fontWeight: "700", color: c.text },
+    rowTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+    rowTitle: { fontSize: 16, fontWeight: "700", color: c.text, flex: 1, minWidth: 0 },
+    importedPill: {
+      flexShrink: 0,
+      marginTop: 1,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.iconBlobBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    importedPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: c.primaryDark,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
     rowMeta: { marginTop: 6, fontSize: 13, color: c.placeholder },
     rowMetaPast: { marginTop: 6, fontSize: 13, color: c.textTertiary },
     empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 24 },
@@ -97,6 +131,7 @@ function createStyles(c: AppThemeColors) {
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 6 },
       elevation: 4,
+      ...toolHomeFloatingAddButtonDarkLift(isDark, c),
     },
     primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
   });
@@ -104,8 +139,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("reminder");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors, isDark } = useToolTheme("reminder");
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [items, setItems] = useState<SavedReminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +272,16 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
             <Text style={styles.settingsLink}>Open SayCart in system settings</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate("ShareImport", { expectingTool: "reminder" })}
+            accessibilityRole="button"
+            accessibilityLabel="Import shared data"
+          >
+            <Ionicons name="download-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.bodyFill}>
@@ -262,13 +307,30 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
                 <Pressable
                   style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
                   onPress={() => onOpen(item.id)}
-                  onLongPress={() => onDelete(item)}
+                  onLongPress={() =>
+                    Alert.alert(item.title.trim() || "Reminder", undefined, [
+                      {
+                        text: "Share",
+                        onPress: () =>
+                          navigation.navigate("ShareExport", { tool: "reminder", reminderId: item.id }),
+                      },
+                      { text: "Delete", style: "destructive", onPress: () => onDelete(item) },
+                      { text: "Cancel", style: "cancel" },
+                    ])
+                  }
                   accessibilityRole="button"
                   accessibilityLabel={`Reminder: ${item.title}`}
                 >
-                  <Text style={styles.rowTitle} numberOfLines={2}>
-                    {item.title.trim() || "Reminder"}
-                  </Text>
+                  <View style={styles.rowTitleRow}>
+                    <Text style={styles.rowTitle} numberOfLines={2}>
+                      {item.title.trim() || "Reminder"}
+                    </Text>
+                    {item.importedFromShare ? (
+                      <View style={styles.importedPill} accessibilityLabel="Imported reminder">
+                        <Text style={styles.importedPillText}>Imported</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={past ? styles.rowMetaPast : styles.rowMeta}>
                     {past ? "Past · " : ""}
                     {bits.join(" · ")}
