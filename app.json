@@ -18,7 +18,9 @@
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "SayCart uses speech recognition so you can add groceries and prices by voice.",
         "NSMicrophoneUsageDescription": "SayCart uses the microphone to capture your voice for item and price entry.",
-        "NSFaceIDUsageDescription": "SayCart uses Face ID to unlock your vault."
+        "NSFaceIDUsageDescription": "SayCart uses Face ID to unlock your vault.",
+        "NSCameraUsageDescription": "SayCart uses the camera to scan grocery share QR codes.",
+        "NSPhotoLibraryUsageDescription": "SayCart uses your photo library to import a grocery share QR from an image."
       }
     },
     "android": {
@@ -31,7 +33,8 @@
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.CAMERA"
       ]
     },
     "plugins": [
@@ -50,7 +53,21 @@
           "color": "#5B21B6"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SayCart to use the camera to scan a grocery share QR code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SayCart to access photos to import a grocery share QR from an image."
+        }
+      ]
     ]
   }
 }

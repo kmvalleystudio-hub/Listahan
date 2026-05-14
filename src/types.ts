@@ -46,6 +46,8 @@ export type TodoItem = {
   priority?: boolean;
   checked: boolean;
   checkPending?: boolean;
+  /** ISO time when the user committed this check (after undo window). Shown in completed-list preview. */
+  completedAt?: string;
   order: number;
 };
 

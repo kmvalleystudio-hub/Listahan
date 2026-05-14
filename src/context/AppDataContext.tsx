@@ -70,14 +70,17 @@ function cloneItemsForNewList(items: GroceryItem[]): GroceryItem[] {
 
 function cloneTodoItemsForNewList(items: TodoItem[]): TodoItem[] {
   return reindexTodoOrders(
-    items.map((it, idx) => ({
-      ...it,
-      id: generateId(),
-      checked: false,
-      checkPending: false,
-      priority: Boolean(it.priority),
-      order: idx,
-    }))
+    items.map((it, idx) => {
+      const { completedAt: _omitCompleted, ...rest } = it;
+      return {
+        ...rest,
+        id: generateId(),
+        checked: false,
+        checkPending: false,
+        priority: Boolean(it.priority),
+        order: idx,
+      };
+    })
   );
 }
 

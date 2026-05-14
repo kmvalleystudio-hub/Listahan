@@ -1901,7 +1901,14 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           <Text style={styles.listTitle} numberOfLines={1}>
             {list.name}
           </Text>
-          <View style={{ width: 72 }} />
+          <TouchableOpacity
+            onPress={() => navigation.navigate("GroceryShare", { listId: list.id })}
+            style={styles.topDeleteBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Share this grocery list"
+          >
+            <Ionicons name="share-outline" size={22} color={colors.linkBlue} />
+          </TouchableOpacity>
         </View>
         <View style={styles.progressWrap}>
           <View style={styles.progressMetaRow}>

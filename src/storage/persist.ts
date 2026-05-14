@@ -48,11 +48,14 @@ function sanitizeItem(item: GroceryItem): GroceryItem {
 }
 
 function sanitizeTodoItem(item: TodoItem): TodoItem {
+  const completedAt =
+    typeof item.completedAt === "string" && item.completedAt.trim() ? item.completedAt.trim() : undefined;
   return {
     ...item,
     name: item.name ?? "",
     priority: Boolean(item.priority),
     checkPending: false,
+    completedAt,
   };
 }
 

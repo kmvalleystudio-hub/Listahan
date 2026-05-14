@@ -25,7 +25,6 @@ import {
 function createStyles(c: AppThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
-    /** No border or elevation — avoids a visible rule/shadow under the header. */
     header: {
       paddingHorizontal: 16,
       paddingBottom: 8,
@@ -42,23 +41,24 @@ function createStyles(c: AppThemeColors) {
     inputWrap: {
       flex: 1,
       marginHorizontal: 16,
-      marginTop: 4,
+      marginTop: 8,
       marginBottom: 8,
       borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       backgroundColor: c.card,
       paddingHorizontal: 14,
-      paddingTop: 12,
+      paddingTop: 10,
       paddingBottom: 12,
+      minHeight: 200,
     },
     input: {
       flex: 1,
-      minHeight: 200,
       fontSize: 17,
       lineHeight: 24,
       color: c.text,
       textAlignVertical: "top",
+      minHeight: 180,
     },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
   });
@@ -207,6 +207,7 @@ export default function NoteEditorScreen({ navigation, route }: NoteEditorProps)
           multiline
           autoFocus={!paramId}
           scrollEnabled
+          textAlignVertical="top"
         />
       </View>
     </KeyboardAvoidingView>

@@ -4,6 +4,8 @@ import type { ToolId } from "../constants/toolsCatalog";
 export type RootStackParamList = {
   ToolsDashboard: undefined;
   GroceryHome: undefined;
+  GroceryShare: { listId: string };
+  GroceryImport: undefined;
   ToolPlaceholder: { toolId: ToolId };
   CreateList: undefined;
   ListDetail: { listId: string; autoOpenAdd?: boolean };
@@ -31,6 +33,8 @@ export type RootStackParamList = {
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;
+export type GroceryShareProps = NativeStackScreenProps<RootStackParamList, "GroceryShare">;
+export type GroceryImportProps = NativeStackScreenProps<RootStackParamList, "GroceryImport">;
 export type ToolPlaceholderProps = NativeStackScreenProps<RootStackParamList, "ToolPlaceholder">;
 export type CreateListProps = NativeStackScreenProps<RootStackParamList, "CreateList">;
 export type ListDetailProps = NativeStackScreenProps<RootStackParamList, "ListDetail">;

@@ -393,6 +393,14 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
+            onPress={() => navigation.navigate("GroceryImport")}
+            accessibilityRole="button"
+            accessibilityLabel="Import a shared grocery list"
+          >
+            <Ionicons name="download-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
             onPress={() => navigation.navigate("History")}
             accessibilityRole="button"
             accessibilityLabel="Open completed groceries"

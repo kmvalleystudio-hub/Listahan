@@ -1,4 +1,5 @@
 import "react-native-gesture-handler";
+import { Buffer } from "buffer";
 import React, { useMemo, useEffect } from "react";
 import { AppState } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
@@ -11,6 +12,8 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
+import GroceryShareScreen from "./src/screens/GroceryShareScreen";
+import GroceryImportScreen from "./src/screens/GroceryImportScreen";
 import ToolPlaceholderScreen from "./src/screens/ToolPlaceholderScreen";
 import CreateListScreen from "./src/screens/CreateListScreen";
 import ListDetailScreen from "./src/screens/ListDetailScreen";
@@ -31,6 +34,10 @@ import NoteEditorScreen from "./src/screens/NoteEditorScreen";
 import ReminderHomeScreen from "./src/screens/ReminderHomeScreen";
 import ReminderEditorScreen from "./src/screens/ReminderEditorScreen";
 import { reconcileScheduledReminders, registerForegroundReminderFeedback } from "./src/utils/reminderNotifications";
+
+// react-native-svg (via qrcode) expects Buffer; ensure Metro resolves `buffer` and runtime has global.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(global as any).Buffer = (global as any).Buffer ?? Buffer;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -77,6 +84,8 @@ function NavigationRoot() {
       >
         <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
+        <Stack.Screen name="GroceryShare" component={GroceryShareScreen} />
+        <Stack.Screen name="GroceryImport" component={GroceryImportScreen} />
         <Stack.Screen name="ToolPlaceholder" component={ToolPlaceholderScreen} />
         <Stack.Screen name="TodoHome" component={TodoHomeScreen} />
         <Stack.Screen

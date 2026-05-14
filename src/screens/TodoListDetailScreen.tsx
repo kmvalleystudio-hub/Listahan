@@ -456,9 +456,10 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
 
       const maxDone = completed.reduce((m, i) => Math.max(m, i.order), -1);
       const nextOrder = maxDone + 1;
+      const ts = nowIso();
 
       const items = snap.items.map((i) =>
-        i.id === itemId ? { ...i, checkPending: false, order: nextOrder } : i
+        i.id === itemId ? { ...i, checkPending: false, order: nextOrder, completedAt: ts } : i
       );
 
       if (allTodosCommittedDone(items)) {
@@ -467,7 +468,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           sourceListId: snap.id,
           name: snap.name,
           createdAt: snap.createdAt,
-          updatedAt: nowIso(),
+          updatedAt: ts,
           items: normalizeTodoItemsForPersist(items.map((i) => ({ ...i, checked: true, checkPending: false }))),
         };
         finishingListRef.current = true;
@@ -487,14 +488,19 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const commitOrFinishList = useCallback(
     async (base: TodoList, nextItems: TodoItem[]) => {
       if (allTodosCommittedDone(nextItems)) {
+        const ts = nowIso();
+        const stamped = nextItems.map((i) => {
+          if (!i.checked || i.checkPending) return i;
+          return i.completedAt ? i : { ...i, completedAt: ts };
+        });
         const entry: TodoHistoryEntry = {
           id: generateId(),
           sourceListId: base.id,
           name: base.name,
           createdAt: base.createdAt,
-          updatedAt: nowIso(),
+          updatedAt: ts,
           items: normalizeTodoItemsForPersist(
-            nextItems.map((i) => ({ ...i, checked: true, checkPending: false }))
+            stamped.map((i) => ({ ...i, checked: true, checkPending: false }))
           ),
         };
         finishingListRef.current = true;
@@ -574,8 +580,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
         onPress: () => {
           const current = listRef.current;
           if (!current) return;
+          const ts = nowIso();
           const items = current.items.map((i) =>
-            selectedIds.has(i.id) ? { ...i, checked: true, checkPending: false } : i
+            selectedIds.has(i.id) ? { ...i, checked: true, checkPending: false, completedAt: ts } : i
           );
           void commitOrFinishList(current, items);
           exitBulkMode();
@@ -625,7 +632,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     if (!snap) return;
     clearTimer(itemId);
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, checked: false, checkPending: false } : i
+      i.id === itemId ? { ...i, checked: false, checkPending: false, completedAt: undefined } : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -638,7 +645,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     const maxActive = active.reduce((m, i) => Math.max(m, i.order), -1);
     const items = snap.items.map((i) =>
       i.id === itemId
-        ? { ...i, checked: false, checkPending: false, order: maxActive + 1 }
+        ? { ...i, checked: false, checkPending: false, order: maxActive + 1, completedAt: undefined }
         : i
     );
     pushListWithActiveFlip({ ...snap, items });

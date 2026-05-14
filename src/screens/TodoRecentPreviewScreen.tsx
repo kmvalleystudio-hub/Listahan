@@ -108,11 +108,21 @@ function createPreviewStyles(c: AppThemeColors) {
   });
 }
 
+function formatCheckedAtLabel(iso?: string): string {
+  if (!iso?.trim()) return "Completed (time not recorded)";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Completed (time not recorded)";
+  return `Checked ${d.toLocaleString()}`;
+}
+
 function PreviewRow({ item, styles: s }: { item: TodoItem; styles: ReturnType<typeof createPreviewStyles> }) {
   return (
     <View style={s.row}>
       <Text style={s.rowName}>{item.name}</Text>
-      <Text style={s.rowSub}>{item.priority ? "Prioritized · " : ""}Completed snapshot</Text>
+      <Text style={s.rowSub}>
+        {item.priority ? "Prioritized · " : ""}
+        {formatCheckedAtLabel(item.completedAt)}
+      </Text>
     </View>
   );
 }
