@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,11 +28,16 @@ import {
 } from "../utils/grocerySharePayload";
 import { scanQrDataStringsFromImage } from "../utils/groceryImportQrScan";
 
-function QrScanBracketIcon({ color, frameSize = 44 }: { color: string; frameSize?: number }) {
+function QrScanBracketIcon({ color, frameSize = 36 }: { color: string; frameSize?: number }) {
   const qrSize = Math.round(frameSize * 0.36);
   return (
     <View style={{ width: frameSize, height: frameSize, justifyContent: "center", alignItems: "center" }}>
-      <Ionicons name="scan-outline" size={frameSize} color={color} style={{ position: "absolute" }} />
+      <Ionicons
+        name="scan-outline"
+        size={Math.round(frameSize * 1.08)}
+        color={color}
+        style={{ position: "absolute", opacity: 0.38 }}
+      />
       <Ionicons name="qr-code" size={qrSize} color={color} />
     </View>
   );
@@ -84,6 +88,29 @@ function createStyles(c: AppThemeColors) {
       paddingVertical: 14,
     },
     primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    shareCodeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    shareCodeInput: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 48,
+      maxHeight: 120,
+    },
+    shareImportInlineBtn: {
+      flexShrink: 0,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: c.primary,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      minHeight: 48,
+      minWidth: 92,
+    },
+    shareImportInlineBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
     ghostBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -140,7 +167,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
     if (!uuid) {
       Alert.alert(
         "Import",
-        "Paste the share code from the other person, or a message/link that contains it. You can also scan or upload a QR."
+        "Enter the share list code from the other person, or a message/link that contains it. You can also scan or upload a QR."
       );
       return;
     }
@@ -163,15 +190,6 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
       setLoading(false);
     }
   }, [paste, applyParsed]);
-
-  const onPasteFromClipboard = useCallback(async () => {
-    const t = await Clipboard.getStringAsync();
-    if (!t?.trim()) {
-      Alert.alert("Clipboard", "Nothing in the clipboard.");
-      return;
-    }
-    setPaste(t.trim());
-  }, []);
 
   const importFromScannedData = useCallback(
     async (data: string): Promise<boolean> => {
@@ -288,34 +306,37 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
-          Paste the share code (or a link that contains it), scan the QR with the camera, or choose a photo or
-          screenshot that contains the QR.
+          Enter or paste the share list code (or a link that contains it), scan the QR with the camera, or choose a
+          photo or screenshot that contains the QR.
         </Text>
 
         <View>
-          <Text style={styles.sectionTitle}>SHARE CODE</Text>
+          <Text style={styles.sectionTitle}>SHARE LIST CODE</Text>
           <View style={[styles.card, { marginTop: 8 }]}>
-            <TextInput
-              style={styles.input}
-              value={paste}
-              onChangeText={setPaste}
-              placeholder="Paste share code or link"
-              placeholderTextColor={colors.placeholder}
-              multiline
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity style={[styles.ghostBtn, { flex: 1 }]} onPress={() => void onPasteFromClipboard()}>
-                <Ionicons name="clipboard-outline" size={20} color={colors.text} />
-                <Text style={styles.ghostBtnText}>Paste</Text>
-              </TouchableOpacity>
+            <View style={styles.shareCodeRow}>
+              <TextInput
+                style={[styles.input, styles.shareCodeInput]}
+                value={paste}
+                onChangeText={setPaste}
+                placeholder="Share list code or link"
+                placeholderTextColor={colors.placeholder}
+                multiline
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
               <TouchableOpacity
-                style={[styles.primaryBtn, { flex: 1.2, paddingVertical: 12 }]}
+                style={styles.shareImportInlineBtn}
                 onPress={() => void onImportPaste()}
                 disabled={loading || !paste.trim()}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel="Import list from code"
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Import</Text>}
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.shareImportInlineBtnText}>Import</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -335,7 +356,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
                   accessibilityRole="button"
                   accessibilityLabel="Open camera scanner"
                 >
-                  <QrScanBracketIcon color={colors.text} frameSize={44} />
+                  <QrScanBracketIcon color={colors.text} frameSize={36} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.qrActionIconBtn}
@@ -347,7 +368,7 @@ export default function GroceryImportScreen({ navigation }: GroceryImportProps) 
                   {qrImageBusy ? (
                     <ActivityIndicator color={colors.primary} />
                   ) : (
-                    <Ionicons name="image-outline" size={28} color={colors.text} />
+                    <Ionicons name="image-outline" size={36} color={colors.text} />
                   )}
                 </TouchableOpacity>
               </View>

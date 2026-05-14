@@ -10,6 +10,7 @@ import {
   Modal,
   Pressable,
   Animated,
+  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -156,6 +157,30 @@ function createHomeStyles(c: AppThemeColors) {
       fontSize: 17,
       fontWeight: "700",
       color: c.text,
+      flex: 1,
+      minWidth: 0,
+    },
+    cardTitleRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+    },
+    importedPill: {
+      flexShrink: 0,
+      marginTop: 2,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.iconBlobBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    importedPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: c.primaryDark,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
     },
     cardMeta: {
       marginTop: 4,
@@ -212,8 +237,11 @@ function createHomeStyles(c: AppThemeColors) {
       fontSize: 17,
       fontWeight: "700",
     },
-    menuBackdrop: {
+    menuModalRoot: {
       flex: 1,
+    },
+    menuDimLayer: {
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: c.overlayStrong,
     },
     menuBackdropInner: {
@@ -302,7 +330,8 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     menuFade.setValue(0);
     Animated.timing(menuFade, {
       toValue: 1,
-      duration: 110,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [menuList]);
@@ -323,6 +352,13 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     const id = menuList.id;
     closeMenu();
     navigation.navigate("ListDetail", { listId: id });
+  };
+
+  const shareFromMenu = () => {
+    if (!menuList) return;
+    const id = menuList.id;
+    closeMenu();
+    navigation.navigate("GroceryShare", { listId: id });
   };
 
   const prioritizeFromMenu = () => {
@@ -350,7 +386,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => navigation.navigate("ListDetail", { listId: item.id })}
       onLongPress={() => setMenuList(item)}
-      delayLongPress={800}
+      delayLongPress={400}
       accessibilityHint="Hold briefly to open options"
     >
       <View style={styles.cardRow}>
@@ -358,9 +394,16 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
           <Ionicons name="cart" size={22} color={colors.iconBlobFg} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {item.name}
-          </Text>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {item.name}
+            </Text>
+            {item.importedFromShare ? (
+              <View style={styles.importedPill} accessibilityLabel="Imported list">
+                <Text style={styles.importedPillText}>Imported</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.cardMeta}>
             {item.items.length} item{item.items.length === 1 ? "" : "s"} · Updated{" "}
             {new Date(item.updatedAt).toLocaleDateString()}
@@ -455,48 +498,76 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
       </View>
 
       <Modal visible={!!menuList} transparent animationType="none" onRequestClose={closeMenu}>
-        <Animated.View style={[styles.menuBackdrop, { opacity: menuFade }]}>
+        <View style={styles.menuModalRoot}>
+          <Animated.View pointerEvents="none" style={[styles.menuDimLayer, { opacity: menuFade }]} />
           <Pressable style={StyleSheet.absoluteFillObject} onPress={closeMenu} />
           <View pointerEvents="box-none" style={styles.menuBackdropInner}>
-            <Pressable style={styles.menuCardWrap} onPress={() => {}}>
-              <View style={styles.menuCard}>
-                <View style={styles.menuHeader}>
-                  <Text style={styles.menuListName} numberOfLines={2}>
-                    {menuList?.name}
-                  </Text>
+            <Animated.View
+              style={[
+                styles.menuCardWrap,
+                {
+                  opacity: menuFade,
+                  transform: [
+                    {
+                      translateY: menuFade.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [14, 0],
+                      }),
+                    },
+                    {
+                      scale: menuFade.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.965, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable style={{ alignSelf: "stretch" }} onPress={() => {}}>
+                <View style={styles.menuCard}>
+                  <View style={styles.menuHeader}>
+                    <Text style={styles.menuListName} numberOfLines={2}>
+                      {menuList?.name}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={closeMenu}
+                      style={styles.menuClose}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close menu"
+                    >
+                      <Ionicons name="close" size={26} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.menuRow} onPress={openEditFromMenu} activeOpacity={0.85}>
+                    <Ionicons name="open-outline" size={22} color={colors.primary} />
+                    <Text style={styles.menuRowText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuRow} onPress={shareFromMenu} activeOpacity={0.85}>
+                    <Ionicons name="share-outline" size={22} color={colors.primary} />
+                    <Text style={styles.menuRowText}>Share</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={closeMenu}
-                    style={styles.menuClose}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close menu"
+                    style={styles.menuRow}
+                    onPress={prioritizeFromMenu}
+                    activeOpacity={0.85}
                   >
-                    <Ionicons name="close" size={26} color={colors.textTertiary} />
+                    <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
+                    <Text style={styles.menuRowText}>Prioritize</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuRowDanger}
+                    onPress={deleteFromMenu}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                    <Text style={styles.menuRowTextDanger}>Delete</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.menuRow} onPress={openEditFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="open-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuRow}
-                  onPress={prioritizeFromMenu}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Prioritize</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuRowDanger}
-                  onPress={deleteFromMenu}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="trash-outline" size={22} color={colors.danger} />
-                  <Text style={styles.menuRowTextDanger}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
+              </Pressable>
+            </Animated.View>
           </View>
-        </Animated.View>
+        </View>
       </Modal>
     </View>
   );

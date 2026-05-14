@@ -71,6 +71,7 @@ function sanitizeList(list: GroceryList): GroceryList {
     showItemPrice: Boolean(list.showItemPrice),
     currencySymbol: pickCurrencySymbol(list.currencySymbol),
     pinned: Boolean(list.pinned),
+    importedFromShare: list.importedFromShare === true,
   };
 }
 

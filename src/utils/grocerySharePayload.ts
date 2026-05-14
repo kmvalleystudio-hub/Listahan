@@ -117,6 +117,7 @@ export function groceryListFromSharePayload(base: GroceryList, parsed: GrocerySh
     currencySymbol: parsed.list.currencySymbol,
     items: normalizeItemsForPersist(items),
     updatedAt: now,
+    importedFromShare: true,
   };
 }
 

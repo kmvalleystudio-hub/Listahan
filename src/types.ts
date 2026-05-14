@@ -25,8 +25,8 @@ export type GroceryList = {
   showItemPrice: boolean;
   /** Display symbol for all prices in this list (e.g. ₱, $). */
   currencySymbol: string;
-  /** Pinned lists appear at the top of the home screen. */
-  pinned?: boolean;
+  /** True when this list was created from a cloud share import (distinct from same-named local lists). */
+  importedFromShare?: boolean;
 };
 
 export type HistoryEntry = {
