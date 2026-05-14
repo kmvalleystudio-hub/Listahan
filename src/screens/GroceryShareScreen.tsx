@@ -21,7 +21,11 @@ import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { isSupabaseConfigured } from "../services/supabaseClient";
-import { fetchGroceryShareFromCloud, uploadGroceryShareToCloud } from "../services/groceryShareCloud";
+import {
+  fetchGroceryShareFromCloud,
+  replaceGroceryShareInCloud,
+  uploadGroceryShareToCloud,
+} from "../services/groceryShareCloud";
 import { buildGroceryShareFileFromList } from "../utils/grocerySharePayload";
 import { embedQrPngInShareLetterhead } from "../utils/shareQrExportCanvas";
 
@@ -101,6 +105,18 @@ function createStyles(c: AppThemeColors) {
       justifyContent: "center",
       alignItems: "center",
     },
+    ghostBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.inputBg,
+    },
+    ghostBtnText: { fontSize: 15, fontWeight: "700", color: c.text },
     muted: { fontSize: 13, color: c.textTertiary },
   });
 }
@@ -122,9 +138,31 @@ function groceryShareExportStorageKey(listId: string): string {
 
 const SHARE_INFO_TITLE = "About sharing";
 
+/** PostgREST / Supabase errors are often plain objects, not `Error` instances. */
+function errorMessageFromUnknown(e: unknown, fallback: string): string {
+  if (e == null) return fallback;
+  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
+    return e.message.trim();
+  }
+  if (typeof e === "object") {
+    const o = e as Record<string, unknown>;
+    const chunks: string[] = [];
+    for (const key of ["message", "details", "hint"] as const) {
+      const v = o[key];
+      if (typeof v === "string" && v.trim()) chunks.push(v.trim());
+    }
+    if (typeof o.code === "string" && o.code.trim()) chunks.push(`[${o.code.trim()}]`);
+    if (chunks.length) return chunks.join("\n");
+  }
+  const s = String(e);
+  return s === "" || s === "[object Object]" ? fallback : s;
+}
+
 function shareInfoBody(): string {
   const lines = [
     "Tap Generate Code to save a snapshot of this list in the cloud. You get a share code and QR that anyone can use to import the list in SayCart. Codes and links work for 7 days.",
+    "",
+    "After you edit the list, tap “Update cloud snapshot” so imports use your latest items (the code and QR stay the same).",
     "",
     "Recipients: Groceries → Import → paste the code or scan the QR.",
   ];
@@ -147,6 +185,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
   const [shareId, setShareId] = useState<string | null>(null);
   const [restoringShare, setRestoringShare] = useState(() => isSupabaseConfigured());
   const [savingQr, setSavingQr] = useState(false);
+  const [replacingSnapshot, setReplacingSnapshot] = useState(false);
   const qrSvgRef = useRef<QrSvgHandle | null>(null);
   const qrExportSvgRef = useRef<QrSvgHandle | null>(null);
 
@@ -197,12 +236,43 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
       setShareId(id);
       await AsyncStorage.setItem(groceryShareExportStorageKey(listId), id);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed.";
-      Alert.alert("Cloud share", msg);
+      Alert.alert("Cloud share", errorMessageFromUnknown(e, "Upload failed."));
     } finally {
       setUploading(false);
     }
   }, [listId, payload]);
+
+  const onReplaceSnapshot = useCallback(async () => {
+    if (!shareId || !list) return;
+    if (!isSupabaseConfigured()) {
+      Alert.alert(
+        "Cloud share",
+        "Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your environment, and run the SQL in supabase/migrations in your Supabase project."
+      );
+      return;
+    }
+    const nextPayload = buildGroceryShareFileFromList(list, new Date().toISOString());
+    setReplacingSnapshot(true);
+    try {
+      await replaceGroceryShareInCloud(shareId, nextPayload);
+      Alert.alert(
+        "Snapshot updated",
+        "Your share code and QR are unchanged. Anyone who imports now gets this version of the list."
+      );
+    } catch (e) {
+      const msg = errorMessageFromUnknown(e, "Could not update the share.");
+      const suggestMigration =
+        /could not find the function|PGRST202|42883|function .* does not exist/i.test(msg);
+      Alert.alert(
+        "Update share",
+        suggestMigration
+          ? `${msg}\n\nRun supabase/migrations/20260514120000_grocery_share_replace_export.sql in the Supabase SQL editor for this project, then try again.`
+          : msg
+      );
+    } finally {
+      setReplacingSnapshot(false);
+    }
+  }, [shareId, list]);
 
   const onPressShareCodeCopyIcon = useCallback(async () => {
     if (!shareId) return;
@@ -262,8 +332,7 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
         dialogTitle: "Save or share QR",
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not save the QR image.";
-      Alert.alert("QR", msg);
+      Alert.alert("QR", errorMessageFromUnknown(e, "Could not save the QR image."));
     } finally {
       setSavingQr(false);
     }
@@ -405,6 +474,22 @@ export default function GroceryShareScreen({ navigation, route }: GrocerySharePr
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.muted}>Receiver: Groceries → Import → paste the code or scan this QR.</Text>
+                <TouchableOpacity
+                  style={styles.ghostBtn}
+                  onPress={() => void onReplaceSnapshot()}
+                  disabled={replacingSnapshot || savingQr || uploading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Update cloud snapshot for this share code"
+                >
+                  {replacingSnapshot ? (
+                    <ActivityIndicator color={colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="refresh-outline" size={20} color={colors.text} />
+                      <Text style={styles.ghostBtnText}>Update cloud snapshot</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </>
             )}
           </View>
