@@ -15,7 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NotesHomeProps } from "../navigation/types";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
+import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
+import {
+  toolHomeFloatingAddButtonDarkLift,
+  toolHomeFloatingAddButtonUpwardGlowWrap,
+  toolHomeListFadeBottomOffset,
+} from "../theme/toolHomeFloatingAddButton";
 import {
   deleteQuickNote,
   loadQuickNotes,
@@ -83,8 +88,9 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
       left: 0,
       right: 0,
       bottom: 0,
+      zIndex: 6,
       paddingHorizontal: 16,
-      paddingTop: 10,
+      paddingTop: 6,
       backgroundColor: "transparent",
     },
     primaryBtn: {
@@ -200,7 +206,7 @@ export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
         </View>
       </View>
 
-      <View style={styles.bodyFill}>
+      <View style={[styles.bodyFill, { position: "relative" }]}>
         {notes.length === 0 ? (
           <View style={[styles.empty, { paddingBottom: listBottomPad }]}>
             <Ionicons name="document-text-outline" size={48} color={colors.textTertiary} />
@@ -229,13 +235,20 @@ export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
             )}
           />
         )}
+        <ToolHomeFooterListScrim
+          isDark={isDark}
+          backgroundColor={colors.background}
+          bottomOffset={toolHomeListFadeBottomOffset(insets.bottom)}
+        />
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={styles.primaryBtn} onPress={onNew} activeOpacity={0.9}>
-          <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Add note</Text>
-        </TouchableOpacity>
+        <View style={toolHomeFloatingAddButtonUpwardGlowWrap(isDark, colors)}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={onNew} activeOpacity={0.9}>
+            <Ionicons name="add-circle-outline" size={22} color="#fff" />
+            <Text style={styles.primaryBtnText}>Add note</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

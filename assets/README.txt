@@ -4,8 +4,10 @@ Listahan — image assets
 
 | File | Use |
 |------|-----|
-| `branding/listahan-logo-horizontal.svg` | Source for the **dashboard header** PNG (see below). |
-| `branding/listahan-logo-horizontal.png` | **Generated** — wide logo for the tools screen header. Do not hand-edit; run `npm run icons:brand`. |
+| `branding/listahan-logo-horizontal.svg` | Source for **light UI** dashboard header PNG. |
+| `branding/listahan-logo-horizontal.png` | **Generated** — header when the app is in light mode. |
+| `branding/listahan-logo-horizontal-on-dark.svg` | Source for **dark UI** header PNG (from your `…-light` artwork). |
+| `branding/listahan-logo-horizontal-on-dark.png` | **Generated** — header when the app is in dark mode. |
 | `branding/listahan-logo-drawer.svg` | Source for **launcher** icons (see below). |
 
 Replace the SVGs in `branding/` when the design team ships updates, then run:
@@ -14,10 +16,11 @@ Replace the SVGs in `branding/` when the design team ships updates, then run:
 npm run icons:brand
 ```
 
-That rasterizes `listahan-logo-drawer.svg` into:
+That rasterizes branding SVGs into:
 
-- `icon.png` — Expo / iOS / Android app icon
-- `adaptive-icon.png` — Android adaptive foreground
+- `icon.png` / `adaptive-icon.png` — from `listahan-logo-drawer.svg`
+- `branding/listahan-logo-horizontal.png` — from `listahan-logo-horizontal.svg`
+- `branding/listahan-logo-horizontal-on-dark.png` — from `listahan-logo-horizontal-on-dark.svg`
 
 ## Legacy paths (Expo `app.json`)
 

@@ -17,7 +17,12 @@ import type { PrivateHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
+import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
+import {
+  toolHomeFloatingAddButtonDarkLift,
+  toolHomeFloatingAddButtonUpwardGlowWrap,
+  toolHomeListFadeBottomOffset,
+} from "../theme/toolHomeFloatingAddButton";
 import type { PrivateList } from "../types";
 import PrivateVaultGate from "../components/PrivateVaultGate";
 
@@ -89,8 +94,9 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
       left: 0,
       right: 0,
       bottom: 0,
+      zIndex: 6,
       paddingHorizontal: 16,
-      paddingTop: 10,
+      paddingTop: 6,
       backgroundColor: "transparent",
     },
     primaryBtn: {
@@ -266,42 +272,52 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(l) => l.id}
-          renderItem={renderItem}
-          renderSectionHeader={({ section }) =>
-            section.title ? (
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <View style={styles.sectionRule} />
+        <View style={{ flex: 1, position: "relative" }}>
+          <SectionList
+            style={{ flex: 1 }}
+            sections={sections}
+            keyExtractor={(l) => l.id}
+            renderItem={renderItem}
+            renderSectionHeader={({ section }) =>
+              section.title ? (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                  <View style={styles.sectionRule} />
+                </View>
+              ) : null
+            }
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
+            stickySectionHeadersEnabled={false}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons name="lock-closed-outline" size={48} color={colors.borderMuted} />
+                <Text style={styles.emptyTitle}>Nothing here yet</Text>
+                <Text style={styles.emptyText}>
+                  Add a sheet for passwords, PINs, recovery codes, or other private notes.
+                </Text>
               </View>
-            ) : null
-          }
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 120 }]}
-          stickySectionHeadersEnabled={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="lock-closed-outline" size={48} color={colors.borderMuted} />
-              <Text style={styles.emptyTitle}>Nothing here yet</Text>
-              <Text style={styles.emptyText}>
-                Add a sheet for passwords, PINs, recovery codes, or other private notes.
-              </Text>
-            </View>
-          }
-          SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
-        />
+            }
+            SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
+          />
+          <ToolHomeFooterListScrim
+            isDark={isDark}
+            backgroundColor={colors.background}
+            bottomOffset={toolHomeListFadeBottomOffset(insets.bottom)}
+          />
+        </View>
       )}
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => navigation.navigate("PrivateCreateList")}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>New sheet</Text>
-        </TouchableOpacity>
+        <View style={toolHomeFloatingAddButtonUpwardGlowWrap(isDark, colors)}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => navigation.navigate("PrivateCreateList")}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="add-circle-outline" size={22} color="#fff" />
+            <Text style={styles.primaryBtnText}>New sheet</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal visible={!!menuList} transparent animationType="none" onRequestClose={closeMenu}>

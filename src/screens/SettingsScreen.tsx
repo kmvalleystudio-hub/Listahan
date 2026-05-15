@@ -27,13 +27,31 @@ function createStyles(c: AppThemeColors) {
     header: {
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: GRID_PAD,
       paddingBottom: 10,
-      gap: 8,
+      minHeight: 44,
+    },
+    headerEdge: {
+      flex: 1,
+      minWidth: 0,
+    },
+    headerEdgeLeft: {
+      alignItems: "flex-start",
+    },
+    headerEdgeRight: {
+      alignItems: "flex-end",
     },
     backBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingRight: 8 },
     backText: { fontSize: 16, fontWeight: "600", color: c.linkBlue },
-    title: { fontSize: 22, fontWeight: "800", color: c.text, flex: 1 },
+    headerTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: c.text,
+      textAlign: "center",
+      flexShrink: 0,
+      paddingHorizontal: 8,
+    },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: GRID_PAD, paddingBottom: 32, gap: 22 },
     sectionTitle: {
@@ -99,16 +117,21 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
+        <View style={[styles.headerEdge, styles.headerEdgeLeft]}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.headerTitle} accessibilityRole="header">
+          Settings
+        </Text>
+        <View style={[styles.headerEdge, styles.headerEdgeRight]} />
       </View>
 
       <ScrollView

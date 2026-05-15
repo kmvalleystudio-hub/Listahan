@@ -30,8 +30,9 @@ export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "To
 const GRID_H_PAD = 16;
 const GRID_COL_GAP = 12;
 
-/** Bundled horizontal mark — `Image.getSize` supplies real aspect after trim/export. */
-const LISTAHAN_HEADER_LOGO = require("../../assets/branding/listahan-logo-horizontal.png");
+/** Light UI: default horizontal mark. Dark UI: light-ink artwork (`-light` source SVG). */
+const LISTAHAN_HEADER_LOGO_LIGHT_UI = require("../../assets/branding/listahan-logo-horizontal.png");
+const LISTAHAN_HEADER_LOGO_DARK_UI = require("../../assets/branding/listahan-logo-horizontal-on-dark.png");
 const LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
 
 function createDashboardStyles(c: AppThemeColors) {
@@ -42,7 +43,7 @@ function createDashboardStyles(c: AppThemeColors) {
     },
     header: {
       paddingHorizontal: GRID_H_PAD,
-      paddingBottom: 10,
+      paddingBottom: 14,
       flexDirection: "row",
       alignItems: "flex-start",
       justifyContent: "space-between",
@@ -66,11 +67,21 @@ function createDashboardStyles(c: AppThemeColors) {
       width: 44,
       height: 44,
       borderRadius: 14,
-      backgroundColor: c.historyBtnBg,
+      backgroundColor: c.backgroundElevated,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: c.shadow,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 6,
+        },
+        android: { elevation: 2 },
+        default: {},
+      }),
     },
     doneBtn: {
       paddingHorizontal: 14,
@@ -89,17 +100,27 @@ function createDashboardStyles(c: AppThemeColors) {
       flexDirection: "row",
       flexWrap: "wrap",
       paddingHorizontal: GRID_H_PAD,
-      paddingTop: 8,
+      paddingTop: 10,
       gap: GRID_COL_GAP,
     },
     card: {
       backgroundColor: c.card,
-      borderRadius: 18,
-      padding: 12,
+      borderRadius: 20,
+      padding: 14,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
+      borderColor: c.borderMuted,
       gap: 8,
       overflow: "hidden",
+      ...Platform.select({
+        ios: {
+          shadowColor: c.shadow,
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: 0.07,
+          shadowRadius: 14,
+        },
+        android: { elevation: 3 },
+        default: {},
+      }),
     },
     cardPressed: {
       opacity: 0.92,
@@ -107,18 +128,18 @@ function createDashboardStyles(c: AppThemeColors) {
     /** Reorder mode: lifted tiles — same border as browse (no muted gray ring). */
     cardReorderLift: {
       backgroundColor: c.card,
-      borderRadius: 18,
-      padding: 12,
+      borderRadius: 20,
+      padding: 14,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
+      borderColor: c.borderMuted,
       gap: 8,
       overflow: "hidden",
       ...Platform.select({
         ios: {
           shadowColor: c.shadow,
-          shadowOffset: { width: 0, height: 5 },
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
         },
         android: {
           elevation: 5,
@@ -172,8 +193,8 @@ function createDashboardStyles(c: AppThemeColors) {
     },
     cardDescSquare: {
       fontSize: 12,
-      color: c.placeholder,
-      lineHeight: 16,
+      color: c.textSecondary,
+      lineHeight: 17,
       textAlign: "left",
     },
     squareDescWell: {
@@ -182,6 +203,26 @@ function createDashboardStyles(c: AppThemeColors) {
       justifyContent: "flex-start",
       marginTop: 6,
       paddingHorizontal: 0,
+    },
+    /** Fills the trailing empty cell when there is an odd number of tools. */
+    gridHintTile: {
+      flex: 1,
+      alignSelf: "stretch",
+      borderRadius: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.inputBg,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 10,
+      gap: 6,
+    },
+    gridHintText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: c.textTertiary,
+      textAlign: "center",
+      lineHeight: 15,
     },
   });
 }
@@ -280,7 +321,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const { width: windowWidth } = useWindowDimensions();
   const tileWidth = useMemo(() => dashboardTileWidth(windowWidth), [windowWidth]);
   const gridInnerWidth = useMemo(() => windowWidth - GRID_H_PAD * 2, [windowWidth]);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => createDashboardStyles(colors), [colors]);
   const { lock } = usePrivateVault();
 
@@ -292,9 +333,11 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const [enterReorderBusy, setEnterReorderBusy] = useState(false);
   const preEditOrderRef = useRef<ToolId[]>([]);
 
+  const headerLogoSource = isDark ? LISTAHAN_HEADER_LOGO_DARK_UI : LISTAHAN_HEADER_LOGO_LIGHT_UI;
+
   const [logoAspect, setLogoAspect] = useState(LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK);
   useEffect(() => {
-    const src = Image.resolveAssetSource(LISTAHAN_HEADER_LOGO);
+    const src = Image.resolveAssetSource(headerLogoSource);
     const uri = src?.uri;
     if (!uri) return;
     Image.getSize(
@@ -304,7 +347,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
       },
       () => {}
     );
-  }, []);
+  }, [headerLogoSource]);
 
   const wiggleAnim = useRef(new Animated.Value(0)).current;
   const wiggleRotate = useMemo(
@@ -393,7 +436,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
         <View style={styles.headerBrandCol}>
           <View style={[styles.headerLogoSvgWrap, { aspectRatio: logoAspect }]}>
             <Image
-              source={LISTAHAN_HEADER_LOGO}
+              source={headerLogoSource}
               style={styles.headerLogoImage}
               resizeMode="contain"
               accessibilityIgnoresInvertColors
@@ -454,6 +497,19 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
                 </Animated.View>
               </Pressable>
             ))}
+            {orderedTools.length % 2 === 1 ? (
+              <View
+                style={{ width: tileWidth, height: tileWidth, alignSelf: "flex-start" }}
+                pointerEvents="none"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <View style={styles.gridHintTile}>
+                  <Ionicons name="hand-left-outline" size={22} color={colors.textTertiary} />
+                  <Text style={styles.gridHintText}>Long-press to reorder</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
       ) : (
@@ -468,6 +524,14 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           paddingBottom={insets.bottom + 24}
           cardStyle={[styles.cardReorderLift, { width: tileWidth, height: tileWidth }]}
           renderItem={(item) => <ToolCardInner tool={item} styles={styles} square tileWidth={tileWidth} />}
+          trailingSlot={
+            orderedTools.length % 2 === 1 ? (
+              <View style={styles.gridHintTile}>
+                <Ionicons name="hand-left-outline" size={22} color={colors.textTertiary} />
+                <Text style={styles.gridHintText}>Long-press to reorder</Text>
+              </View>
+            ) : undefined
+          }
         />
       )}
     </View>

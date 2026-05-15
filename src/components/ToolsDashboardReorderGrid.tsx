@@ -261,6 +261,8 @@ export type ToolsDashboardReorderGridProps<T extends { id: string }> = {
   paddingBottom: number;
   cardStyle: StyleProp<ViewStyle>;
   renderItem: (item: T, index: number) => React.ReactNode;
+  /** Optional cell after tools (e.g. hint) when `items.length` is odd — same tile size as a tool. */
+  trailingSlot?: React.ReactNode;
 };
 
 export default function ToolsDashboardReorderGrid<T extends { id: string }>({
@@ -274,6 +276,7 @@ export default function ToolsDashboardReorderGrid<T extends { id: string }>({
   paddingBottom,
   cardStyle,
   renderItem,
+  trailingSlot,
 }: ToolsDashboardReorderGridProps<T>) {
   const slotsRef = useRef<View>(null);
   const itemsRef = useRef(items);
@@ -485,6 +488,11 @@ export default function ToolsDashboardReorderGrid<T extends { id: string }>({
             {renderItem(item, index)}
           </GridCell>
         ))}
+        {trailingSlot != null ? (
+          <View style={{ width: tileWidth, height: tileSize }} pointerEvents="none">
+            {trailingSlot}
+          </View>
+        ) : null}
       </View>
     </View>
   );

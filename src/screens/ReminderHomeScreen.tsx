@@ -18,7 +18,12 @@ import type { ReminderHomeProps } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
-import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
+import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
+import {
+  toolHomeFloatingAddButtonDarkLift,
+  toolHomeFloatingAddButtonUpwardGlowWrap,
+  toolHomeListFadeBottomOffset,
+} from "../theme/toolHomeFloatingAddButton";
 import {
   deleteReminder,
   loadReminders,
@@ -115,8 +120,9 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
       left: 0,
       right: 0,
       bottom: 0,
+      zIndex: 6,
       paddingHorizontal: 16,
-      paddingTop: 10,
+      paddingTop: 6,
       backgroundColor: "transparent",
     },
     primaryBtn: {
@@ -285,7 +291,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
         </View>
       </View>
 
-      <View style={styles.bodyFill}>
+      <View style={[styles.bodyFill, { position: "relative" }]}>
         {items.length === 0 ? (
           <View style={[styles.empty, { paddingBottom: listBottomPad }]}>
             <Ionicons name="alarm-outline" size={48} color={colors.textTertiary} />
@@ -344,13 +350,20 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
             }}
           />
         )}
+        <ToolHomeFooterListScrim
+          isDark={isDark}
+          backgroundColor={colors.background}
+          bottomOffset={toolHomeListFadeBottomOffset(insets.bottom)}
+        />
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={styles.primaryBtn} onPress={onNew} activeOpacity={0.9}>
-          <Ionicons name="add-circle-outline" size={22} color="#fff" />
-          <Text style={styles.primaryBtnText}>Add reminder</Text>
-        </TouchableOpacity>
+        <View style={toolHomeFloatingAddButtonUpwardGlowWrap(isDark, colors)}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={onNew} activeOpacity={0.9}>
+            <Ionicons name="add-circle-outline" size={22} color="#fff" />
+            <Text style={styles.primaryBtnText}>Add reminder</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
