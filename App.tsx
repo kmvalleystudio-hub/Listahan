@@ -11,6 +11,7 @@ import { PrivateVaultProvider } from "./src/context/PrivateVaultContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
 import ShareExportScreen from "./src/screens/ShareExportScreen";
 import ShareImportScreen from "./src/screens/ShareImportScreen";
@@ -83,6 +84,7 @@ function NavigationRoot() {
         }}
       >
         <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
         <Stack.Screen name="ShareExport" component={ShareExportScreen} />
         <Stack.Screen name="ShareImport" component={ShareImportScreen} />

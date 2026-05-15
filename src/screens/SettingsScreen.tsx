@@ -1,0 +1,231 @@
+import React, { useMemo } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+  Switch,
+  Alert,
+  Platform,
+  Linking,
+} from "react-native";
+import Constants from "expo-constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import type { SettingsProps } from "../navigation/types";
+import { useTheme } from "../context/ThemeContext";
+import type { AppThemeColors } from "../theme/colors";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
+
+const GRID_PAD = 16;
+
+function createStyles(c: AppThemeColors) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: c.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: GRID_PAD,
+      paddingBottom: 10,
+      gap: 8,
+    },
+    backBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingRight: 8 },
+    backText: { fontSize: 16, fontWeight: "600", color: c.linkBlue },
+    title: { fontSize: 22, fontWeight: "800", color: c.text, flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: GRID_PAD, paddingBottom: 32, gap: 22 },
+    sectionTitle: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: c.textTertiary,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      marginBottom: 8,
+      marginTop: 4,
+    },
+    card: {
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      overflow: "hidden",
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    rowLast: {
+      borderBottomWidth: 0,
+    },
+    rowBody: { flex: 1, minWidth: 0 },
+    rowTitle: { fontSize: 16, fontWeight: "600", color: c.text },
+    rowSubtitle: { fontSize: 13, color: c.placeholder, marginTop: 4, lineHeight: 18 },
+    foot: {
+      marginTop: 8,
+      fontSize: 12,
+      color: c.placeholder,
+      lineHeight: 18,
+      paddingHorizontal: 4,
+    },
+  });
+}
+
+export default function SettingsScreen({ navigation }: SettingsProps) {
+  const insets = useSafeAreaInsets();
+  const { colors, isDark, toggleScheme } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const appVersion =
+    Constants.expoConfig?.version ?? (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion ?? "—";
+
+  const openSystemSettings = () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Notifications", "Use your browser and OS settings to control site permissions.");
+      return;
+    }
+    void Linking.openSettings();
+  };
+
+  const rowChevron = () => <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />;
+
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Settings</Text>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.sectionTitle}>General</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>Dark mode</Text>
+              <Text style={styles.rowSubtitle}>Reduce glare and match dim environments.</Text>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={() => toggleScheme()}
+              trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
+              thumbColor={isDark ? colors.switchThumbOn : colors.switchThumbOff}
+              ios_backgroundColor={colors.iosSwitchBg}
+            />
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
+            onPress={openSystemSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Open system notification settings"
+          >
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>Notifications</Text>
+              <Text style={styles.rowSubtitle}>Open system settings for alerts and permission prompts.</Text>
+            </View>
+            {rowChevron()}
+          </Pressable>
+        </View>
+
+        <Text style={styles.sectionTitle}>Support</Text>
+        <View style={styles.card}>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              Alert.alert("FAQ", `Help topics for ${APP_DISPLAY_NAME} will live here in a future update.`)
+            }
+            accessibilityRole="button"
+          >
+            <Text style={[styles.rowTitle, styles.rowBody]}>FAQ</Text>
+            {rowChevron()}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              Alert.alert(
+                "Report a problem",
+                `Describe what went wrong when contacting support for ${APP_DISPLAY_NAME}.`
+              )
+            }
+            accessibilityRole="button"
+          >
+            <Text style={[styles.rowTitle, styles.rowBody]}>Report a problem</Text>
+            <Ionicons name="open-outline" size={20} color={colors.placeholder} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              Alert.alert("Feedback", `Thanks for helping improve ${APP_DISPLAY_NAME}. More feedback options are coming soon.`)
+            }
+            accessibilityRole="button"
+          >
+            <Text style={[styles.rowTitle, styles.rowBody]}>General feedback</Text>
+            {rowChevron()}
+          </Pressable>
+        </View>
+
+        <Text style={styles.sectionTitle}>App</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={[styles.rowTitle, styles.rowBody]}>Version</Text>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.textTertiary }}>{appVersion}</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              Alert.alert(
+                "Rate on the store",
+                `When ${APP_DISPLAY_NAME} is published, a link to rate the app will appear here.`
+              )
+            }
+            accessibilityRole="button"
+          >
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>Rate us on the store</Text>
+              <Text style={styles.rowSubtitle}>Great ratings help others discover the app.</Text>
+            </View>
+            {rowChevron()}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
+            onPress={() =>
+              Alert.alert(
+                "Data on this device",
+                `${APP_DISPLAY_NAME} keeps your lists and vault data on this device. Cloud is only used when you explicitly share or import a code.`
+              )
+            }
+            accessibilityRole="button"
+          >
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>Data & privacy</Text>
+              <Text style={styles.rowSubtitle}>Where your information lives.</Text>
+            </View>
+            {rowChevron()}
+          </Pressable>
+        </View>
+
+        <Text style={styles.foot}>
+          Settings inspired by familiar list apps — options will grow as {APP_DISPLAY_NAME} does.
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}

@@ -280,7 +280,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const { width: windowWidth } = useWindowDimensions();
   const tileWidth = useMemo(() => dashboardTileWidth(windowWidth), [windowWidth]);
   const gridInnerWidth = useMemo(() => windowWidth - GRID_H_PAD * 2, [windowWidth]);
-  const { colors, isDark, toggleScheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useMemo(() => createDashboardStyles(colors), [colors]);
   const { lock } = usePrivateVault();
 
@@ -413,11 +413,11 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
         ) : (
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={toggleScheme}
+            onPress={() => navigation.navigate("Settings")}
             accessibilityRole="button"
-            accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            accessibilityLabel="Settings"
           >
-            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.text} />
+            <Ionicons name="settings-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         )}
       </View>

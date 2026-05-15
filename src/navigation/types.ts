@@ -9,6 +9,7 @@ export type ShareExportRouteParams =
 
 export type RootStackParamList = {
   ToolsDashboard: undefined;
+  Settings: undefined;
   GroceryHome: undefined;
   ShareExport: ShareExportRouteParams;
   ShareImport: { expectingTool?: "grocery" | "todo" | "reminder" } | undefined;
@@ -37,6 +38,7 @@ export type RootStackParamList = {
   ReminderEditor: { reminderId?: string };
 };
 
+export type SettingsProps = NativeStackScreenProps<RootStackParamList, "Settings">;
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;
 export type ShareExportProps = NativeStackScreenProps<RootStackParamList, "ShareExport">;
