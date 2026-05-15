@@ -34,6 +34,8 @@ const GRID_COL_GAP = 12;
 const LISTAHAN_HEADER_LOGO_LIGHT_UI = require("../../assets/branding/listahan-logo-horizontal.png");
 const LISTAHAN_HEADER_LOGO_DARK_UI = require("../../assets/branding/listahan-logo-horizontal-on-dark.png");
 const LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
+/** Dashboard header mark height (80% of prior 38px). */
+const HEADER_LOGO_HEIGHT = 30;
 
 function createDashboardStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -45,7 +47,7 @@ function createDashboardStyles(c: AppThemeColors) {
       paddingHorizontal: GRID_H_PAD,
       paddingBottom: 14,
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
     },
@@ -56,32 +58,18 @@ function createDashboardStyles(c: AppThemeColors) {
     },
     headerLogoSvgWrap: {
       alignSelf: "flex-start",
-      height: 38,
+      height: HEADER_LOGO_HEIGHT,
       maxWidth: "100%",
     },
     headerLogoImage: {
       width: "100%",
       height: "100%",
     },
-    iconBtn: {
+    headerIconBtn: {
       width: 44,
       height: 44,
-      borderRadius: 14,
-      backgroundColor: c.backgroundElevated,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-      ...Platform.select({
-        ios: {
-          shadowColor: c.shadow,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 6,
-        },
-        android: { elevation: 2 },
-        default: {},
-      }),
     },
     doneBtn: {
       paddingHorizontal: 14,
@@ -455,7 +443,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={styles.iconBtn}
+            style={styles.headerIconBtn}
             onPress={() => navigation.navigate("Settings")}
             accessibilityRole="button"
             accessibilityLabel="Settings"
