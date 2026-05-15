@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SayCart",
-    "slug": "saycart",
+    "name": "Listahan",
+    "slug": "listahan",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,11 +16,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.saycart.app",
       "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "SayCart uses speech recognition so you can add groceries and prices by voice.",
-        "NSMicrophoneUsageDescription": "SayCart uses the microphone to capture your voice for item and price entry.",
-        "NSFaceIDUsageDescription": "SayCart uses Face ID to unlock your vault.",
-        "NSCameraUsageDescription": "SayCart uses the camera to scan grocery share QR codes.",
-        "NSPhotoLibraryUsageDescription": "SayCart uses your photo library to import a grocery share QR from an image."
+        "NSSpeechRecognitionUsageDescription": "Listahan uses speech recognition so you can add items and prices by voice.",
+        "NSMicrophoneUsageDescription": "Listahan uses the microphone to capture your voice for item and price entry.",
+        "NSFaceIDUsageDescription": "Listahan uses Face ID to unlock your vault.",
+        "NSCameraUsageDescription": "Listahan uses the camera to scan share QR codes and capture list text from photos.",
+        "NSPhotoLibraryUsageDescription": "Listahan uses your photo library to import a share QR from an image."
       }
     },
     "android": {
@@ -41,8 +41,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow SayCart to use the microphone for voice entry.",
-          "speechRecognitionPermission": "Allow SayCart to use speech recognition for voice entry."
+          "microphonePermission": "Allow Listahan to use the microphone for voice entry.",
+          "speechRecognitionPermission": "Allow Listahan to use speech recognition for voice entry."
         }
       ],
       "expo-secure-store",
@@ -57,7 +57,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow SayCart to use the camera to scan a grocery share QR code.",
+          "cameraPermission": "Allow Listahan to use the camera to scan a share QR code or capture list text.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -65,7 +65,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow SayCart to access photos to import a grocery share QR from an image."
+          "photosPermission": "Allow Listahan to access photos to import a share QR from an image."
         }
       ]
     ]

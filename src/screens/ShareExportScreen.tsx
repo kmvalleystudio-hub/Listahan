@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import type { ShareExportProps, ShareExportRouteParams } from "../navigation/types";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import type { ToolId } from "../constants/toolsCatalog";
 import { useAppData } from "../context/AppDataContext";
 import { useToolTheme } from "../hooks/useToolTheme";
@@ -168,7 +169,7 @@ function shareInfoBody(tool: ToolId): string {
         ? "To-dos → Import shared data"
         : "Reminder → Import shared data (from the tool’s home screen)";
   const lines = [
-    "Tap Generate Code to save a snapshot in the cloud. You get a share code and QR that anyone can use to import in SayCart. Codes and links work for 7 days.",
+    `Tap Generate Code to save a snapshot in the cloud. You get a share code and QR that anyone can use to import in ${APP_DISPLAY_NAME}. Codes and links work for 7 days.`,
     "",
     "After you edit, tap “Update cloud snapshot” so imports use the latest version (the code and QR stay the same).",
     "",
@@ -556,7 +557,7 @@ export default function ShareExportScreen({ navigation, route }: ShareExportProp
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.muted}>
-                  Receiver: open SayCart → this tool’s Import shared data → paste the code or scan this QR.
+                  {`Receiver: open ${APP_DISPLAY_NAME} → this tool’s Import shared data → paste the code or scan this QR.`}
                 </Text>
                 <TouchableOpacity
                   style={styles.ghostBtn}

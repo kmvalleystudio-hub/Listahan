@@ -1,5 +1,5 @@
 /**
- * Master registry of SayCart suite tools — roadmap, copy, and navigation ids.
+ * Master registry of Listahan suite tools — roadmap, copy, and navigation ids.
  */
 
 export type ToolId = "grocery" | "todo" | "private_list" | "reminder" | "notes";

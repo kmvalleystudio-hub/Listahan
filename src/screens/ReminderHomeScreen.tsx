@@ -15,6 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReminderHomeProps } from "../navigation/types";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { toolHomeFloatingAddButtonDarkLift } from "../theme/toolHomeFloatingAddButton";
@@ -240,7 +241,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
         </View>
         <View style={[styles.bodyFill, styles.center, { paddingHorizontal: 24 }]}>
           <Ionicons name="phone-portrait-outline" size={48} color={colors.textTertiary} />
-          <Text style={styles.emptyTitle}>Open SayCart on iOS or Android</Text>
+          <Text style={styles.emptyTitle}>{`Open ${APP_DISPLAY_NAME} on iOS or Android`}</Text>
           <Text style={[styles.emptyText, { marginTop: 8 }]}>
             Scheduled local alerts are not available in the web preview. Your lists and other tools still work here.
           </Text>
@@ -263,13 +264,13 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
             <Text style={styles.backTextSmall}>Tools</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Reminder</Text>
-          <Text style={styles.subtitle}>Turn on Allow notifications for SayCart if you want nudges.</Text>
+          <Text style={styles.subtitle}>{`Turn on Allow notifications for ${APP_DISPLAY_NAME} if you want nudges.`}</Text>
           <TouchableOpacity
             onPress={() => void Linking.openSettings()}
             accessibilityRole="button"
-            accessibilityLabel="Open system settings for SayCart"
+            accessibilityLabel={`Open system settings for ${APP_DISPLAY_NAME}`}
           >
-            <Text style={styles.settingsLink}>Open SayCart in system settings</Text>
+            <Text style={styles.settingsLink}>{`Open ${APP_DISPLAY_NAME} in system settings`}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.headerActions}>

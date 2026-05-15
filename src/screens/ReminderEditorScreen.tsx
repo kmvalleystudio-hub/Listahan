@@ -17,6 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReminderEditorProps } from "../navigation/types";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import {
@@ -358,7 +359,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
 
   const onSave = useCallback(async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Not on web", "Use the SayCart app on iOS or Android to save reminders.");
+      Alert.alert("Not on web", `Use the ${APP_DISPLAY_NAME} app on iOS or Android to save reminders.`);
       return;
     }
     const t = title.trim();
@@ -419,7 +420,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
           Alert.alert("Could not schedule", "Try a slightly later time.");
         }
       } else {
-        Alert.alert("Notifications", "Allow notifications for SayCart in system settings to get nudges.");
+        Alert.alert("Notifications", `Allow notifications for ${APP_DISPLAY_NAME} in system settings to get nudges.`);
       }
 
       const row: SavedReminder = {

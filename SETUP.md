@@ -1,4 +1,4 @@
-# SayCart — setup and run
+# Listahan — setup and run
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ npx expo start
 
 Press `i` / `a` for iOS simulator / Android emulator, or scan the QR code with Expo Go.
 
-**Phone checklist (copy-paste):** see `samples/SAYCART_MOBILE_TEST.txt` — Metro, dev build, Wi‑Fi/tunnel/USB, and sample phrases for Bulk List by Voice.
+**Phone checklist (copy-paste):** see `samples/LISTAHAN_MOBILE_TEST.txt` — Metro, dev build, Wi‑Fi/tunnel/USB, and sample phrases for Bulk List by Voice.
 
 **Installable APK (no Metro):** see `docs/BUILD_APK.md` — EAS cloud build or local Gradle.
 

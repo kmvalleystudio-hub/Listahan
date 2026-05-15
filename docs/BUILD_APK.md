@@ -1,4 +1,4 @@
-# Build an Android APK for SayCart
+# Build an Android APK for Listahan
 
 Use this when you want an **installable `.apk`** on a real phone (no USB to Metro required for *using* the app—the JS bundle is embedded in the build).
 
@@ -27,10 +27,10 @@ Create an account at [expo.dev](https://expo.dev) if you don’t have one. Compl
 ### Step 3 — Go to your project folder
 
 ```bash
-cd c:\Users\admin\.cursor\projects\SayCart
+cd C:\SayCart
 ```
 
-(Use your real path if SayCart lives somewhere else.)
+(Use your real project path if Listahan lives somewhere else.)
 
 ### Step 4 — Link the project to EAS (first time only)
 
@@ -55,7 +55,7 @@ eas build -p android --profile preview
 
 1. Open the build URL on your phone (or download the APK on your PC and transfer it).
 2. On Android: enable **Install unknown apps** for your browser or Files app if asked.
-3. Install **SayCart**. Open it—it should run **without** needing `npx expo start` on your computer.
+3. Install **Listahan**. Open it—it should run **without** needing `npx expo start` on your computer.
 
 ### Later updates
 

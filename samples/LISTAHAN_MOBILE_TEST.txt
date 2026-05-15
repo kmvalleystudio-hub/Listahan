@@ -1,9 +1,9 @@
-SayCart — copy this to your phone (Notes, email, or cloud)
+Listahan — copy this to your phone (Notes, email, or cloud)
 ============================================================
 
 BEFORE YOU TEST (on your computer)
 ------------------------------------
-1. Open the SayCart project folder in a terminal.
+1. Open the Listahan project folder in a terminal.
 2. Run:  npx expo start
 3. Voice (mic) needs a DEVELOPMENT BUILD, not plain Expo Go.
    - Android: plug in phone with USB debugging, then:
@@ -17,7 +17,7 @@ BEFORE YOU TEST (on your computer)
 
 OPEN THE APP ON THE PHONE
 -------------------------
-- Launch SayCart (dev build).
+- Launch Listahan (dev build).
 - If you see a red "can't load script" error, Metro isn't reachable — fix Wi-Fi/tunnel/adb reverse, then reload.
 
 TRY BULK LIST BY VOICE

@@ -28,20 +28,11 @@ import { parseShareEnvelope, type ParsedShareEnvelope } from "../utils/shareEnve
 import { scanQrDataStringsFromImage } from "../utils/groceryImportQrScan";
 import { requestReminderNotificationPermission, scheduleReminderNotification } from "../utils/reminderNotifications";
 import { upsertReminder } from "../utils/remindersStorage";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 
+/** QR-only icon sized to match the gallery button beside it (no scan frame). */
 function QrScanBracketIcon({ color, frameSize = 36 }: { color: string; frameSize?: number }) {
-  const qrSize = Math.round(frameSize * 0.36);
-  return (
-    <View style={{ width: frameSize, height: frameSize, justifyContent: "center", alignItems: "center" }}>
-      <Ionicons
-        name="scan-outline"
-        size={Math.round(frameSize * 1.08)}
-        color={color}
-        style={{ position: "absolute", opacity: 0.38 }}
-      />
-      <Ionicons name="qr-code" size={qrSize} color={color} />
-    </View>
-  );
+  return <Ionicons name="qr-code" size={frameSize} color={color} />;
 }
 
 function errorMessageFromUnknown(e: unknown, fallback: string): string {
@@ -85,7 +76,7 @@ function confirmImportContextMismatch(
   return new Promise((resolve) => {
     Alert.alert(
       "Different kind of share",
-      `You opened import from ${importScreenContextLabel(expecting)}, but this code is for ${sharePayloadKindPhrase(parsed.tool)}. SayCart will still import it in the right place.`,
+      `You opened import from ${importScreenContextLabel(expecting)}, but this code is for ${sharePayloadKindPhrase(parsed.tool)}. ${APP_DISPLAY_NAME} will still import it in the right place.`,
       [
         { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
         { text: "Continue", onPress: () => resolve(true) },
@@ -250,7 +241,7 @@ export default function ShareImportScreen({ navigation, route }: ShareImportProp
             notificationId = ids.notificationId;
             earlyNotificationId = ids.earlyNotificationId;
           } else {
-            Alert.alert("Notifications", "Allow notifications for SayCart to schedule this reminder’s alerts.");
+            Alert.alert("Notifications", `Allow notifications for ${APP_DISPLAY_NAME} to schedule this reminder’s alerts.`);
           }
           const row = {
             ...draft,
@@ -285,7 +276,7 @@ export default function ShareImportScreen({ navigation, route }: ShareImportProp
       const raw = await fetchShareExport(uuid);
       const parsed = parseShareEnvelope(raw);
       if (!parsed) {
-        Alert.alert("Import", "This code is not a SayCart share, or the data is unreadable.");
+        Alert.alert("Import", `This code is not a ${APP_DISPLAY_NAME} share, or the data is unreadable.`);
         return false;
       }
       const ok = await confirmImportContextMismatch(route.params?.expectingTool, parsed);
@@ -391,7 +382,7 @@ export default function ShareImportScreen({ navigation, route }: ShareImportProp
       }
       Alert.alert(
         "Import",
-        "That image has QR codes, but none look like a SayCart share link or code. Try the share screen’s Download QR export, or paste the share code."
+        `That image has QR codes, but none look like a ${APP_DISPLAY_NAME} share link or code. Try the share screen’s Download QR export, or paste the share code.`
       );
     } catch (e) {
       Alert.alert("Import", e instanceof Error ? e.message : "Could not read that image.");
@@ -429,7 +420,7 @@ export default function ShareImportScreen({ navigation, route }: ShareImportProp
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
           Paste a share code (grocery list, to-do list, or reminder), scan the QR with the camera, or pick a photo or
-          screenshot that contains the QR. SayCart opens the right tool automatically.
+          screenshot that contains the QR. ${APP_DISPLAY_NAME} opens the right tool automatically.
         </Text>
 
         <View>

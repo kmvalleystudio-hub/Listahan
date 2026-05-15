@@ -11,6 +11,7 @@ import {
   BackHandler,
   Platform,
   useWindowDimensions,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,10 +21,18 @@ import { TOOLS_CATALOG, type ToolDefinition, type ToolId } from "../constants/to
 import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
 import { usePrivateVault } from "../context/PrivateVaultContext";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { loadToolOrder, saveToolOrder } from "../utils/toolsDashboardOrder";
 import ToolsDashboardReorderGrid from "../components/ToolsDashboardReorderGrid";
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
+
+const GRID_H_PAD = 16;
+const GRID_COL_GAP = 12;
+
+/** Bundled horizontal mark — `Image.getSize` supplies real aspect after trim/export. */
+const LISTAHAN_HEADER_LOGO = require("../../assets/branding/listahan-logo-horizontal.png");
+const LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
 
 function createDashboardStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -32,27 +41,26 @@ function createDashboardStyles(c: AppThemeColors) {
       backgroundColor: c.background,
     },
     header: {
-      paddingHorizontal: 20,
-      paddingBottom: 8,
+      paddingHorizontal: GRID_H_PAD,
+      paddingBottom: 10,
       flexDirection: "row",
       alignItems: "flex-start",
       justifyContent: "space-between",
       gap: 12,
     },
-    headerTextCol: {
+    headerBrandCol: {
       flex: 1,
       minWidth: 0,
+      alignItems: "flex-start",
     },
-    title: {
-      fontSize: 28,
-      fontWeight: "800",
-      color: c.text,
+    headerLogoSvgWrap: {
+      alignSelf: "flex-start",
+      height: 38,
+      maxWidth: "100%",
     },
-    subtitle: {
-      marginTop: 4,
-      fontSize: 15,
-      color: c.textTertiary,
-      lineHeight: 20,
+    headerLogoImage: {
+      width: "100%",
+      height: "100%",
     },
     iconBtn: {
       width: 44,
@@ -80,9 +88,9 @@ function createDashboardStyles(c: AppThemeColors) {
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      paddingHorizontal: 16,
+      paddingHorizontal: GRID_H_PAD,
       paddingTop: 8,
-      gap: 12,
+      gap: GRID_COL_GAP,
     },
     card: {
       backgroundColor: c.card,
@@ -175,18 +183,8 @@ function createDashboardStyles(c: AppThemeColors) {
       marginTop: 6,
       paddingHorizontal: 0,
     },
-    reorderHint: {
-      paddingHorizontal: 20,
-      paddingBottom: 6,
-      fontSize: 13,
-      color: c.textTertiary,
-      lineHeight: 18,
-    },
   });
 }
-
-const GRID_H_PAD = 16;
-const GRID_COL_GAP = 12;
 
 function dashboardTileWidth(windowWidth: number): number {
   const inner = windowWidth - GRID_H_PAD * 2 - GRID_COL_GAP;
@@ -294,6 +292,20 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const [enterReorderBusy, setEnterReorderBusy] = useState(false);
   const preEditOrderRef = useRef<ToolId[]>([]);
 
+  const [logoAspect, setLogoAspect] = useState(LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK);
+  useEffect(() => {
+    const src = Image.resolveAssetSource(LISTAHAN_HEADER_LOGO);
+    const uri = src?.uri;
+    if (!uri) return;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (w > 0 && h > 0) setLogoAspect(w / h);
+      },
+      () => {}
+    );
+  }, []);
+
   const wiggleAnim = useRef(new Animated.Value(0)).current;
   const wiggleRotate = useMemo(
     () =>
@@ -378,13 +390,16 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <View style={styles.headerTextCol}>
-          <Text style={styles.title}>SayCart</Text>
-          <Text style={styles.subtitle}>
-            {reorderMode
-              ? "Drag a tile over another — it swaps when you cross into that slot. Tap Done when finished."
-              : "Choose a tool — matcha calm, orange energy for bulk moments."}
-          </Text>
+        <View style={styles.headerBrandCol}>
+          <View style={[styles.headerLogoSvgWrap, { aspectRatio: logoAspect }]}>
+            <Image
+              source={LISTAHAN_HEADER_LOGO}
+              style={styles.headerLogoImage}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              accessibilityLabel={`${APP_DISPLAY_NAME} logo`}
+            />
+          </View>
         </View>
         {reorderMode ? (
           <TouchableOpacity
@@ -406,10 +421,6 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           </TouchableOpacity>
         )}
       </View>
-
-      {!reorderMode ? (
-        <Text style={styles.reorderHint}>Long-press any tool to reorder the dashboard.</Text>
-      ) : null}
 
       {!reorderMode ? (
         <ScrollView

@@ -11,6 +11,7 @@ import {
   sortRemindersForDisplay,
   type SavedReminder,
 } from "./remindersStorage";
+import { APP_DISPLAY_NAME } from "../constants/appBranding";
 
 /** Bump when channel behavior changes so Android picks up new audio/importance. */
 export const REMINDER_ANDROID_CHANNEL_ID = "saycart_reminders_v4";
@@ -33,7 +34,7 @@ export async function ensureReminderAndroidChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync(REMINDER_ANDROID_CHANNEL_ID, {
     name: "Reminders",
-    description: "Time-based nudges from SayCart",
+    description: `Time-based nudges from ${APP_DISPLAY_NAME}`,
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 280, 160, 280, 160, 400],
     enableVibrate: true,
@@ -291,7 +292,7 @@ export async function reconcileScheduledReminders(): Promise<boolean> {
   return changed;
 }
 
-/** Extra buzz when a SayCart reminder fires while the app is foregrounded (DND still blocks OS sound sometimes). */
+/** Extra buzz when a reminder fires while the app is foregrounded (DND still blocks OS sound sometimes). */
 export function registerForegroundReminderFeedback(): () => void {
   if (Platform.OS === "web") return () => {};
   const sub = Notifications.addNotificationReceivedListener((event) => {
