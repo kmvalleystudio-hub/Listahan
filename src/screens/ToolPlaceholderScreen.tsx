@@ -1,7 +1,7 @@
 import React, { useMemo, type ComponentProps } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ToolPlaceholderProps } from "../navigation/types";
 import { TOOLS_CATALOG } from "../constants/toolsCatalog";
 import { useToolTheme } from "../hooks/useToolTheme";

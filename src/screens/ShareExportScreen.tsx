@@ -15,7 +15,7 @@ import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ShareExportProps, ShareExportRouteParams } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import type { ToolId } from "../constants/toolsCatalog";

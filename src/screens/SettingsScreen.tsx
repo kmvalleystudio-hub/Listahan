@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { SettingsProps } from "../navigation/types";
 import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
@@ -212,7 +212,7 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.textTertiary }}>{appVersion}</Text>
           </View>
           <Pressable
-            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
             onPress={() =>
               Alert.alert(
                 "Rate on the store",
@@ -227,26 +227,11 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
             </View>
             {rowChevron()}
           </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
-            onPress={() =>
-              Alert.alert(
-                "Data on this device",
-                `${APP_DISPLAY_NAME} keeps your lists and vault data on this device. Cloud is only used when you explicitly share or import a code.`
-              )
-            }
-            accessibilityRole="button"
-          >
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>Data & privacy</Text>
-              <Text style={styles.rowSubtitle}>Where your information lives.</Text>
-            </View>
-            {rowChevron()}
-          </Pressable>
         </View>
 
         <Text style={styles.foot}>
-          Settings inspired by familiar list apps — options will grow as {APP_DISPLAY_NAME} does.
+          App preferences and support live here. Your name, imports, and vault security are under Profile on
+          the home screen.
         </Text>
       </ScrollView>
     </View>

@@ -12,6 +12,8 @@ import { darkColors, lightColors } from "../theme/colors";
 
 const STORAGE_KEY = "@saycart/color_scheme_v1";
 
+/** Main app defaults to light until the user picks otherwise in Settings (`UsernameSetup` uses a fixed dark palette). */
+
 export type ColorScheme = "light" | "dark";
 
 type ThemeContextValue = {

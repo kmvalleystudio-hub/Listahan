@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReminderEditorProps } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useToolTheme } from "../hooks/useToolTheme";

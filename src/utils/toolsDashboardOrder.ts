@@ -40,3 +40,7 @@ export async function saveToolOrder(ids: ToolId[]): Promise<void> {
   const next = normalizeToolOrder(ids);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
+
+export async function resetToolOrderToDefault(): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...DEFAULT_ORDER]));
+}

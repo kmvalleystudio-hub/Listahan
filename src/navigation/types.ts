@@ -8,7 +8,10 @@ export type ShareExportRouteParams =
   | { tool: "reminder"; reminderId: string };
 
 export type RootStackParamList = {
+  UsernameSetup: undefined;
+  Welcome: { username: string };
   ToolsDashboard: undefined;
+  Profile: undefined;
   Settings: undefined;
   GroceryHome: undefined;
   ShareExport: ShareExportRouteParams;
@@ -38,6 +41,7 @@ export type RootStackParamList = {
   ReminderEditor: { reminderId?: string };
 };
 
+export type ProfileProps = NativeStackScreenProps<RootStackParamList, "Profile">;
 export type SettingsProps = NativeStackScreenProps<RootStackParamList, "Settings">;
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;
@@ -70,3 +74,5 @@ export type NotesHomeProps = NativeStackScreenProps<RootStackParamList, "NotesHo
 export type NoteEditorProps = NativeStackScreenProps<RootStackParamList, "NoteEditor">;
 export type ReminderHomeProps = NativeStackScreenProps<RootStackParamList, "ReminderHome">;
 export type ReminderEditorProps = NativeStackScreenProps<RootStackParamList, "ReminderEditor">;
+export type UsernameSetupProps = NativeStackScreenProps<RootStackParamList, "UsernameSetup">;
+export type WelcomeProps = NativeStackScreenProps<RootStackParamList, "Welcome">;

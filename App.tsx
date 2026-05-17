@@ -1,16 +1,20 @@
 import "react-native-gesture-handler";
 import { Buffer } from "buffer";
-import React, { useMemo, useEffect } from "react";
-import { AppState } from "react-native";
+import React, { useMemo, useEffect, useState } from "react";
+import { View, ActivityIndicator, AppState } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AppDataProvider } from "./src/context/AppDataContext";
 import { PrivateVaultProvider } from "./src/context/PrivateVaultContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
+import { AppAlertProvider } from "./src/context/AppAlertContext";
+import { darkColors } from "./src/theme/colors";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
 import ShareExportScreen from "./src/screens/ShareExportScreen";
@@ -35,6 +39,10 @@ import NoteEditorScreen from "./src/screens/NoteEditorScreen";
 import ReminderHomeScreen from "./src/screens/ReminderHomeScreen";
 import ReminderEditorScreen from "./src/screens/ReminderEditorScreen";
 import { reconcileScheduledReminders, registerForegroundReminderFeedback } from "./src/utils/reminderNotifications";
+import { loadUserProfile } from "./src/utils/userProfileStorage";
+import { normalizeUsername } from "./src/utils/usernameRules";
+import UsernameSetupScreen from "./src/screens/UsernameSetupScreen";
+import WelcomeScreen from "./src/screens/WelcomeScreen";
 
 // react-native-svg (via qrcode) expects Buffer; ensure Metro resolves `buffer` and runtime has global.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +52,20 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function NavigationRoot() {
   const { colors, isDark } = useTheme();
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [needsUsername, setNeedsUsername] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadUserProfile().then((p) => {
+      if (cancelled) return;
+      setNeedsUsername(!normalizeUsername(p.username));
+      setBootstrapped(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -73,17 +95,43 @@ function NavigationRoot() {
     [colors, isDark]
   );
 
+  if (!bootstrapped) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack.Navigator
-        initialRouteName="ToolsDashboard"
+        initialRouteName={needsUsername ? "UsernameSetup" : "ToolsDashboard"}
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
         }}
       >
+        <Stack.Screen
+          name="UsernameSetup"
+          component={UsernameSetupScreen}
+          options={{
+            gestureEnabled: false,
+            animation: "fade",
+            contentStyle: { backgroundColor: darkColors.background },
+          }}
+        />
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{
+            gestureEnabled: false,
+            animation: "fade",
+          }}
+        />
         <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
         <Stack.Screen name="ShareExport" component={ShareExportScreen} />
@@ -131,13 +179,17 @@ function NavigationRoot() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AppDataProvider>
-          <PrivateVaultProvider>
-            <NavigationRoot />
-          </PrivateVaultProvider>
-        </AppDataProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AppAlertProvider>
+            <AppDataProvider>
+              <PrivateVaultProvider>
+                <NavigationRoot />
+              </PrivateVaultProvider>
+            </AppDataProvider>
+          </AppAlertProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,0 +1,16 @@
+---
+description: Keep text inputs and modal sheets visible above the software keyboard (RN/Expo).
+alwaysApply: true
+---
+
+# Keyboard-aware forms and modals
+
+When implementing **TextInput**, **bottom sheets**, or **modal forms** in React Native / Expo:
+
+1. **Do not rely on `KeyboardAvoidingView` alone** inside `Modal` on Android — it often fails to lift the focused field; combine with **explicit keyboard inset** from listeners when needed.
+2. Prefer **`Keyboard.addListener`** (`keyboardWillShow` / `keyboardWillHide` on iOS, `keyboardDidShow` / `keyboardDidHide` on Android) and apply **`paddingBottom` or `marginBottom`** equal to `event.endCoordinates.height` (minus overlap / safe area as appropriate) on the sheet/card so the **focused field stays above the keyboard**.
+3. Call **`Keyboard.dismiss()`** when tapping the backdrop to close a modal.
+4. Ensure **`android.softwareKeyboardLayoutMode`: `"resize"`** stays set in `app.json` for Android where applicable.
+5. For long forms inside `ScrollView`, also use **`keyboardShouldPersistTaps="handled"`** and scroll focused inputs into view when reasonable.
+
+This avoids inputs being covered by the keyboard (the “typing blind” bug).

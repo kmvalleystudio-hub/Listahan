@@ -14,7 +14,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 import { TOOLS_CATALOG, type ToolDefinition, type ToolId } from "../constants/toolsCatalog";
@@ -36,6 +36,9 @@ const LISTAHAN_HEADER_LOGO_DARK_UI = require("../../assets/branding/listahan-log
 const LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
 /** Dashboard header mark height (80% of prior 38px). */
 const HEADER_LOGO_HEIGHT = 30;
+
+/** TODO: remove before release — shortcut to username onboarding for QA/builds. */
+const SHOW_USERNAME_SETUP_DEV_BUTTON = true;
 
 function createDashboardStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -65,6 +68,11 @@ function createDashboardStyles(c: AppThemeColors) {
       width: "100%",
       height: "100%",
     },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
     headerIconBtn: {
       width: 44,
       height: 44,
@@ -83,6 +91,22 @@ function createDashboardStyles(c: AppThemeColors) {
       fontSize: 16,
       fontWeight: "800",
       color: "#fff",
+    },
+    devBtn: {
+      marginHorizontal: GRID_H_PAD,
+      marginBottom: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      backgroundColor: c.inputBg,
+      alignItems: "center",
+    },
+    devBtnText: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: c.placeholder,
     },
     grid: {
       flexDirection: "row",
@@ -350,19 +374,16 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   useFocusEffect(
     useCallback(() => {
       lock();
-    }, [lock])
+      if (reorderMode) return;
+      let cancelled = false;
+      void loadToolOrder().then((ids) => {
+        if (!cancelled) setOrderedTools(toolsFromOrder(ids));
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [lock, reorderMode])
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    void loadToolOrder().then((ids) => {
-      if (cancelled) return;
-      setOrderedTools(toolsFromOrder(ids));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!reorderMode) return;
@@ -442,14 +463,24 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.navigate("Settings")}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={() => navigation.navigate("Profile")}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <Ionicons name="person-outline" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={() => navigation.navigate("Settings")}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+            >
+              <Ionicons name="settings-outline" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -462,6 +493,16 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           }}
           showsVerticalScrollIndicator={false}
         >
+          {SHOW_USERNAME_SETUP_DEV_BUTTON ? (
+            <Pressable
+              style={({ pressed }) => [styles.devBtn, pressed && { opacity: 0.85 }]}
+              onPress={() => navigation.navigate("UsernameSetup")}
+              accessibilityRole="button"
+              accessibilityLabel="Open username setup (development only)"
+            >
+              <Text style={styles.devBtnText}>Dev: Username setup</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.grid}>
             {orderedTools.map((tool) => (
               <Pressable

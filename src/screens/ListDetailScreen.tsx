@@ -30,7 +30,7 @@ import Reanimated, {
   withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import type { ListDetailProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";

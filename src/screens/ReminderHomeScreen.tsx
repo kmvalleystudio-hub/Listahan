@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReminderHomeProps } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useToolTheme } from "../hooks/useToolTheme";
