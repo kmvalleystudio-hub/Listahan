@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { CompletedListPreviewProps } from "../navigation/types";
@@ -216,7 +218,7 @@ function PreviewRow({
 export default function CompletedListPreviewScreen({ navigation, route }: CompletedListPreviewProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
-  const styles = useMemo(() => createPreviewStyles(colors), [colors]);
+  const styles = useAppStyles(createPreviewStyles);
   const { historyId } = route.params;
   const { history, createListFromHistory } = useAppData();
   const entry = useMemo(() => history.find((h) => h.id === historyId) ?? null, [history, historyId]);

@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { HistoryProps } from "../navigation/types";
@@ -174,7 +176,7 @@ function createHistoryStyles(c: AppThemeColors) {
 export default function HistoryScreen({ navigation }: HistoryProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
-  const styles = useMemo(() => createHistoryStyles(colors), [colors]);
+  const styles = useAppStyles(createHistoryStyles);
   const { history, createListFromHistory } = useAppData();
   const [picker, setPicker] = useState<HistoryEntry | null>(null);
   const [newName, setNewName] = useState("");

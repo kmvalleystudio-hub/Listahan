@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -187,7 +189,7 @@ export default function ShareExportScreen({ navigation, route }: ShareExportProp
   const params = route.params;
   const tool: ToolId = params.tool;
   const { colors } = useToolTheme(tool);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
   const { lists, todoLists } = useAppData();
 
   const [reminder, setReminder] = useState<SavedReminder | null>(null);

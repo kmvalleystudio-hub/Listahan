@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Image, useWindowDimensions, Platform } from "react-native";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
+import { useTheme } from "../context/ThemeContext";
 
 const LISTAHAN_LOGO_ON_DARK = require("../../assets/branding/listahan-logo-horizontal-on-dark.png");
 const LISTAHAN_LOGO_ON_LIGHT = require("../../assets/branding/listahan-logo-horizontal.png");
@@ -53,7 +54,8 @@ export default function ListahanOnboardingFooter({
   paddingBottom = 18,
 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { styleEpoch } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors, styleEpoch]);
   const logoSource = variant === "dark" ? LISTAHAN_LOGO_ON_DARK : LISTAHAN_LOGO_ON_LIGHT;
 
   const [logoAspect, setLogoAspect] = useState(LISTAHAN_LOGO_ASPECT_FALLBACK);

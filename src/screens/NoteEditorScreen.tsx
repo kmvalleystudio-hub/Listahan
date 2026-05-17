@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { NoteEditorProps } from "../navigation/types";
@@ -68,7 +70,7 @@ export default function NoteEditorScreen({ navigation, route }: NoteEditorProps)
   const insets = useSafeAreaInsets();
   const paramId = route.params?.noteId;
   const { colors } = useToolTheme("notes");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
 
   const noteIdRef = useRef(paramId ?? newQuickNoteId());
   const [body, setBody] = useState("");

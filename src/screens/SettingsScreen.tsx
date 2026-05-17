@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Pressable,
-  Switch,
   Alert,
   Platform,
   Linking,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { SettingsProps } from "../navigation/types";
 import { useTheme } from "../context/ThemeContext";
+import { useAppStyles } from "../hooks/useAppStyles";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 
@@ -98,8 +98,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function SettingsScreen({ navigation }: SettingsProps) {
   const insets = useSafeAreaInsets();
-  const { colors, isDark, toggleScheme } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors } = useTheme();
+  const styles = useAppStyles(createStyles);
 
   const appVersion =
     Constants.expoConfig?.version ?? (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion ?? "—";
@@ -141,19 +141,6 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
       >
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>Dark mode</Text>
-              <Text style={styles.rowSubtitle}>Reduce glare and match dim environments.</Text>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={() => toggleScheme()}
-              trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
-              thumbColor={isDark ? colors.switchThumbOn : colors.switchThumbOff}
-              ios_backgroundColor={colors.iosSwitchBg}
-            />
-          </View>
           <Pressable
             style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
             onPress={openSystemSettings}
@@ -230,8 +217,7 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
         </View>
 
         <Text style={styles.foot}>
-          App preferences and support live here. Your name, imports, and vault security are under Profile on
-          the home screen.
+          Notifications and support live here. Dark mode, text size, your portrait, and imports are on Profile.
         </Text>
       </ScrollView>
     </View>

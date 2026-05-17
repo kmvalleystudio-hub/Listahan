@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { PrivateCreateListProps } from "../navigation/types";
@@ -61,7 +63,7 @@ function createStyles(c: AppThemeColors) {
 export default function PrivateCreateListScreen({ navigation }: PrivateCreateListProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("private_list");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
   const { createPrivateList } = useAppData();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

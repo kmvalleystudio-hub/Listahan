@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { CreateListProps } from "../navigation/types";
@@ -81,7 +83,7 @@ function createCreateListStyles(c: AppThemeColors) {
 export default function CreateListScreen({ navigation }: CreateListProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
-  const styles = useMemo(() => createCreateListStyles(colors), [colors]);
+  const styles = useAppStyles(createCreateListStyles);
   const { createList } = useAppData();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

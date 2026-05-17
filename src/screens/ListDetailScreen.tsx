@@ -19,6 +19,8 @@ import {
   Easing,
   Image,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as ImagePicker from "expo-image-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
@@ -168,7 +170,7 @@ function FlipTranslateShell({
 export default function ListDetailScreen({ navigation, route }: ListDetailProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const styles = useMemo(() => createListDetailStyles(colors), [colors]);
+  const styles = useAppStyles(createListDetailStyles);
   const { listId, autoOpenAdd = false } = route.params;
   const { lists, upsertList, archiveCompletedList } = useAppData();
 

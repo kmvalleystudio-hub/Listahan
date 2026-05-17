@@ -5,38 +5,37 @@ import {
   StyleSheet,
   Pressable,
   Modal,
-  Image,
   ActivityIndicator,
   Platform,
   Keyboard,
+  ScrollView,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import type { AppThemeColors } from "../theme/colors";
+import type { AvatarCharacterId } from "../constants/avatarCharacters";
 import { useAppAlert } from "../context/AppAlertContext";
+import { useTheme } from "../context/ThemeContext";
 import {
   deleteProfileAvatarFromCloud,
   uploadProfileAvatarToCloud,
 } from "../services/profileCloudSync";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { persistProfileAvatarLocal } from "../utils/profileAvatarFiles";
-import {
-  loadUserProfile,
-  profileInitials,
-  saveUserProfile,
-  type UserProfile,
-} from "../utils/userProfileStorage";
+import { loadUserProfile, saveUserProfile, type UserProfile } from "../utils/userProfileStorage";
+import AvatarCharacterPickerGrid from "./AvatarCharacterPickerGrid";
+import { ProfilePortrait } from "./ProfilePortrait";
 
 type Props = {
   colors: AppThemeColors;
-  /** Used for default initials when no custom portrait is set. */
-  initialsSource: string;
   size?: number;
   style?: StyleProp<ViewStyle>;
+  showCaption?: boolean;
+  align?: "center" | "start";
   /** Upload portrait to cloud immediately after pick (Profile). Off during username setup until submit. */
   uploadAfterPick?: boolean;
   /** Ring around the camera badge (match parent surface). */
@@ -44,10 +43,15 @@ type Props = {
   onProfileUpdated?: (profile: UserProfile) => void;
 };
 
-function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string) {
+function createStyles(
+  c: AppThemeColors,
+  size: number,
+  badgeBorderColor: string,
+  align: "center" | "start"
+) {
   const badge = Math.round(size * 0.34);
   return StyleSheet.create({
-    wrap: { alignItems: "center" },
+    wrap: { alignItems: align === "center" ? "center" : "flex-start" },
     press: { position: "relative" },
     avatar: {
       width: size,
@@ -60,8 +64,6 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
       borderColor: c.border,
       overflow: "hidden",
     },
-    avatarImage: { width: "100%", height: "100%" },
-    avatarText: { fontSize: Math.round(size * 0.34), fontWeight: "800", color: c.primaryDark },
     badge: {
       position: "absolute",
       right: -2,
@@ -79,7 +81,7 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
       marginTop: 8,
       fontSize: 12,
       color: c.placeholder,
-      textAlign: "center",
+      textAlign: align === "center" ? "center" : "left",
     },
     modalRoot: { flex: 1, justifyContent: "flex-end" },
     modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: c.overlay },
@@ -89,9 +91,10 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
       borderTopRightRadius: 20,
       paddingHorizontal: 20,
       paddingTop: 18,
+      maxHeight: "88%",
     },
     modalTitle: { fontSize: 20, fontWeight: "800", color: c.text },
-    sheetSubtitle: { fontSize: 14, color: c.placeholder, lineHeight: 20, marginBottom: 12 },
+    sheetSubtitle: { fontSize: 14, color: c.placeholder, lineHeight: 20, marginBottom: 10 },
     sheetHeaderRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
     sheetHeaderIcon: {
       width: 44,
@@ -100,6 +103,15 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
       backgroundColor: c.iconBlobBg,
       alignItems: "center",
       justifyContent: "center",
+    },
+    sectionLabel: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: c.textTertiary,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      marginBottom: 8,
+      marginTop: 4,
     },
     sheetRow: {
       flexDirection: "row",
@@ -122,6 +134,7 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
     sheetRowLabelDanger: { color: c.danger },
     sheetFooterBtn: {
       marginTop: 12,
+      marginBottom: 4,
       borderRadius: 14,
       paddingVertical: 14,
       alignItems: "center",
@@ -133,18 +146,20 @@ function createStyles(c: AppThemeColors, size: number, badgeBorderColor: string)
 
 export default function ProfileAvatarField({
   colors,
-  initialsSource,
   size = 72,
   style,
+  showCaption = true,
+  align = "center",
   uploadAfterPick = false,
   badgeBorderColor,
   onProfileUpdated,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAppAlert();
+  const { styleEpoch } = useTheme();
   const styles = useMemo(
-    () => createStyles(colors, size, badgeBorderColor ?? colors.card),
-    [badgeBorderColor, colors, size]
+    () => createStyles(colors, size, badgeBorderColor ?? colors.card, align),
+    [align, badgeBorderColor, colors, size, styleEpoch]
   );
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -162,9 +177,7 @@ export default function ProfileAvatarField({
     void refreshProfile();
   }, [refreshProfile]);
 
-  const avatarUri = profile?.avatarLocalUri || profile?.avatarRemoteUrl;
-  const hasPortrait = Boolean(profile?.avatarLocalUri || profile?.avatarRemoteUrl);
-  const initials = profileInitials(initialsSource);
+  const hasPhoto = Boolean(profile?.avatarLocalUri || profile?.avatarRemoteUrl);
 
   const syncAvatarCloud = async (
     localUri: string,
@@ -197,6 +210,59 @@ export default function ProfileAvatarField({
     onProfileUpdated?.(next);
   };
 
+  const clearCustomPhoto = async (current: UserProfile) => {
+    if (current.avatarLocalUri && Platform.OS !== "web") {
+      try {
+        const info = await FileSystem.getInfoAsync(current.avatarLocalUri);
+        if (info.exists) await FileSystem.deleteAsync(current.avatarLocalUri, { idempotent: true });
+      } catch {
+        /* ignore */
+      }
+    }
+    if (uploadAfterPick && isSupabaseConfigured() && current.username.trim()) {
+      const cloud = await deleteProfileAvatarFromCloud(
+        current.deviceProfileId,
+        current.username,
+        current.tagSuffix,
+        current.avatarStoragePath ?? null
+      );
+      if (!cloud.ok) {
+        showAlert({
+          title: "Cloud remove failed",
+          message: cloud.message ?? "Photo removed on this device.",
+          variant: "warning",
+        });
+      }
+    }
+  };
+
+  const selectCharacter = async (id: AvatarCharacterId) => {
+    setBusy(true);
+    try {
+      const current = profile ?? (await loadUserProfile());
+      if (current.avatarLocalUri || current.avatarRemoteUrl) {
+        await clearCustomPhoto(current);
+      }
+      const next = await saveUserProfile({
+        avatarCharacterId: id,
+        avatarPortraitTouched: true,
+        avatarLocalUri: undefined,
+        avatarRemoteUrl: undefined,
+        avatarStoragePath: undefined,
+      });
+      setProfile(next);
+      onProfileUpdated?.(next);
+    } catch (e) {
+      showAlert({
+        title: "Could not save character",
+        message: e instanceof Error ? e.message : "Try again.",
+        variant: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const pickFromLibrary = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -218,7 +284,8 @@ export default function ProfileAvatarField({
     setBusy(true);
     try {
       const localUri = await persistProfileAvatarLocal(asset.uri, asset.mimeType ?? null);
-      const updated = await refreshProfile();
+      const updated = await saveUserProfile({ avatarPortraitTouched: true });
+      setProfile(updated);
       await syncAvatarCloud(localUri, asset.mimeType ?? null, updated);
     } catch (e) {
       showAlert({
@@ -251,7 +318,8 @@ export default function ProfileAvatarField({
     setBusy(true);
     try {
       const localUri = await persistProfileAvatarLocal(asset.uri, asset.mimeType ?? "image/jpeg");
-      const updated = await refreshProfile();
+      const updated = await saveUserProfile({ avatarPortraitTouched: true });
+      setProfile(updated);
       await syncAvatarCloud(localUri, asset.mimeType ?? "image/jpeg", updated);
     } catch (e) {
       showAlert({
@@ -264,33 +332,11 @@ export default function ProfileAvatarField({
     }
   };
 
-  const removeAvatar = async () => {
+  const removePhoto = async () => {
     const current = profile ?? (await loadUserProfile());
     setBusy(true);
     try {
-      if (current.avatarLocalUri && Platform.OS !== "web") {
-        try {
-          const info = await FileSystem.getInfoAsync(current.avatarLocalUri);
-          if (info.exists) await FileSystem.deleteAsync(current.avatarLocalUri, { idempotent: true });
-        } catch {
-          /* ignore */
-        }
-      }
-      if (uploadAfterPick && isSupabaseConfigured() && current.username.trim()) {
-        const cloud = await deleteProfileAvatarFromCloud(
-          current.deviceProfileId,
-          current.username,
-          current.tagSuffix,
-          current.avatarStoragePath ?? null
-        );
-        if (!cloud.ok) {
-          showAlert({
-            title: "Cloud remove failed",
-            message: cloud.message ?? "Photo removed on this device.",
-            variant: "warning",
-          });
-        }
-      }
+      await clearCustomPhoto(current);
       const next = await saveUserProfile({
         avatarLocalUri: undefined,
         avatarRemoteUrl: undefined,
@@ -303,14 +349,14 @@ export default function ProfileAvatarField({
     }
   };
 
-  const confirmRemove = () => {
+  const confirmRemovePhoto = () => {
     showAlert({
-      title: "Remove profile photo?",
-      message: "You'll see your initials again until you add a new photo.",
+      title: "Remove your photo?",
+      message: "Your chosen character will show instead.",
       variant: "warning",
       buttons: [
         { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => void removeAvatar() },
+        { text: "Remove", style: "destructive", onPress: () => void removePhoto() },
       ],
     });
   };
@@ -326,14 +372,10 @@ export default function ProfileAvatarField({
           }}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="Change profile photo"
+          accessibilityLabel="Change profile portrait"
         >
           <View style={styles.avatar}>
-            {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatarImage} resizeMode="cover" />
-            ) : (
-              <Text style={styles.avatarText}>{initials}</Text>
-            )}
+            <ProfilePortrait profile={profile} size={size} />
             {busy ? (
               <View
                 style={[
@@ -349,7 +391,9 @@ export default function ProfileAvatarField({
             <Ionicons name="camera" size={Math.round(size * 0.19)} color="#fff" />
           </View>
         </Pressable>
-        <Text style={styles.caption}>Tap to add or change your photo</Text>
+        {showCaption ? (
+          <Text style={styles.caption}>Tap to pick a character or your own photo</Text>
+        ) : null}
       </View>
 
       <Modal
@@ -370,61 +414,66 @@ export default function ProfileAvatarField({
             }}
           />
           <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.sheetHeaderRow}>
-              <View style={styles.sheetHeaderIcon}>
-                <Ionicons name="person-circle-outline" size={28} color={colors.primaryDark} />
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.sheetHeaderRow}>
+                <View style={styles.sheetHeaderIcon}>
+                  <Ionicons name="happy-outline" size={28} color={colors.primaryDark} />
+                </View>
+                <Text style={styles.modalTitle}>Profile portrait</Text>
               </View>
-              <Text style={styles.modalTitle}>Profile photo</Text>
-            </View>
-            <Text style={styles.sheetSubtitle}>Choose a portrait or remove the current one.</Text>
+              <Text style={styles.sheetSubtitle}>
+                Pick a Listahan character or use your own photo. Olive is the default until you choose.
+              </Text>
 
-            <Pressable
-              style={({ pressed }) => [styles.sheetRow, pressed && { opacity: 0.75 }]}
-              onPress={() => {
-                setSheetOpen(false);
-                void pickFromLibrary();
-              }}
-            >
-              <View style={styles.sheetRowIcon}>
-                <Ionicons name="images-outline" size={22} color={colors.primaryDark} />
-              </View>
-              <Text style={styles.sheetRowLabel}>Choose from library</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.sheetRow,
-                !hasPortrait && styles.sheetRowLast,
-                pressed && { opacity: 0.75 },
-              ]}
-              onPress={() => {
-                setSheetOpen(false);
-                void pickFromCamera();
-              }}
-            >
-              <View style={styles.sheetRowIcon}>
-                <Ionicons name="camera-outline" size={22} color={colors.primaryDark} />
-              </View>
-              <Text style={styles.sheetRowLabel}>Take photo</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
-            </Pressable>
-
-            {hasPortrait ? (
-              <Pressable
-                style={({ pressed }) => [styles.sheetRow, styles.sheetRowLast, pressed && { opacity: 0.75 }]}
-                onPress={() => {
-                  setSheetOpen(false);
-                  confirmRemove();
+              <Text style={styles.sectionLabel}>Characters</Text>
+              <AvatarCharacterPickerGrid
+                colors={colors}
+                profile={profile}
+                onSelect={(id) => {
+                  void selectCharacter(id);
                 }}
+              />
+
+              <Text style={styles.sectionLabel}>Your photo</Text>
+              <Pressable
+                style={({ pressed }) => [styles.sheetRow, pressed && { opacity: 0.75 }]}
+                onPress={() => void pickFromLibrary()}
               >
                 <View style={styles.sheetRowIcon}>
-                  <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                  <Ionicons name="images-outline" size={22} color={colors.primaryDark} />
                 </View>
-                <Text style={[styles.sheetRowLabel, styles.sheetRowLabelDanger]}>Remove photo</Text>
+                <Text style={styles.sheetRowLabel}>Choose from library</Text>
                 <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
               </Pressable>
-            ) : null}
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sheetRow,
+                  !hasPhoto && styles.sheetRowLast,
+                  pressed && { opacity: 0.75 },
+                ]}
+                onPress={() => void pickFromCamera()}
+              >
+                <View style={styles.sheetRowIcon}>
+                  <Ionicons name="camera-outline" size={22} color={colors.primaryDark} />
+                </View>
+                <Text style={styles.sheetRowLabel}>Take photo</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
+              </Pressable>
+
+              {hasPhoto ? (
+                <Pressable
+                  style={({ pressed }) => [styles.sheetRow, styles.sheetRowLast, pressed && { opacity: 0.75 }]}
+                  onPress={confirmRemovePhoto}
+                >
+                  <View style={styles.sheetRowIcon}>
+                    <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                  </View>
+                  <Text style={[styles.sheetRowLabel, styles.sheetRowLabelDanger]}>Remove photo</Text>
+                  <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
+                </Pressable>
+              ) : null}
+            </ScrollView>
 
             <Pressable
               style={({ pressed }) => [styles.sheetFooterBtn, pressed && { opacity: 0.85 }]}
@@ -433,7 +482,7 @@ export default function ProfileAvatarField({
                 setSheetOpen(false);
               }}
             >
-              <Text style={styles.sheetFooterBtnText}>Cancel</Text>
+              <Text style={styles.sheetFooterBtnText}>Done</Text>
             </Pressable>
           </View>
         </View>

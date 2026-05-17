@@ -11,6 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -174,7 +176,7 @@ function createStyles(c: AppThemeColors) {
 export default function ShareImportScreen({ navigation, route }: ShareImportProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
   const { createList, upsertList, createTodoList, upsertTodoList } = useAppData();
 
   const [paste, setPaste] = useState("");

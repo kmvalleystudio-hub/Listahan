@@ -15,6 +15,8 @@ import {
   Pressable,
   Animated,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import Reanimated, { makeMutable, type SharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -216,7 +218,7 @@ type ItemModalMode = "add" | "edit" | null;
 export default function PrivateListDetailScreen({ navigation, route }: PrivateListDetailProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("private_list");
-  const styles = useMemo(() => createListDetailStyles(colors), [colors]);
+  const styles = useAppStyles(createListDetailStyles);
   const privateEntryRowStyles = useMemo(
     () =>
       StyleSheet.create({

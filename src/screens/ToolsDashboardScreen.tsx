@@ -13,6 +13,8 @@ import {
   useWindowDimensions,
   Image,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -334,7 +336,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const tileWidth = useMemo(() => dashboardTileWidth(windowWidth), [windowWidth]);
   const gridInnerWidth = useMemo(() => windowWidth - GRID_H_PAD * 2, [windowWidth]);
   const { colors, isDark } = useTheme();
-  const styles = useMemo(() => createDashboardStyles(colors), [colors]);
+  const styles = useAppStyles(createDashboardStyles);
   const { lock } = usePrivateVault();
 
   const [orderedTools, setOrderedTools] = useState<ToolDefinition[]>(() => [...TOOLS_CATALOG]);

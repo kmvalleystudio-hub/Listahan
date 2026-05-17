@@ -10,6 +10,8 @@ import {
   Platform,
   StatusBar as RNStatusBar,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
@@ -138,14 +140,13 @@ export default function UsernameSetupScreen({ navigation }: Props) {
   const { scheme, setScheme } = useTheme();
   const { showAlert } = useAppAlert();
   const colors = darkColors;
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
   const draftTrimmed = draft.trim();
   const showAvatar = draftTrimmed.length > 0;
-  const initialsSource = normalizeUsername(draft) || draftTrimmed;
 
   useFocusEffect(
     useCallback(() => {
@@ -258,7 +259,6 @@ export default function UsernameSetupScreen({ navigation }: Props) {
           {showAvatar ? (
             <ProfileAvatarField
               colors={colors}
-              initialsSource={initialsSource}
               size={76}
               style={styles.avatarSlot}
               uploadAfterPick={false}

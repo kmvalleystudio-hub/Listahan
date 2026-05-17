@@ -13,6 +13,8 @@ import {
   Dimensions,
   type KeyboardEvent,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -154,7 +156,7 @@ export default function PrivateVaultGate({ children }: Props) {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { colors } = useToolTheme("private_list");
-  const styles = React.useMemo(() => createGateStyles(colors), [colors]);
+  const styles = useAppStyles(createGateStyles);
   const { ready, hasPin, unlocked, unlock, refreshHasPin } = usePrivateVault();
 
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);

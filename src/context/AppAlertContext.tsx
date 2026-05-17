@@ -18,6 +18,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "./ThemeContext";
+import { useAppStyles } from "../hooks/useAppStyles";
 import type { AppThemeColors } from "../theme/colors";
 
 export type AppAlertVariant = "info" | "warning" | "error" | "success";
@@ -165,7 +166,7 @@ function AppAlertModalInner({
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const styles = useMemo(() => createAlertStyles(colors), [colors]);
+  const styles = useAppStyles(createAlertStyles);
   const variant = inferVariant(item);
   const iconName = variantIcon(variant);
   const iconColor =

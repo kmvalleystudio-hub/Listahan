@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { TodoRecentPreviewProps } from "../navigation/types";
@@ -130,7 +132,7 @@ function PreviewRow({ item, styles: s }: { item: TodoItem; styles: ReturnType<ty
 export default function TodoRecentPreviewScreen({ navigation, route }: TodoRecentPreviewProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("todo");
-  const styles = useMemo(() => createPreviewStyles(colors), [colors]);
+  const styles = useAppStyles(createPreviewStyles);
   const { historyId } = route.params;
   const { todoHistory, createTodoListFromHistory } = useAppData();
   const entry = useMemo(

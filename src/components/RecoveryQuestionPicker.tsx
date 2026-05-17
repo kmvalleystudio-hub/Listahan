@@ -12,6 +12,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { RECOVERY_PRESETS } from "../constants/privateVaultRecovery";
 import type { AppThemeColors } from "../theme/colors";
+import { useTheme } from "../context/ThemeContext";
 
 type Props = {
   colors: AppThemeColors;
@@ -41,6 +42,7 @@ export default function RecoveryQuestionPicker({
   onCustomQuestionFocus,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const { styleEpoch } = useTheme();
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -114,7 +116,7 @@ export default function RecoveryQuestionPicker({
         optionText: { fontSize: 16, color: colors.text, fontWeight: "500" },
         optionAccent: { fontSize: 16, color: colors.primaryDark, fontWeight: "700" },
       }),
-    [colors]
+    [colors, styleEpoch]
   );
 
   const summary = useCustom

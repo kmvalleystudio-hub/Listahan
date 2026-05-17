@@ -13,6 +13,8 @@ import {
   Keyboard,
   Modal,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -291,7 +293,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
   const insets = useSafeAreaInsets();
   const paramId = route.params?.reminderId;
   const { colors, isDark } = useToolTheme("reminder");
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
 
   const idRef = useRef(paramId ?? newReminderId());
   const [title, setTitle] = useState("");

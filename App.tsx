@@ -1,3 +1,4 @@
+import "./src/theme/installStyleSheetScale";
 import "react-native-gesture-handler";
 import { Buffer } from "buffer";
 import React, { useMemo, useEffect, useState } from "react";

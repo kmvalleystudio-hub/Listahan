@@ -15,6 +15,8 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -144,7 +146,7 @@ function createStyles(c: AppThemeColors) {
 export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultSettingsProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("private_list");
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
 
   const [bioPref, setBioPref] = useState(true);
   const [bioHardware, setBioHardware] = useState(false);

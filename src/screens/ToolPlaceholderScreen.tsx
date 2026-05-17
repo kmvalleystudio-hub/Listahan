@@ -6,6 +6,7 @@ import type { ToolPlaceholderProps } from "../navigation/types";
 import { TOOLS_CATALOG } from "../constants/toolsCatalog";
 import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { useAppStyles } from "../hooks/useAppStyles";
 
 function createStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -73,7 +74,7 @@ export default function ToolPlaceholderScreen({ navigation, route }: ToolPlaceho
   const insets = useSafeAreaInsets();
   const toolId = route.params.toolId;
   const { colors } = useToolTheme(toolId);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useAppStyles(createStyles);
   const def = TOOLS_CATALOG.find((t) => t.id === toolId);
 
   return (

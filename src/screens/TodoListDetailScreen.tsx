@@ -17,6 +17,8 @@ import {
   Easing,
   Image,
 } from "react-native";
+import { useAppStyles } from "../hooks/useAppStyles";
+
 import * as ImagePicker from "expo-image-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
@@ -136,7 +138,7 @@ type ItemModalMode = "add" | "edit" | null;
 export default function TodoListDetailScreen({ navigation, route }: TodoListDetailProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("todo");
-  const styles = useMemo(() => createListDetailStyles(colors), [colors]);
+  const styles = useAppStyles(createListDetailStyles);
   const { listId, autoOpenAdd = false } = route.params;
   const { todoLists, loading, upsertTodoList, archiveTodoCompletedList } = useAppData();
 

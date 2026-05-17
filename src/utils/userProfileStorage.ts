@@ -1,5 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateDeviceProfileId, isUuidV4Like } from "./deviceProfileId";
+import {
+  DEFAULT_AVATAR_CHARACTER_ID,
+  normalizeAvatarCharacterId,
+} from "../constants/avatarCharacters";
 import { generateTagSuffix, isValidTagSuffix, normalizeTagSuffix } from "./listahanTagSuffix";
 
 export const USER_PROFILE_STORAGE_KEY = "@listahan/user_profile_v1";
@@ -22,10 +26,16 @@ export type UserProfile = {
   avatarRemoteUrl?: string;
   /** Object path in bucket, e.g. `{uuid}/avatar.jpg`. */
   avatarStoragePath?: string;
+  /** Selected mascot when no custom photo is set. */
+  avatarCharacterId: string;
+  /** True after the user picks a character or photo in the avatar picker. */
+  avatarPortraitTouched: boolean;
 };
 
 const DEFAULT_PROFILE: Omit<UserProfile, "createdAt" | "deviceProfileId" | "tagSuffix"> = {
   username: "",
+  avatarCharacterId: DEFAULT_AVATAR_CHARACTER_ID,
+  avatarPortraitTouched: false,
 };
 
 function ensureTagSuffix(profile: UserProfile): UserProfile {
@@ -57,6 +67,11 @@ function normalize(parsed: unknown): UserProfile {
   const avatarLocalUri = typeof o.avatarLocalUri === "string" ? o.avatarLocalUri.trim() : undefined;
   const avatarRemoteUrl = typeof o.avatarRemoteUrl === "string" ? o.avatarRemoteUrl.trim() : undefined;
   const avatarStoragePath = typeof o.avatarStoragePath === "string" ? o.avatarStoragePath.trim() : undefined;
+  const hasPhoto = Boolean(avatarLocalUri || avatarRemoteUrl);
+  const avatarCharacterId = normalizeAvatarCharacterId(
+    typeof o.avatarCharacterId === "string" ? o.avatarCharacterId : ""
+  );
+  const avatarPortraitTouched = o.avatarPortraitTouched === true || hasPhoto;
   return ensureTagSuffix({
     username,
     tagSuffix,
@@ -65,6 +80,8 @@ function normalize(parsed: unknown): UserProfile {
     avatarLocalUri: avatarLocalUri || undefined,
     avatarRemoteUrl: avatarRemoteUrl || undefined,
     avatarStoragePath: avatarStoragePath || undefined,
+    avatarCharacterId,
+    avatarPortraitTouched,
   });
 }
 
@@ -86,7 +103,17 @@ export async function loadUserProfile(): Promise<UserProfile> {
     const prev = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
     const prevId = typeof prev.deviceProfileId === "string" ? prev.deviceProfileId.trim() : "";
     const prevSuffix = normalizeTagSuffix(typeof prev.tagSuffix === "string" ? prev.tagSuffix : "");
-    if (!prevId || !isUuidV4Like(prevId) || prevSuffix !== next.tagSuffix) {
+    const prevCharacterId =
+      typeof prev.avatarCharacterId === "string" ? normalizeAvatarCharacterId(prev.avatarCharacterId) : "";
+    const needsAvatarMigration =
+      prev.avatarCharacterId === undefined || prev.avatarPortraitTouched === undefined;
+    if (
+      !prevId ||
+      !isUuidV4Like(prevId) ||
+      prevSuffix !== next.tagSuffix ||
+      prevCharacterId !== next.avatarCharacterId ||
+      needsAvatarMigration
+    ) {
       await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));
     }
     return next;
@@ -104,27 +131,45 @@ export async function loadUserProfile(): Promise<UserProfile> {
 
 export async function saveUserProfile(
   patch: Partial<
-    Pick<UserProfile, "username" | "avatarLocalUri" | "avatarRemoteUrl" | "avatarStoragePath">
+    Pick<
+      UserProfile,
+      | "username"
+      | "avatarLocalUri"
+      | "avatarRemoteUrl"
+      | "avatarStoragePath"
+      | "avatarCharacterId"
+      | "avatarPortraitTouched"
+    >
   >
 ): Promise<UserProfile> {
   const current = await loadUserProfile();
   const next: UserProfile = {
     ...current,
-    ...patch,
     username: patch.username !== undefined ? patch.username.trim().toLowerCase() : current.username,
     avatarLocalUri:
-      patch.avatarLocalUri !== undefined
-        ? patch.avatarLocalUri.trim() || undefined
+      "avatarLocalUri" in patch
+        ? patch.avatarLocalUri?.trim() || undefined
         : current.avatarLocalUri,
     avatarRemoteUrl:
-      patch.avatarRemoteUrl !== undefined
-        ? patch.avatarRemoteUrl.trim() || undefined
+      "avatarRemoteUrl" in patch
+        ? patch.avatarRemoteUrl?.trim() || undefined
         : current.avatarRemoteUrl,
     avatarStoragePath:
-      patch.avatarStoragePath !== undefined
-        ? patch.avatarStoragePath.trim() || undefined
+      "avatarStoragePath" in patch
+        ? patch.avatarStoragePath?.trim() || undefined
         : current.avatarStoragePath,
+    avatarCharacterId:
+      patch.avatarCharacterId !== undefined
+        ? normalizeAvatarCharacterId(patch.avatarCharacterId)
+        : current.avatarCharacterId,
+    avatarPortraitTouched:
+      patch.avatarPortraitTouched !== undefined
+        ? patch.avatarPortraitTouched
+        : current.avatarPortraitTouched,
   };
+  if (next.avatarLocalUri || next.avatarRemoteUrl) {
+    next.avatarPortraitTouched = true;
+  }
   await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));
   return next;
 }
