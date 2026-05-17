@@ -1,4 +1,4 @@
-/** List-themed words for faint onboarding background typewriter effect. */
+/** List-themed words for faint onboarding background scribble effect. */
 export const ONBOARDING_BACKGROUND_WORDS = [
   "milk",
   "eggs",
@@ -38,22 +38,7 @@ export const ONBOARDING_BACKGROUND_WORDS = [
   "list",
   "check",
   "done",
-  "eggs ✓",
-  "milk ✓",
 ] as const;
 
-/** Normalized layout (0–1) — spread across the screen, avoids clustering. */
-export const ONBOARDING_WORD_SLOTS = [
-  { x: 0.06, y: 0.14, rot: -8, size: 15 },
-  { x: 0.62, y: 0.1, rot: 6, size: 14 },
-  { x: 0.88, y: 0.22, rot: 12, size: 13 },
-  { x: 0.12, y: 0.38, rot: -4, size: 16 },
-  { x: 0.78, y: 0.36, rot: -10, size: 15 },
-  { x: 0.42, y: 0.28, rot: 3, size: 13 },
-  { x: 0.08, y: 0.58, rot: 7, size: 14 },
-  { x: 0.7, y: 0.52, rot: -6, size: 15 },
-  { x: 0.38, y: 0.62, rot: 5, size: 14 },
-  { x: 0.9, y: 0.68, rot: -12, size: 13 },
-  { x: 0.18, y: 0.78, rot: 4, size: 15 },
-  { x: 0.55, y: 0.82, rot: -5, size: 14 },
-] as const;
+/** How many words animate at once on the username screen. */
+export const ONBOARDING_FLOATING_WORD_COUNT = 10;
