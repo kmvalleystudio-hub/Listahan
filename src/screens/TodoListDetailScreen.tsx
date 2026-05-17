@@ -65,8 +65,6 @@ const VOICE_IDLE_MS_AFTER_FIRST_WORD = 2000;
 /** Set `true` to show ImagePicker result alerts while debugging scan/camera. */
 const SCAN_DEBUG_PICKER_ALERTS = false;
 
-const TODO_LIST_UI_VERSION = "v1.0.0-todo-scan-1";
-
 const REORDER_SPRING = {
   damping: 20,
   mass: 0.2,
@@ -1870,9 +1868,6 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                     >
                       <Ionicons name="close" size={22} color={colors.textTertiary} />
                     </TouchableOpacity>
-                    <Text style={styles.scanVersionLabel} numberOfLines={2}>
-                      {TODO_LIST_UI_VERSION}
-                    </Text>
                   </View>
                 </View>
                 {scanActiveTab === "capture" ? (

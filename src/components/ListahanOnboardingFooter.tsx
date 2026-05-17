@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Image, useWindowDimensions, Platform } from "react-native";
-import Constants from "expo-constants";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 
@@ -9,7 +8,7 @@ const LISTAHAN_LOGO_ON_LIGHT = require("../../assets/branding/listahan-logo-hori
 const LISTAHAN_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
 
 /** Readable footer mark on onboarding screens (username setup, welcome). */
-export const ONBOARDING_FOOTER_LOGO_HEIGHT = 36;
+export const ONBOARDING_FOOTER_LOGO_HEIGHT = 32.4;
 
 const GRID_PAD = 20;
 
@@ -73,11 +72,6 @@ export default function ListahanOnboardingFooter({
 
   const footerLogoWidth = Math.min(windowWidth - GRID_PAD * 2 - 16, logoHeight * logoAspect);
 
-  const appVersion =
-    Constants.expoConfig?.version ??
-    (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion ??
-    "";
-
   return (
     <View style={[styles.footer, { paddingBottom: Math.max(paddingBottom, 12) }]}>
       <View style={[styles.footerLogoWrap, { width: footerLogoWidth, height: logoHeight }]}>
@@ -93,7 +87,6 @@ export default function ListahanOnboardingFooter({
         Groceries, to-dos & reminders — private by default, yours on every device you choose later.
       </Text>
       <Text style={styles.footerMicro}>
-        {appVersion ? `Version ${appVersion} · ` : ""}
         {APP_DISPLAY_NAME} © {new Date().getFullYear()}
       </Text>
     </View>

@@ -10,15 +10,6 @@ export function createListDetailStyles(c: AppThemeColors) {
     staticChrome: {
       flexShrink: 0,
     },
-    debugVersionLabel: {
-      position: "absolute",
-      right: 12,
-      top: 4,
-      zIndex: 100,
-      fontSize: 10,
-      color: c.textTertiary,
-      opacity: 0.8,
-    },
     listBody: {
       flex: 1,
       minHeight: 0,
@@ -326,15 +317,6 @@ export function createListDetailStyles(c: AppThemeColors) {
     },
     scanHeaderAside: {
       alignItems: "flex-end",
-      gap: 2,
-    },
-    scanVersionLabel: {
-      fontSize: 9,
-      fontWeight: "600",
-      color: c.textTertiary,
-      opacity: 0.75,
-      textAlign: "right",
-      maxWidth: 120,
     },
     scanTabsRow: {
       flexDirection: "row",

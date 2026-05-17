@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Animated, StatusBar as RNStatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -8,6 +8,7 @@ import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import ListahanOnboardingFooter from "../components/ListahanOnboardingFooter";
+import { listahanPublicTag, loadUserProfile } from "../utils/userProfileStorage";
 
 const GRID_PAD = 24;
 
@@ -73,6 +74,7 @@ export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const username = route.params.username.trim();
+  const [publicTag, setPublicTag] = useState<string | null>(null);
 
   const ringScale = useRef(new Animated.Value(0)).current;
   const ringOpacity = useRef(new Animated.Value(0)).current;
@@ -109,7 +111,10 @@ export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
     useCallback(() => {
       RNStatusBar.setBarStyle(scheme === "dark" ? "light-content" : "dark-content");
       playWelcomeCheckAnimation();
-    }, [scheme, playWelcomeCheckAnimation])
+      void loadUserProfile().then((p) => {
+        setPublicTag(listahanPublicTag(p.username || username, p.tagSuffix));
+      });
+    }, [scheme, playWelcomeCheckAnimation, username])
   );
 
   const goToDashboard = () => {
@@ -135,8 +140,8 @@ export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
           </Animated.View>
         </Animated.View>
         <Text style={styles.title} accessibilityRole="header">
-          Welcome{username ? ", " : ""}
-          {username ? <Text style={styles.username}>@{username}</Text> : null}
+          Welcome{publicTag ? ", " : ""}
+          {publicTag ? <Text style={styles.username}>{publicTag}</Text> : null}
         </Text>
         <Text style={styles.subtitle}>
           You&apos;re set up on {APP_DISPLAY_NAME}. Start with groceries, to-dos, notes, or reminders — everything stays

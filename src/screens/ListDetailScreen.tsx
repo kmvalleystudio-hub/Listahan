@@ -108,8 +108,6 @@ function buildFormPresetUnits(
   );
 }
 
-const UI_DEBUG_VERSION = "v1.0.0-scan-debug-31";
-
 /** Stop name/price dictation after this many ms with no new transcript, once speech has started. */
 const VOICE_IDLE_MS_AFTER_FIRST_WORD = 2000;
 
@@ -1891,7 +1889,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
-      <Text style={styles.debugVersionLabel}>{UI_DEBUG_VERSION}</Text>
       <View style={styles.staticChrome}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
@@ -2308,9 +2305,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                     >
                       <Ionicons name="close" size={22} color={colors.textTertiary} />
                     </TouchableOpacity>
-                    <Text style={styles.scanVersionLabel} numberOfLines={2}>
-                      {UI_DEBUG_VERSION}
-                    </Text>
                   </View>
                 </View>
                 {scanActiveTab === "capture" ? (

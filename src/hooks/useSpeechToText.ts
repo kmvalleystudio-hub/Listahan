@@ -5,6 +5,19 @@ import { Platform } from "react-native";
 const isExpoGo =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+function friendlySpeechError(raw: string): string {
+  const msg = raw.trim();
+  if (!msg) return "Voice input didn't work. Try again.";
+  if (/no speech|no match|speech timeout|didn.?t hear|couldn.?t hear/i.test(msg)) {
+    return "Couldn't hear you. Try speaking again.";
+  }
+  if (/permission|denied|not allowed/i.test(msg)) {
+    return "Microphone access is needed for voice input.";
+  }
+  if (msg.length > 120) return "Voice input didn't work. Try again.";
+  return msg;
+}
+
 type SpeechPack = typeof import("expo-speech-recognition");
 
 export type SpeechStartOptions = {
@@ -49,13 +62,7 @@ export function useSpeechToText() {
       }
     });
     const subError = ExpoSpeechRecognitionModule.addListener("error", (ev) => {
-      const raw = (ev.message ?? "Speech error").trim();
-      const emulatorMicHint =
-        Platform.OS === "android" &&
-        /no speech|no match|speech timeout|didn.?t hear|couldn.?t hear/i.test(raw)
-          ? " On the Android Emulator: open the ⋮ sidebar → Microphone → turn on “Virtual microphone uses host audio input.” Or run adb emu avd hostmicon. A physical device is most reliable."
-          : "";
-      setLastError(raw + emulatorMicHint);
+      setLastError(friendlySpeechError(ev.message ?? "Speech error"));
       setListening(false);
     });
     const subEnd = ExpoSpeechRecognitionModule.addListener("end", () => {

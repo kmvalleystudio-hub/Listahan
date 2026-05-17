@@ -20,6 +20,7 @@ import type { AppThemeColors } from "../theme/colors";
 import { darkColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import ListahanOnboardingFooter from "../components/ListahanOnboardingFooter";
+import ProfileAvatarField from "../components/ProfileAvatarField";
 import UsernameSetupBackgroundArt from "../components/UsernameSetupBackgroundArt";
 import {
   loadUserProfile,
@@ -32,7 +33,7 @@ import {
   usernameValidationMessage,
 } from "../utils/usernameRules";
 import { checkUsernameAvailableOnServer } from "../services/usernameAvailability";
-import { upsertPublicProfileMeta } from "../services/profileCloudSync";
+import { upsertPublicProfileMeta, uploadProfileAvatarToCloud } from "../services/profileCloudSync";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 
 type Props = NativeStackScreenProps<RootStackParamList, "UsernameSetup">;
@@ -65,7 +66,10 @@ function createStyles(c: AppThemeColors) {
       color: c.placeholder,
       textAlign: "center",
       lineHeight: 22,
-      marginBottom: 22,
+      marginBottom: 18,
+    },
+    avatarSlot: {
+      marginBottom: 18,
     },
     label: {
       fontSize: 13,
@@ -139,6 +143,10 @@ export default function UsernameSetupScreen({ navigation }: Props) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const draftTrimmed = draft.trim();
+  const showAvatar = draftTrimmed.length > 0;
+  const initialsSource = normalizeUsername(draft) || draftTrimmed;
+
   useFocusEffect(
     useCallback(() => {
       RNStatusBar.setBarStyle("light-content");
@@ -195,10 +203,26 @@ export default function UsernameSetupScreen({ navigation }: Props) {
         return;
       }
       await saveUserProfile({ username: normalized });
-      const next = await loadUserProfile();
+      let next = await loadUserProfile();
+      if (next.avatarLocalUri && isSupabaseConfigured()) {
+        const up = await uploadProfileAvatarToCloud(
+          next.deviceProfileId,
+          normalized,
+          next.tagSuffix,
+          next.avatarLocalUri,
+          null
+        );
+        if (up.ok) {
+          next = await saveUserProfile({
+            avatarRemoteUrl: up.publicUrl,
+            avatarStoragePath: up.storagePath,
+          });
+        }
+      }
       const meta = await upsertPublicProfileMeta({
         deviceProfileId: next.deviceProfileId,
         username: next.username,
+        tagSuffix: next.tagSuffix,
         avatarStoragePath: next.avatarStoragePath ?? null,
       });
       if (!meta.ok && isSupabaseConfigured()) {
@@ -231,6 +255,17 @@ export default function UsernameSetupScreen({ navigation }: Props) {
             unique.
           </Text>
 
+          {showAvatar ? (
+            <ProfileAvatarField
+              colors={colors}
+              initialsSource={initialsSource}
+              size={76}
+              style={styles.avatarSlot}
+              uploadAfterPick={false}
+              badgeBorderColor={colors.background}
+            />
+          ) : null}
+
           <Text style={styles.label}>Username</Text>
           <View style={styles.inlineRow}>
             <View style={styles.inputWrap}>
@@ -238,7 +273,7 @@ export default function UsernameSetupScreen({ navigation }: Props) {
                 style={[styles.input, busy && styles.inputBusy]}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="e.g. mike_lists"
+                placeholder="e.g. john_lists"
                 placeholderTextColor={colors.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}

@@ -35,6 +35,36 @@ type UploadResult = { ok: true; publicUrl: string; storagePath: string } | { ok:
 
 type UploadBytes = Blob | ArrayBuffer;
 
+type UpsertProfileArgs = {
+  deviceProfileId: string;
+  username: string;
+  tagSuffix: string;
+  avatarStoragePath: string | null;
+};
+
+function isLegacyUpsertRpcError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("could not find the function") && m.includes("upsert_listahan_public_profile");
+}
+
+/** Prefer 4-arg RPC (tag suffix); fall back to pre-migration 3-arg signature when needed. */
+async function rpcUpsertPublicProfile(args: UpsertProfileArgs) {
+  const client = getSupabaseClient();
+  const legacyArgs = {
+    p_device_profile_id: args.deviceProfileId,
+    p_username: args.username.trim().toLowerCase(),
+    p_avatar_storage_path: args.avatarStoragePath,
+  };
+  const fullArgs = {
+    ...legacyArgs,
+    p_tag_suffix: args.tagSuffix.trim().toLowerCase(),
+  };
+  const first = await client.rpc("upsert_listahan_public_profile", fullArgs);
+  if (!first.error) return first;
+  if (!isLegacyUpsertRpcError(first.error.message)) return first;
+  return client.rpc("upsert_listahan_public_profile", legacyArgs);
+}
+
 /**
  * React Native: fetch(file://…) is unreliable; avoid `new Blob([arrayBuffer])` — Hermes RN Blob rejects
  * ArrayBuffer / ArrayBufferView parts. Read bytes via expo-file-system and upload raw ArrayBuffer
@@ -57,6 +87,7 @@ async function loadAvatarUploadBody(localUri: string, mimeType?: string | null):
 export async function uploadProfileAvatarToCloud(
   deviceProfileId: string,
   username: string,
+  tagSuffix: string,
   localUri: string,
   mimeType?: string | null
 ): Promise<UploadResult> {
@@ -74,10 +105,11 @@ export async function uploadProfileAvatarToCloud(
     });
     if (upErr) return { ok: false, message: upErr.message };
 
-    const { error: rpcErr } = await client.rpc("upsert_listahan_public_profile", {
-      p_device_profile_id: deviceProfileId,
-      p_username: username.trim().toLowerCase(),
-      p_avatar_storage_path: path,
+    const { error: rpcErr } = await rpcUpsertPublicProfile({
+      deviceProfileId,
+      username,
+      tagSuffix,
+      avatarStoragePath: path,
     });
     if (rpcErr) return { ok: false, message: rpcErr.message };
 
@@ -93,6 +125,7 @@ export async function uploadProfileAvatarToCloud(
 export async function deleteProfileAvatarFromCloud(
   deviceProfileId: string,
   username: string,
+  tagSuffix: string,
   storagePath?: string | null
 ): Promise<{ ok: boolean; message?: string }> {
   if (!isSupabaseConfigured()) return { ok: true };
@@ -104,10 +137,11 @@ export async function deleteProfileAvatarFromCloud(
     paths.add(avatarObjectPath(deviceProfileId, "avatar.png"));
     await client.storage.from(BUCKET).remove([...paths]);
 
-    const { error } = await client.rpc("upsert_listahan_public_profile", {
-      p_device_profile_id: deviceProfileId,
-      p_username: username.trim().toLowerCase(),
-      p_avatar_storage_path: null,
+    const { error } = await rpcUpsertPublicProfile({
+      deviceProfileId,
+      username,
+      tagSuffix,
+      avatarStoragePath: null,
     });
     if (error) return { ok: false, message: error.message };
     return { ok: true };
@@ -118,14 +152,15 @@ export async function deleteProfileAvatarFromCloud(
 
 /** Upserts username (and avatar path) for discovery/sync rows. */
 export async function upsertPublicProfileMeta(
-  profile: Pick<UserProfile, "deviceProfileId" | "username" | "avatarStoragePath">
+  profile: Pick<UserProfile, "deviceProfileId" | "username" | "tagSuffix" | "avatarStoragePath">
 ): Promise<{ ok: boolean; message?: string }> {
   if (!isSupabaseConfigured()) return { ok: true };
   try {
-    const { error } = await getSupabaseClient().rpc("upsert_listahan_public_profile", {
-      p_device_profile_id: profile.deviceProfileId,
-      p_username: profile.username ?? "",
-      p_avatar_storage_path: profile.avatarStoragePath ?? null,
+    const { error } = await rpcUpsertPublicProfile({
+      deviceProfileId: profile.deviceProfileId,
+      username: profile.username ?? "",
+      tagSuffix: profile.tagSuffix ?? "",
+      avatarStoragePath: profile.avatarStoragePath ?? null,
     });
     if (error) return { ok: false, message: error.message };
     return { ok: true };

@@ -1,11 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateDeviceProfileId, isUuidV4Like } from "./deviceProfileId";
+import { generateTagSuffix, isValidTagSuffix, normalizeTagSuffix } from "./listahanTagSuffix";
 
 export const USER_PROFILE_STORAGE_KEY = "@listahan/user_profile_v1";
 
 export type UserProfile = {
   /** Lowercase unique handle (letters, digits, underscore). Required for app use. */
   username: string;
+  /** Four random a-z/0-9 chars; fixed after first assignment (public tag suffix). */
+  tagSuffix: string;
   /** ISO date — set once when the profile is first created. */
   createdAt: string;
   /**
@@ -21,21 +24,28 @@ export type UserProfile = {
   avatarStoragePath?: string;
 };
 
-const DEFAULT_PROFILE: Omit<UserProfile, "createdAt" | "deviceProfileId"> = {
+const DEFAULT_PROFILE: Omit<UserProfile, "createdAt" | "deviceProfileId" | "tagSuffix"> = {
   username: "",
 };
+
+function ensureTagSuffix(profile: UserProfile): UserProfile {
+  if (isValidTagSuffix(profile.tagSuffix)) return profile;
+  return { ...profile, tagSuffix: generateTagSuffix() };
+}
 
 function normalize(parsed: unknown): UserProfile {
   const fallbackId = generateDeviceProfileId();
   if (!parsed || typeof parsed !== "object") {
-    return {
+    return ensureTagSuffix({
       ...DEFAULT_PROFILE,
+      tagSuffix: "",
       createdAt: new Date().toISOString(),
       deviceProfileId: fallbackId,
-    };
+    });
   }
   const o = parsed as Record<string, unknown>;
   let username = typeof o.username === "string" ? o.username.trim().toLowerCase() : "";
+  const tagSuffix = normalizeTagSuffix(typeof o.tagSuffix === "string" ? o.tagSuffix : "");
   const createdAt =
     typeof o.createdAt === "string" && !Number.isNaN(new Date(o.createdAt).getTime())
       ? o.createdAt
@@ -47,25 +57,27 @@ function normalize(parsed: unknown): UserProfile {
   const avatarLocalUri = typeof o.avatarLocalUri === "string" ? o.avatarLocalUri.trim() : undefined;
   const avatarRemoteUrl = typeof o.avatarRemoteUrl === "string" ? o.avatarRemoteUrl.trim() : undefined;
   const avatarStoragePath = typeof o.avatarStoragePath === "string" ? o.avatarStoragePath.trim() : undefined;
-  return {
+  return ensureTagSuffix({
     username,
+    tagSuffix,
     createdAt,
     deviceProfileId,
     avatarLocalUri: avatarLocalUri || undefined,
     avatarRemoteUrl: avatarRemoteUrl || undefined,
     avatarStoragePath: avatarStoragePath || undefined,
-  };
+  });
 }
 
 export async function loadUserProfile(): Promise<UserProfile> {
   try {
     const raw = await AsyncStorage.getItem(USER_PROFILE_STORAGE_KEY);
     if (!raw) {
-      const fresh: UserProfile = {
+      const fresh = ensureTagSuffix({
         ...DEFAULT_PROFILE,
+        tagSuffix: "",
         createdAt: new Date().toISOString(),
         deviceProfileId: generateDeviceProfileId(),
-      };
+      });
       await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(fresh));
       return fresh;
     }
@@ -73,16 +85,18 @@ export async function loadUserProfile(): Promise<UserProfile> {
     const next = normalize(parsed);
     const prev = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
     const prevId = typeof prev.deviceProfileId === "string" ? prev.deviceProfileId.trim() : "";
-    if (!prevId || !isUuidV4Like(prevId)) {
+    const prevSuffix = normalizeTagSuffix(typeof prev.tagSuffix === "string" ? prev.tagSuffix : "");
+    if (!prevId || !isUuidV4Like(prevId) || prevSuffix !== next.tagSuffix) {
       await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));
     }
     return next;
   } catch {
-    const fresh: UserProfile = {
+    const fresh = ensureTagSuffix({
       ...DEFAULT_PROFILE,
+      tagSuffix: "",
       createdAt: new Date().toISOString(),
       deviceProfileId: generateDeviceProfileId(),
-    };
+    });
     await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(fresh));
     return fresh;
   }
@@ -136,6 +150,14 @@ export function profileInitials(username: string): string {
 export function profileGreetingName(username: string): string {
   const t = username.trim();
   return t || "there";
+}
+
+/** Public handle shown in profile and discovery (e.g. `@mike_lists_x7k2`). */
+export function listahanPublicTag(username: string, tagSuffix?: string): string | null {
+  const u = username.trim().toLowerCase();
+  if (!u) return null;
+  const suffix = normalizeTagSuffix(tagSuffix);
+  return suffix ? `@${u}_${suffix}` : `@${u}`;
 }
 
 export function formatMemberSince(iso: string): string {

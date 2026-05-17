@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Pressable,
   Modal,
-  TextInput,
   Keyboard,
   Platform,
   Image,
@@ -26,15 +25,14 @@ import { useAppData } from "../context/AppDataContext";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { TOOLS_CATALOG } from "../constants/toolsCatalog";
-import { checkUsernameAvailableOnServer } from "../services/usernameAvailability";
 import {
   deleteProfileAvatarFromCloud,
-  upsertPublicProfileMeta,
   uploadProfileAvatarToCloud,
 } from "../services/profileCloudSync";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import {
   formatMemberSince,
+  listahanPublicTag,
   loadUserProfile,
   profileInitials,
   saveUserProfile,
@@ -43,7 +41,6 @@ import {
 import { loadQuickNotes } from "../utils/quickNotesStorage";
 import { loadReminders } from "../utils/remindersStorage";
 import { resetToolOrderToDefault } from "../utils/toolsDashboardOrder";
-import { normalizeUsername, usernameValidationMessage } from "../utils/usernameRules";
 
 const GRID_PAD = 16;
 
@@ -90,40 +87,25 @@ function createStyles(c: AppThemeColors) {
       paddingHorizontal: 8,
     },
     scroll: { flex: 1 },
-    scrollContent: { paddingHorizontal: GRID_PAD, paddingBottom: 32, gap: 22 },
+    scrollContent: { paddingHorizontal: GRID_PAD, paddingBottom: 32, gap: 18 },
     heroCard: {
-      position: "relative",
       backgroundColor: c.card,
-      borderRadius: 18,
+      borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      padding: 20,
-      paddingTop: 16,
+      padding: 14,
+      gap: 10,
+    },
+    heroTopRow: {
+      flexDirection: "row",
       alignItems: "center",
       gap: 14,
     },
-    heroEditBtn: {
-      position: "absolute",
-      top: 12,
-      right: 12,
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: c.inputBg,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-    },
-    heroEditBtnActive: {
-      backgroundColor: c.primary,
-      borderColor: c.primary,
-    },
-    avatarPress: { position: "relative" },
+    avatarPress: { position: "relative", flexShrink: 0 },
     avatar: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       backgroundColor: c.iconBlobBg,
       alignItems: "center",
       justifyContent: "center",
@@ -132,62 +114,46 @@ function createStyles(c: AppThemeColors) {
       overflow: "hidden",
     },
     avatarImage: { width: "100%", height: "100%" },
-    avatarText: { fontSize: 26, fontWeight: "800", color: c.primaryDark },
+    avatarText: { fontSize: 22, fontWeight: "800", color: c.primaryDark },
     avatarBadge: {
       position: "absolute",
       right: -2,
       bottom: -2,
-      width: 26,
-      height: 26,
-      borderRadius: 13,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
       backgroundColor: c.primary,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
       borderColor: c.card,
     },
-    nameBlock: { alignItems: "center", gap: 6, alignSelf: "stretch" },
-    heroName: { fontSize: 22, fontWeight: "800", color: c.text, textAlign: "center" },
-    heroSub: { fontSize: 14, color: c.textTertiary, textAlign: "center" },
-    cloudHint: {
-      fontSize: 12,
-      color: c.placeholder,
-      textAlign: "center",
-      lineHeight: 17,
-      paddingHorizontal: 8,
-    },
-    userIdBlock: {
-      alignSelf: "stretch",
-      gap: 6,
-      marginTop: 2,
-      paddingTop: 14,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.borderMuted,
-    },
-    userIdHeaderRow: {
+    heroIdentity: { flex: 1, minWidth: 0, gap: 3 },
+    heroName: { fontSize: 20, fontWeight: "800", color: c.text },
+    heroSub: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
+    tagRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
+      alignSelf: "flex-start",
+      gap: 4,
+      maxWidth: "100%",
     },
-    userIdLabel: {
-      fontSize: 11,
-      fontWeight: "800",
-      color: c.textTertiary,
-      letterSpacing: 0.55,
-      textTransform: "uppercase",
+    tagText: {
+      flexShrink: 1,
+      fontSize: 13,
+      fontWeight: "600",
+      color: c.textSecondary,
+      letterSpacing: 0.1,
     },
-    userIdCopyLink: { fontSize: 14, fontWeight: "600", color: c.linkBlue },
-    userIdValue: {
+    tagCopyBtn: { padding: 2, flexShrink: 0 },
+    cloudHint: {
       fontSize: 12,
-      lineHeight: 18,
-      color: c.placeholder,
-      fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
-    },
-    userIdCaption: {
-      fontSize: 11,
-      color: c.placeholder,
-      lineHeight: 16,
+      color: c.textTertiary,
+      lineHeight: 17,
+      backgroundColor: c.inputBg,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
     },
     sectionTitle: {
       fontSize: 12,
@@ -372,10 +338,6 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [notesCount, setNotesCount] = useState(0);
   const [remindersCount, setRemindersCount] = useState(0);
-  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
-  const [usernameDraft, setUsernameDraft] = useState("");
-  const [keyboardPad, setKeyboardPad] = useState(0);
-  const [profileEditing, setProfileEditing] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
   const [cloudPhotoNotice, setCloudPhotoNotice] = useState<{ detail: string } | null>(null);
@@ -395,93 +357,10 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     useCallback(() => {
       void refresh();
       return () => {
-        setProfileEditing(false);
-        setUsernameModalOpen(false);
         setAvatarSheetOpen(false);
       };
     }, [refresh])
   );
-
-  const exitProfileEditing = useCallback(() => {
-    setProfileEditing(false);
-    setUsernameModalOpen(false);
-    setAvatarSheetOpen(false);
-    Keyboard.dismiss();
-  }, []);
-
-  const toggleProfileEditing = useCallback(() => {
-    if (profileEditing) {
-      exitProfileEditing();
-      return;
-    }
-    setProfileEditing(true);
-  }, [profileEditing, exitProfileEditing]);
-
-  useEffect(() => {
-    if (!usernameModalOpen) {
-      setKeyboardPad(0);
-      return;
-    }
-    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const subShow = Keyboard.addListener(showEvt, (e) => {
-      setKeyboardPad(e.endCoordinates.height);
-    });
-    const subHide = Keyboard.addListener(hideEvt, () => {
-      setKeyboardPad(0);
-    });
-    return () => {
-      subShow.remove();
-      subHide.remove();
-    };
-  }, [usernameModalOpen]);
-
-  const openUsernameModal = () => {
-    if (!profileEditing) return;
-    setUsernameDraft(profile?.username ?? "");
-    setUsernameModalOpen(true);
-  };
-
-  const saveUsername = async () => {
-    const normalized = normalizeUsername(usernameDraft);
-    const err = usernameValidationMessage(normalized);
-    if (err) {
-      showAlert({ title: "Username", message: err, variant: "warning" });
-      return;
-    }
-    const prev = profile ?? (await loadUserProfile());
-    const prevUsername = prev.username;
-    if (normalizeUsername(prev.username) !== normalized) {
-      const remote = await checkUsernameAvailableOnServer(normalized, prev.deviceProfileId);
-      if (!remote.ok) {
-        showAlert({
-          title: remote.usernameTaken ? "Username taken" : "Username",
-          message: remote.message,
-          variant: remote.usernameTaken ? "error" : "warning",
-        });
-        return;
-      }
-    }
-    const next = await saveUserProfile({ username: normalized });
-    setProfile(next);
-    setUsernameModalOpen(false);
-    Keyboard.dismiss();
-    const meta = await upsertPublicProfileMeta({
-      deviceProfileId: next.deviceProfileId,
-      username: next.username,
-      avatarStoragePath: next.avatarStoragePath ?? null,
-    });
-    if (!meta.ok && isSupabaseConfigured()) {
-      await saveUserProfile({ username: prevUsername });
-      const reverted = await loadUserProfile();
-      setProfile(reverted);
-      showAlert({
-        title: "Could not sync username",
-        message: meta.message ?? "Try again later.",
-        variant: "error",
-      });
-    }
-  };
 
   const persistAvatarLocal = async (pickerUri: string, mime?: string | null) => {
     if (Platform.OS === "web") {
@@ -523,6 +402,7 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     const up = await uploadProfileAvatarToCloud(
       current.deviceProfileId,
       current.username,
+      current.tagSuffix,
       localUri,
       mime
     );
@@ -640,6 +520,7 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
       const cloud = await deleteProfileAvatarFromCloud(
         current.deviceProfileId,
         current.username,
+        current.tagSuffix,
         current.avatarStoragePath ?? null
       );
       if (!cloud.ok && isSupabaseConfigured()) {
@@ -661,7 +542,7 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
   };
 
   const openAvatarOptions = () => {
-    if (!profileEditing) return;
+    if (avatarBusy) return;
     setAvatarSheetOpen(true);
   };
 
@@ -682,24 +563,24 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     confirmRemoveAvatar();
   };
 
-  const copyUserId = useCallback(async () => {
-    const id = profile?.deviceProfileId?.trim();
-    if (!id) return;
+  const copyListahanTag = useCallback(async () => {
+    const tag = listahanPublicTag(profile?.username ?? "", profile?.tagSuffix);
+    if (!tag) return;
     try {
-      await Clipboard.setStringAsync(id);
+      await Clipboard.setStringAsync(tag);
       showAlert({
         title: "Copied",
-        message: "Your user ID was copied to the clipboard.",
+        message: "Your Listahan tag was copied to the clipboard.",
         variant: "success",
       });
     } catch {
       showAlert({
         title: "Could not copy",
-        message: "Try selecting the ID manually.",
+        message: "Try selecting the tag manually.",
         variant: "error",
       });
     }
-  }, [profile?.deviceProfileId, showAlert]);
+  }, [profile?.username, profile?.tagSuffix, showAlert]);
 
   const confirmResetTools = () => {
     showAlert({
@@ -728,6 +609,27 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
   const rowChevron = () => <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />;
 
   const username = profile?.username ?? "";
+  const publicTag = listahanPublicTag(username, profile?.tagSuffix);
+
+  const renderListahanTagRow = () => {
+    if (!publicTag) return null;
+    return (
+      <View style={styles.tagRow}>
+        <Text style={styles.tagText} selectable>
+          {publicTag}
+        </Text>
+        <Pressable
+          onPress={() => void copyListahanTag()}
+          hitSlop={10}
+          style={styles.tagCopyBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Copy Listahan tag"
+        >
+          <Ionicons name="copy-outline" size={17} color={colors.linkBlue} />
+        </Pressable>
+      </View>
+    );
+  };
   const memberSince = profile?.createdAt ? formatMemberSince(profile.createdAt) : "";
   const avatarUri = profile?.avatarLocalUri || profile?.avatarRemoteUrl;
   const hasPortrait = Boolean(profile?.avatarLocalUri || profile?.avatarRemoteUrl);
@@ -739,8 +641,6 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     { label: "Reminders", value: remindersCount },
     { label: "Vault sheets", value: privateLists.length },
   ];
-
-  const modalBottomPad = Math.max(insets.bottom, 12) + keyboardPad;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
@@ -769,105 +669,50 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.heroEditBtn,
-              profileEditing && styles.heroEditBtnActive,
-              pressed && { opacity: 0.88 },
-            ]}
-            onPress={toggleProfileEditing}
-            accessibilityRole="button"
-            accessibilityLabel={profileEditing ? "Done editing profile" : "Edit profile"}
-            accessibilityState={{ selected: profileEditing }}
-          >
-            <Ionicons
-              name={profileEditing ? "checkmark" : "create-outline"}
-              size={20}
-              color={profileEditing ? "#fff" : colors.primaryDark}
-            />
-          </Pressable>
-
-          <Pressable
-            style={styles.avatarPress}
-            onPress={openAvatarOptions}
-            disabled={!profileEditing || avatarBusy}
-            accessibilityRole={profileEditing ? "button" : "image"}
-            accessibilityLabel={
-              profileEditing ? "Change profile photo" : `Profile photo for ${username.trim() || "user"}`
-            }
-          >
-            <View style={styles.avatar}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImage} resizeMode="cover" />
-              ) : (
-                <Text style={styles.avatarText}>{profileInitials(username)}</Text>
-              )}
-              {avatarBusy ? (
-                <View
-                  style={[
-                    StyleSheet.absoluteFillObject,
-                    { alignItems: "center", justifyContent: "center", backgroundColor: colors.overlayStrong },
-                  ]}
-                >
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : null}
-            </View>
-            {profileEditing ? (
-              <View style={styles.avatarBadge} pointerEvents="none">
-                <Ionicons name="camera" size={14} color="#fff" />
-              </View>
-            ) : null}
-          </Pressable>
-
-          {profileEditing ? (
+          <View style={styles.heroTopRow}>
             <Pressable
-              style={styles.nameBlock}
-              onPress={openUsernameModal}
+              style={styles.avatarPress}
+              onPress={openAvatarOptions}
+              disabled={avatarBusy}
               accessibilityRole="button"
-              accessibilityLabel="Edit username"
+              accessibilityLabel="Change profile photo"
             >
-              <Text style={styles.heroName}>{username.trim() ? username.trim() : "Username"}</Text>
-              <Text style={styles.heroSub}>
-                {memberSince ? `Using ${APP_DISPLAY_NAME} since ${memberSince}` : `Your ${APP_DISPLAY_NAME} space`}
-              </Text>
+              <View style={styles.avatar}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>{profileInitials(username)}</Text>
+                )}
+                {avatarBusy ? (
+                  <View
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      { alignItems: "center", justifyContent: "center", backgroundColor: colors.overlayStrong },
+                    ]}
+                  >
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.avatarBadge} pointerEvents="none">
+                <Ionicons name="camera" size={13} color="#fff" />
+              </View>
             </Pressable>
-          ) : (
-            <View style={styles.nameBlock}>
-              <Text style={styles.heroName}>{username.trim() ? username.trim() : "Username"}</Text>
-              <Text style={styles.heroSub}>
-                {memberSince ? `Using ${APP_DISPLAY_NAME} since ${memberSince}` : `Your ${APP_DISPLAY_NAME} space`}
+
+            <View style={styles.heroIdentity}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {username.trim() ? username.trim() : "Username"}
+              </Text>
+              {renderListahanTagRow()}
+              <Text style={styles.heroSub} numberOfLines={2}>
+                {memberSince ? `On ${APP_DISPLAY_NAME} since ${memberSince}` : `Your ${APP_DISPLAY_NAME} space`}
               </Text>
             </View>
-          )}
+          </View>
 
           <Text style={styles.cloudHint}>
-            {isSupabaseConfigured()
-              ? "Portrait and username sync to your Supabase project so discovery search can show them later."
-              : `Portrait stays on this device until you add Supabase keys; then it uploads for future sync.`}
+            Portrait and tag saved for when others can find you on {APP_DISPLAY_NAME}.
           </Text>
-
-          <View style={styles.userIdBlock}>
-            <View style={styles.userIdHeaderRow}>
-              <Text style={styles.userIdLabel}>User ID</Text>
-              <Pressable
-                onPress={() => void copyUserId()}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Copy user ID"
-              >
-                <Text style={styles.userIdCopyLink}>Copy</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.userIdValue} selectable>
-              {profile?.deviceProfileId ?? "…"}
-            </Text>
-            <Text style={styles.userIdCaption}>
-              {isSupabaseConfigured()
-                ? "Your Supabase profile key (same as your avatar storage folder)."
-                : "Stored on this device; with Supabase it becomes your cloud profile key."}
-            </Text>
-          </View>
         </View>
 
         <Text style={styles.sectionTitle}>On this device</Text>
@@ -933,7 +778,7 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
             onPress={() =>
               showAlert({
                 title: "Data on this device",
-                message: `${APP_DISPLAY_NAME} keeps your lists, notes, reminders, and vault on this phone. With Supabase configured, your username, portrait, and user ID (UUID) upload for future discovery sync; nothing else is uploaded unless you share or import a code.`,
+                message: `${APP_DISPLAY_NAME} keeps your lists, notes, reminders, and vault on this phone. With Supabase configured, your Listahan tag (@username), portrait, and profile upload for future discovery sync; nothing else is uploaded unless you share or import a code.`,
                 variant: "info",
               })
             }
@@ -955,60 +800,6 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
           support.
         </Text>
       </ScrollView>
-
-      <Modal
-        visible={usernameModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          Keyboard.dismiss();
-          setUsernameModalOpen(false);
-        }}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => {
-              Keyboard.dismiss();
-              setUsernameModalOpen(false);
-            }}
-          />
-          <View style={[styles.modalSheet, { paddingBottom: modalBottomPad }]}>
-            <Text style={styles.modalTitle}>Username</Text>
-            <Text style={styles.rowSubtitle}>
-              Must be unique across Listahan when Supabase is enabled. Letters, numbers, underscores; 3–30 characters.
-              Not embedded in list share exports.
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={usernameDraft}
-              onChangeText={setUsernameDraft}
-              placeholder="your_username"
-              placeholderTextColor={colors.placeholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-              maxLength={30}
-              returnKeyType="done"
-              onSubmitEditing={() => void saveUsername()}
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnGhost]}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setUsernameModalOpen(false);
-                }}
-              >
-                <Text style={styles.modalBtnTextGhost}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => void saveUsername()}>
-                <Text style={styles.modalBtnTextPrimary}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         visible={avatarSheetOpen}
