@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "debug:deps": "node scripts/debug-deps-probe.mjs",
     "build:apk": "eas build -p android --profile preview",
+    "eas:env:sync": "node scripts/sync-eas-env-from-dotenv.mjs",
+    "build:apk:full": "node scripts/sync-eas-env-from-dotenv.mjs && eas build -p android --profile preview",
     "qr:install": "node scripts/generate-install-qr.mjs",
     "build:aab": "eas build -p android --profile production",
     "icons:brand": "node scripts/render-listahan-icons.cjs"
