@@ -4,6 +4,8 @@ const appJson = require("./app.json");
 module.exports = {
   expo: {
     ...appJson.expo,
+    /** Must match the Expo project slug tied to extra.eas.projectId (EAS build). */
+    slug: "saycart",
     extra: {
       ...(appJson.expo.extra ?? {}),
       eas: {
