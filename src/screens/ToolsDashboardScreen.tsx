@@ -23,7 +23,10 @@ import { TOOLS_CATALOG, type ToolDefinition, type ToolId } from "../constants/to
 import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
 import { usePrivateVault } from "../context/PrivateVaultContext";
+import { useSyncSession } from "../context/SyncSessionContext";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
+import { loadUserProfile, profileGreetingName } from "../utils/userProfileStorage";
+import { isSupabaseConfigured } from "../services/supabaseClient";
 import { loadToolOrder, saveToolOrder } from "../utils/toolsDashboardOrder";
 import ToolsDashboardReorderGrid from "../components/ToolsDashboardReorderGrid";
 
@@ -38,9 +41,6 @@ const LISTAHAN_HEADER_LOGO_DARK_UI = require("../../assets/branding/listahan-log
 const LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK = 2316.07 / 506.96;
 /** Dashboard header mark height (80% of prior 38px). */
 const HEADER_LOGO_HEIGHT = 30;
-
-/** TODO: remove before release — shortcut to username onboarding for QA/builds. */
-const SHOW_USERNAME_SETUP_DEV_BUTTON = true;
 
 function createDashboardStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -94,22 +94,62 @@ function createDashboardStyles(c: AppThemeColors) {
       fontWeight: "800",
       color: "#fff",
     },
-    devBtn: {
+    welcomeCard: {
       marginHorizontal: GRID_H_PAD,
-      marginBottom: 10,
-      paddingVertical: 10,
-      paddingHorizontal: 14,
+      marginBottom: 12,
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      backgroundColor: c.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    welcomeTitle: { fontSize: 20, fontWeight: "800", color: c.text },
+    welcomeSub: {
+      marginTop: 6,
+      fontSize: 14,
+      fontWeight: "500",
+      color: c.textSecondary,
+      lineHeight: 20,
+    },
+    welcomeSyncChip: {
+      marginTop: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: c.inputBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    welcomeSyncChipText: { fontSize: 14, fontWeight: "700", color: c.linkBlue },
+    welcomeSyncBadge: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: c.danger,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 6,
+    },
+    welcomeSyncBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+    syncBanner: {
+      marginHorizontal: GRID_H_PAD,
+      marginBottom: 12,
+      backgroundColor: c.inputBg,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
-      backgroundColor: c.inputBg,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      flexDirection: "row",
       alignItems: "center",
+      gap: 8,
     },
-    devBtnText: {
-      fontSize: 13,
-      fontWeight: "700",
-      color: c.placeholder,
-    },
+    syncBannerText: { flex: 1, fontSize: 14, fontWeight: "600", color: c.text },
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -338,6 +378,8 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const { colors, isDark } = useTheme();
   const styles = useAppStyles(createDashboardStyles);
   const { lock } = usePrivateVault();
+  const { session: syncSession, pendingIncomingCount, refreshSyncState } = useSyncSession();
+  const [greetingName, setGreetingName] = useState("");
 
   const [orderedTools, setOrderedTools] = useState<ToolDefinition[]>(() => [...TOOLS_CATALOG]);
   const orderedToolsRef = useRef(orderedTools);
@@ -376,6 +418,8 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   useFocusEffect(
     useCallback(() => {
       lock();
+      void refreshSyncState();
+      void loadUserProfile().then((p) => setGreetingName(profileGreetingName(p.username)));
       if (reorderMode) return;
       let cancelled = false;
       void loadToolOrder().then((ids) => {
@@ -384,7 +428,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
       return () => {
         cancelled = true;
       };
-    }, [lock, reorderMode])
+    }, [lock, reorderMode, refreshSyncState])
   );
 
   useEffect(() => {
@@ -495,14 +539,46 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           }}
           showsVerticalScrollIndicator={false}
         >
-          {SHOW_USERNAME_SETUP_DEV_BUTTON ? (
+          <View style={styles.welcomeCard}>
+            <Text style={styles.welcomeTitle}>
+              {greetingName ? `Hello, ${greetingName}` : `Welcome to ${APP_DISPLAY_NAME}`}
+            </Text>
+            <Text style={styles.welcomeSub}>
+              Groceries, to-dos, notes, reminders, and vault — tap a tile or long-press to reorder.
+            </Text>
+            {isSupabaseConfigured() && !syncSession && pendingIncomingCount > 0 ? (
+              <Pressable
+                style={({ pressed }) => [styles.welcomeSyncChip, pressed && { opacity: 0.88 }]}
+                onPress={() => navigation.navigate("SyncSearch")}
+                accessibilityRole="button"
+                accessibilityLabel={`${pendingIncomingCount} sync requests waiting`}
+              >
+                <Ionicons name="people-outline" size={18} color={colors.linkBlue} />
+                <Text style={styles.welcomeSyncChipText}>
+                  {pendingIncomingCount === 1
+                    ? "1 sync request"
+                    : `${pendingIncomingCount} sync requests`}
+                </Text>
+                <View style={styles.welcomeSyncBadge}>
+                  <Text style={styles.welcomeSyncBadgeText}>
+                    {pendingIncomingCount > 9 ? "9+" : pendingIncomingCount}
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
+          {syncSession ? (
             <Pressable
-              style={({ pressed }) => [styles.devBtn, pressed && { opacity: 0.85 }]}
-              onPress={() => navigation.navigate("UsernameSetup")}
+              style={({ pressed }) => [styles.syncBanner, pressed && { opacity: 0.88 }]}
+              onPress={() => navigation.navigate("SyncSettings")}
               accessibilityRole="button"
-              accessibilityLabel="Open username setup (development only)"
+              accessibilityLabel="Open sync settings"
             >
-              <Text style={styles.devBtnText}>Dev: Username setup</Text>
+              <Ionicons name="cog-outline" size={18} color={colors.linkBlue} />
+              <Text style={styles.syncBannerText}>
+                Synced with {syncSession.partnerPublicTag || syncSession.partnerUsername}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
             </Pressable>
           ) : null}
           <View style={styles.grid}>

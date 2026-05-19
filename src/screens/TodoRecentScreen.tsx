@@ -10,13 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { TodoRecentProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import type { TodoHistoryEntry } from "../types";
 
@@ -104,7 +103,7 @@ function createHistoryStyles(c: AppThemeColors) {
 export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("todo");
-  const styles = useAppStyles(createHistoryStyles);
+  const styles = useToolStyles("todo", createHistoryStyles);
   const { todoHistory, createTodoListFromHistory } = useAppData();
   const [picker, setPicker] = useState<TodoHistoryEntry | null>(null);
   const [newName, setNewName] = useState("");

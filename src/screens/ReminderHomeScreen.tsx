@@ -11,14 +11,12 @@ import {
   Platform,
   Linking,
 } from "react-native";
-import { useAppStyles, useAppStylesWithArgs } from "../hooks/useAppStyles";
-
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReminderHomeProps } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
 import {
@@ -149,7 +147,7 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
 export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("reminder");
-  const styles = useAppStylesWithArgs(createStyles, isDark);
+  const styles = useToolStylesWithArgs("reminder", createStyles, isDark);
 
   const [items, setItems] = useState<SavedReminder[]>([]);
   const [loading, setLoading] = useState(true);

@@ -12,6 +12,8 @@ export type RootStackParamList = {
   Welcome: { username: string };
   ToolsDashboard: undefined;
   Profile: undefined;
+  SyncSearch: undefined;
+  SyncSettings: undefined;
   Settings: undefined;
   GroceryHome: undefined;
   ShareExport: ShareExportRouteParams;
@@ -42,6 +44,8 @@ export type RootStackParamList = {
 };
 
 export type ProfileProps = NativeStackScreenProps<RootStackParamList, "Profile">;
+export type SyncSearchProps = NativeStackScreenProps<RootStackParamList, "SyncSearch">;
+export type SyncSettingsProps = NativeStackScreenProps<RootStackParamList, "SyncSettings">;
 export type SettingsProps = NativeStackScreenProps<RootStackParamList, "Settings">;
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;

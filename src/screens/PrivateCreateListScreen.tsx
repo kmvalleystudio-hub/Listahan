@@ -8,13 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { PrivateCreateListProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useVaultStyles, useVaultTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import PrivateVaultGate from "../components/PrivateVaultGate";
 
@@ -62,8 +61,8 @@ function createStyles(c: AppThemeColors) {
 
 export default function PrivateCreateListScreen({ navigation }: PrivateCreateListProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("private_list");
-  const styles = useAppStyles(createStyles);
+  const { colors } = useVaultTheme();
+  const styles = useVaultStyles(createStyles);
   const { createPrivateList } = useAppData();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

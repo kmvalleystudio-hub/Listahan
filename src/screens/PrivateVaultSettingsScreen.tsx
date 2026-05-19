@@ -15,15 +15,16 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
+import { useVaultStyles, useVaultTheme } from "../hooks/useToolTheme";
 
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { PrivateVaultSettingsProps } from "../navigation/types";
-import { useToolTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
+import { useFocusEffect } from "@react-navigation/native";
 import PrivateVaultGate from "../components/PrivateVaultGate";
+import { usePrivateVault } from "../context/PrivateVaultContext";
 import RecoveryQuestionPicker from "../components/RecoveryQuestionPicker";
 import { RECOVERY_PRESETS } from "../constants/privateVaultRecovery";
 import {
@@ -32,11 +33,14 @@ import {
   isValidPinFormat,
   getBiometricsPreference,
   setBiometricsPreference,
+  getVaultSyncAllowed,
+  setVaultSyncAllowed,
   getRecoveryQuestion,
   setRecoverySecret,
-  PIN_LENGTH_MIN,
   PIN_LENGTH_MAX,
 } from "../utils/privateVaultPin";
+import VaultSyncPinConfirmModal from "../components/VaultSyncPinConfirmModal";
+import VaultPinSlotInput from "../components/VaultPinSlotInput";
 
 function createStyles(c: AppThemeColors) {
   return StyleSheet.create({
@@ -145,12 +149,17 @@ function createStyles(c: AppThemeColors) {
 
 export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultSettingsProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useToolTheme("private_list");
-  const styles = useAppStyles(createStyles);
+  const { colors } = useVaultTheme();
+  const styles = useVaultStyles(createStyles);
+  const { refreshVaultSyncAllowed } = usePrivateVault();
 
   const [bioPref, setBioPref] = useState(true);
   const [bioHardware, setBioHardware] = useState(false);
   const [loadingPref, setLoadingPref] = useState(true);
+  const [syncAllowed, setSyncAllowed] = useState(false);
+
+  const [syncPinModal, setSyncPinModal] = useState(false);
+  const [syncPinBusy, setSyncPinBusy] = useState(false);
 
   const [pinModal, setPinModal] = useState(false);
   const [curPin, setCurPin] = useState("");
@@ -203,13 +212,15 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
   const loadPrefs = useCallback(async () => {
     setLoadingPref(true);
     try {
-      const [pref, has, enrolled] = await Promise.all([
+      const [pref, has, enrolled, syncPref] = await Promise.all([
         getBiometricsPreference(),
         LocalAuthentication.hasHardwareAsync(),
         LocalAuthentication.isEnrolledAsync(),
+        getVaultSyncAllowed(),
       ]);
       setBioPref(pref);
       setBioHardware(Boolean(has && enrolled));
+      setSyncAllowed(syncPref);
       const rq = await getRecoveryQuestion();
       setRecoveryPreview(rq);
     } finally {
@@ -220,6 +231,43 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
   useEffect(() => {
     void loadPrefs();
   }, [loadPrefs]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPrefs();
+    }, [loadPrefs])
+  );
+
+  const onToggleSyncAllowed = useCallback(
+    async (next: boolean) => {
+      if (!next) {
+        await setVaultSyncAllowed(false);
+        setSyncAllowed(false);
+        await refreshVaultSyncAllowed();
+        return;
+      }
+      setSyncPinModal(true);
+    },
+    [refreshVaultSyncAllowed]
+  );
+
+  const onVaultSyncPinVerified = useCallback(async () => {
+    setSyncPinBusy(true);
+    try {
+      await setVaultSyncAllowed(true);
+      setSyncAllowed(true);
+      await refreshVaultSyncAllowed();
+      setSyncPinModal(false);
+      Alert.alert(
+        "Vault sync enabled",
+        "You can now include Vault sheets when requesting or accepting a user sync."
+      );
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setSyncPinBusy(false);
+    }
+  }, [refreshVaultSyncAllowed]);
 
   const onToggleBio = useCallback(
     async (next: boolean) => {
@@ -247,7 +295,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
       return;
     }
     if (!isValidPinFormat(newPin)) {
-      Alert.alert("PIN", `New PIN must be ${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits.`);
+      Alert.alert("PIN", `New PIN must be ${PIN_LENGTH_MAX} digits.`);
       return;
     }
     if (newPin !== newPin2) {
@@ -361,6 +409,26 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sync</Text>
+            <View style={styles.card}>
+              {loadingPref ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>Include Vault in user sync</Text>
+                    <Text style={styles.rowHint}>
+                      When on, you can share Vault sheets with another Listahan user. Turning this on
+                      requires your vault PIN (not Face ID or Touch ID). Your PIN is never uploaded.
+                    </Text>
+                  </View>
+                  <Switch value={syncAllowed} onValueChange={(v) => void onToggleSyncAllowed(v)} />
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>PIN</Text>
             <View style={styles.card}>
               <Text style={styles.rowHint}>
@@ -395,12 +463,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
       </View>
 
       <Modal visible={pinModal} transparent animationType="slide" onRequestClose={() => setPinModal(false)}>
-        <View
-          style={[
-            styles.modalRoot,
-            modalKbInset > 0 && { justifyContent: "flex-start", paddingTop: insets.top + 8 },
-          ]}
-        >
+        <View style={styles.modalRoot}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => !pinBusy && setPinModal(false)} />
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -418,40 +481,31 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
               ]}
             >
               <Text style={styles.modalTitle}>Change PIN</Text>
-              <TextInput
+              <Text style={styles.rowHint}>Current PIN</Text>
+              <VaultPinSlotInput
                 value={curPin}
-                onChangeText={(t) => setCurPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setCurPin}
+                colors={colors}
                 placeholder="Current PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!pinBusy}
+                disabled={pinBusy}
                 onFocus={scrollPinModalToEnd}
               />
-              <TextInput
+              <Text style={[styles.rowHint, { marginTop: 12 }]}>New PIN</Text>
+              <VaultPinSlotInput
                 value={newPin}
-                onChangeText={(t) => setNewPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setNewPin}
+                colors={colors}
                 placeholder="New PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!pinBusy}
+                disabled={pinBusy}
                 onFocus={scrollPinModalToEnd}
               />
-              <TextInput
+              <Text style={[styles.rowHint, { marginTop: 12 }]}>Confirm new PIN</Text>
+              <VaultPinSlotInput
                 value={newPin2}
-                onChangeText={(t) => setNewPin2(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setNewPin2}
+                colors={colors}
                 placeholder="Confirm new PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!pinBusy}
+                disabled={pinBusy}
                 onFocus={scrollPinModalToEnd}
               />
               <TouchableOpacity
@@ -469,13 +523,17 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
         </View>
       </Modal>
 
+      <VaultSyncPinConfirmModal
+        visible={syncPinModal && !syncPinBusy}
+        colors={colors}
+        onClose={() => !syncPinBusy && setSyncPinModal(false)}
+        onVerified={() => void onVaultSyncPinVerified()}
+        message="Enter your 6-digit vault PIN to allow Vault sheets in user sync. Biometrics cannot be used for this step."
+        confirmLabel="Enable Vault sync"
+      />
+
       <Modal visible={recModal} transparent animationType="slide" onRequestClose={() => setRecModal(false)}>
-        <View
-          style={[
-            styles.modalRoot,
-            modalKbInset > 0 && { justifyContent: "flex-start", paddingTop: insets.top + 8 },
-          ]}
-        >
+        <View style={styles.modalRoot}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => !recBusy && setRecModal(false)} />
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -494,16 +552,12 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
             >
               <Text style={styles.modalTitle}>Update recovery phrase</Text>
               <Text style={styles.rowHint}>Enter your current vault PIN first.</Text>
-              <TextInput
+              <VaultPinSlotInput
                 value={recCurPin}
-                onChangeText={(t) => setRecCurPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setRecCurPin}
+                colors={colors}
                 placeholder="Current PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!recBusy}
+                disabled={recBusy}
                 onFocus={scrollRecModalToEnd}
               />
               <RecoveryQuestionPicker

@@ -15,6 +15,8 @@ import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { TOOLS_CATALOG } from "../constants/toolsCatalog";
 import ProfileAvatarField from "../components/ProfileAvatarField";
 import { isSupabaseConfigured } from "../services/supabaseClient";
+import { reconcilePublicProfileToCloud } from "../services/profileCloudSync";
+import { useSyncSession } from "../context/SyncSessionContext";
 import {
   formatMemberSince,
   listahanPublicTag,
@@ -61,6 +63,35 @@ function createStyles(c: AppThemeColors) {
       padding: 14,
       gap: 10,
     },
+    heroCardHeader: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      alignItems: "center",
+      minHeight: 28,
+    },
+    syncBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      backgroundColor: c.inputBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+    },
+    syncBtnText: { fontSize: 14, fontWeight: "700", color: c.linkBlue },
+    syncBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: c.danger,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 5,
+      marginLeft: 2,
+    },
+    syncBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
     heroTopRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -139,8 +170,12 @@ function createStyles(c: AppThemeColors) {
     fontSizeBlock: {
       paddingVertical: 14,
       paddingHorizontal: 16,
-      gap: 2,
+      gap: 8,
       borderBottomWidth: 0,
+    },
+    fontSizeSliderWrap: {
+      width: "100%",
+      alignSelf: "stretch",
     },
     rowIcon: {
       width: 36,
@@ -199,6 +234,7 @@ function createStyles(c: AppThemeColors) {
 
 export default function ProfileScreen({ navigation }: ProfileProps) {
   const insets = useSafeAreaInsets();
+  const { pendingIncomingCount, session, refreshSyncState } = useSyncSession();
   const {
     colors,
     isDark,
@@ -224,13 +260,33 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     setProfile(p);
     setNotesCount(notes.length);
     setRemindersCount(reminders.length);
+    if (isSupabaseConfigured() && p.username.trim()) {
+      void reconcilePublicProfileToCloud(p);
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
-    }, [refresh])
+      void refreshSyncState();
+    }, [refresh, refreshSyncState])
   );
+
+  const openSync = () => {
+    if (!isSupabaseConfigured()) {
+      showAlert({
+        title: "Sync unavailable",
+        message: "Connect Supabase in this build to search and sync with other users.",
+        variant: "info",
+      });
+      return;
+    }
+    if (session) {
+      navigation.navigate("SyncSettings");
+    } else {
+      navigation.navigate("SyncSearch");
+    }
+  };
 
   const copyListahanTag = useCallback(async () => {
     const tag = listahanPublicTag(profile?.username ?? "", profile?.tagSuffix);
@@ -336,6 +392,36 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
+          {isSupabaseConfigured() ? (
+            <View style={styles.heroCardHeader}>
+              <Pressable
+                onPress={openSync}
+                style={styles.syncBtn}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  session
+                    ? `Synced with ${session.partnerPublicTag || session.partnerUsername}. Open sync settings.`
+                    : pendingIncomingCount > 0
+                      ? `Sync, ${pendingIncomingCount} pending requests`
+                      : "Sync with another user"
+                }
+              >
+                <Ionicons
+                  name={session ? "cog-outline" : "link-outline"}
+                  size={18}
+                  color={colors.linkBlue}
+                />
+                <Text style={styles.syncBtnText}>{session ? "Synced" : "Sync"}</Text>
+                {!session && pendingIncomingCount > 0 ? (
+                  <View style={styles.syncBadge}>
+                    <Text style={styles.syncBadgeText}>
+                      {pendingIncomingCount > 9 ? "9+" : pendingIncomingCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
+          ) : null}
           <View style={styles.heroTopRow}>
             <ProfileAvatarField
               colors={colors}
@@ -397,12 +483,14 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
                 ? "Using your device text size for the app."
                 : "Drag the slider — 3 is the default size."}
             </Text>
-            <FontSizeStepSlider
-              colors={colors}
-              value={fontSizeLevel}
-              onValueChange={setFontSizeLevel}
-              disabled={useSystemFontSize}
-            />
+            <View style={styles.fontSizeSliderWrap}>
+              <FontSizeStepSlider
+                colors={colors}
+                value={fontSizeLevel}
+                onValueChange={setFontSizeLevel}
+                disabled={useSystemFontSize}
+              />
+            </View>
           </View>
         </View>
 

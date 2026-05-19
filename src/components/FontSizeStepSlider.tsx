@@ -108,13 +108,18 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        root: { paddingTop: 4, opacity: disabled ? 0.45 : 1 },
+        root: {
+          width: "100%",
+          alignSelf: "stretch",
+          opacity: disabled ? 0.45 : 1,
+        },
         trackArea: {
+          width: "100%",
           height: THUMB_SIZE + 8,
           justifyContent: "center",
-          marginTop: 6,
         },
         trackPress: {
+          width: "100%",
           height: THUMB_SIZE + 20,
           justifyContent: "center",
         },

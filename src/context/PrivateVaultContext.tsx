@@ -1,14 +1,19 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AppState, type AppStateStatus, Platform } from "react-native";
-import { hasStoredPin } from "../utils/privateVaultPin";
+import { getVaultSyncAllowed, hasStoredPin } from "../utils/privateVaultPin";
 
 type PrivateVaultContextValue = {
   ready: boolean;
   hasPin: boolean;
   unlocked: boolean;
+  /** User opted in (via Vault settings + PIN) to include Vault in user sync. */
+  vaultSyncAllowed: boolean;
+  /** @deprecated Use vaultSyncAllowed. Kept so stale Metro bundles do not crash on hot reload. */
+  vaultUnlocked: boolean;
   lock: () => void;
   unlock: () => void;
   refreshHasPin: () => Promise<void>;
+  refreshVaultSyncAllowed: () => Promise<void>;
 };
 
 const PrivateVaultContext = createContext<PrivateVaultContextValue | null>(null);
@@ -17,10 +22,16 @@ export function PrivateVaultProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(false);
   const [hasPin, setHasPin] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [vaultSyncAllowed, setVaultSyncAllowed] = useState(false);
 
   const refreshHasPin = useCallback(async () => {
     const h = await hasStoredPin();
     setHasPin(h);
+  }, []);
+
+  const refreshVaultSyncAllowed = useCallback(async () => {
+    const allowed = await getVaultSyncAllowed();
+    setVaultSyncAllowed(allowed);
   }, []);
 
   useEffect(() => {
@@ -30,17 +41,18 @@ export function PrivateVaultProvider({ children }: { children: React.ReactNode }
         if (!cancelled) {
           setHasPin(false);
           setUnlocked(true);
+          setVaultSyncAllowed(false);
           setReady(true);
         }
         return;
       }
-      await refreshHasPin();
+      await Promise.all([refreshHasPin(), refreshVaultSyncAllowed()]);
       if (!cancelled) setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshHasPin]);
+  }, [refreshHasPin, refreshVaultSyncAllowed]);
 
   const lock = useCallback(() => {
     setUnlocked(false);
@@ -64,11 +76,14 @@ export function PrivateVaultProvider({ children }: { children: React.ReactNode }
       ready,
       hasPin,
       unlocked,
+      vaultSyncAllowed,
+      vaultUnlocked: vaultSyncAllowed,
       lock,
       unlock,
       refreshHasPin,
+      refreshVaultSyncAllowed,
     }),
-    [ready, hasPin, unlocked, lock, unlock, refreshHasPin]
+    [ready, hasPin, unlocked, vaultSyncAllowed, lock, unlock, refreshHasPin, refreshVaultSyncAllowed]
   );
 
   return <PrivateVaultContext.Provider value={value}>{children}</PrivateVaultContext.Provider>;

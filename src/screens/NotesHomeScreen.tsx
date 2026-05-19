@@ -9,13 +9,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useAppStyles, useAppStylesWithArgs } from "../hooks/useAppStyles";
-
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { NotesHomeProps } from "../navigation/types";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
 import {
@@ -117,7 +115,7 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
 export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("notes");
-  const styles = useAppStylesWithArgs(createStyles, isDark);
+  const styles = useToolStylesWithArgs("notes", createStyles, isDark);
 
   const [notes, setNotes] = useState<QuickNote[]>([]);
   const [loading, setLoading] = useState(true);

@@ -6,13 +6,16 @@ const ASYNC_PIN_FALLBACK_KEY = "@saycart/private_vault_pin_async_fallback_v1";
 const BIO_PREF_KEY = "saycart_private_vault_bio_pref_v1";
 const ASYNC_BIO_PREF_FALLBACK = "@saycart/private_vault_bio_pref_async_v1";
 
+const VAULT_SYNC_ALLOWED_KEY = "saycart_private_vault_sync_allowed_v1";
+const ASYNC_VAULT_SYNC_ALLOWED_FALLBACK = "@saycart/private_vault_sync_allowed_async_v1";
+
 const RECOVERY_Q_KEY = "saycart_private_vault_recovery_q_v1";
 const ASYNC_RECOVERY_Q_FALLBACK = "@saycart/private_vault_recovery_q_async_v1";
 
 const RECOVERY_A_KEY = "saycart_private_vault_recovery_a_v1";
 const ASYNC_RECOVERY_A_FALLBACK = "@saycart/private_vault_recovery_a_async_v1";
 
-export const PIN_LENGTH_MIN = 4;
+export const PIN_LENGTH_MIN = 6;
 export const PIN_LENGTH_MAX = 6;
 
 type SecureStoreModule = typeof import("expo-secure-store");
@@ -108,6 +111,16 @@ export async function getBiometricsPreference(): Promise<boolean> {
 
 export async function setBiometricsPreference(enabled: boolean): Promise<void> {
   await writeVaultString(BIO_PREF_KEY, ASYNC_BIO_PREF_FALLBACK, enabled ? "1" : "0");
+}
+
+/** Explicit opt-in to upload Vault sheets during user sync (enabled only after PIN verification). */
+export async function getVaultSyncAllowed(): Promise<boolean> {
+  const raw = await readVaultString(VAULT_SYNC_ALLOWED_KEY, ASYNC_VAULT_SYNC_ALLOWED_FALLBACK);
+  return raw === "1";
+}
+
+export async function setVaultSyncAllowed(enabled: boolean): Promise<void> {
+  await writeVaultString(VAULT_SYNC_ALLOWED_KEY, ASYNC_VAULT_SYNC_ALLOWED_FALLBACK, enabled ? "1" : "0");
 }
 
 export async function getRecoveryQuestion(): Promise<string | null> {

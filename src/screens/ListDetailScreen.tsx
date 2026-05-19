@@ -195,7 +195,13 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const activeReorderExtraData = useMemo(() => {
     if (!list) return "";
     const { active: a } = splitActiveAndCompleted(list.items);
-    return a.map((i) => `${i.id}:${i.priority ? 1 : 0}:${i.order}`).join("|");
+    const itemsKey = a
+      .map(
+        (i) =>
+          `${i.id}:${i.priority ? 1 : 0}:${i.order}:${i.quantity}:${i.price}:${i.checked ? 1 : 0}:${i.name}`
+      )
+      .join("|");
+    return `${list.showItemPrice ? 1 : 0}|${list.currencySymbol}|${itemsKey}`;
   }, [list]);
   const listRef = useRef<GroceryList | null>(list);
   listRef.current = list;

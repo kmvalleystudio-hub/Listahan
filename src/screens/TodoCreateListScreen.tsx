@@ -8,13 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { TodoCreateListProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 
 function createStyles(c: AppThemeColors) {
@@ -61,7 +60,7 @@ function createStyles(c: AppThemeColors) {
 export default function TodoCreateListScreen({ navigation }: TodoCreateListProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("todo");
-  const styles = useAppStyles(createStyles);
+  const styles = useToolStyles("todo", createStyles);
   const { createTodoList } = useAppData();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

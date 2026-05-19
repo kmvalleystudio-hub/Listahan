@@ -1,6 +1,8 @@
 import { File as ExpoFsFile } from "expo-file-system";
 import { Platform } from "react-native";
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient";
+import { isValidTagSuffix } from "../utils/listahanTagSuffix";
+import { normalizeUsername } from "../utils/usernameRules";
 import type { UserProfile } from "../utils/userProfileStorage";
 
 const BUCKET = "profile_avatars";
@@ -155,11 +157,17 @@ export async function upsertPublicProfileMeta(
   profile: Pick<UserProfile, "deviceProfileId" | "username" | "tagSuffix" | "avatarStoragePath">
 ): Promise<{ ok: boolean; message?: string }> {
   if (!isSupabaseConfigured()) return { ok: true };
+  const username = normalizeUsername(profile.username ?? "");
+  const tagSuffix = (profile.tagSuffix ?? "").trim().toLowerCase();
+  if (!username) return { ok: true };
+  if (!isValidTagSuffix(tagSuffix)) {
+    return { ok: false, message: "Tag suffix is missing or invalid on this device." };
+  }
   try {
     const { error } = await rpcUpsertPublicProfile({
       deviceProfileId: profile.deviceProfileId,
-      username: profile.username ?? "",
-      tagSuffix: profile.tagSuffix ?? "",
+      username,
+      tagSuffix,
       avatarStoragePath: profile.avatarStoragePath ?? null,
     });
     if (error) return { ok: false, message: error.message };
@@ -167,4 +175,17 @@ export async function upsertPublicProfileMeta(
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Sync failed." };
   }
+}
+
+/**
+ * Pushes local username + tag suffix to Supabase when the device has a full public tag
+ * but the cloud row may still be missing the suffix (e.g. profile created before tag migration).
+ */
+export async function reconcilePublicProfileToCloud(
+  profile: Pick<UserProfile, "deviceProfileId" | "username" | "tagSuffix" | "avatarStoragePath">
+): Promise<{ ok: boolean; message?: string }> {
+  if (!isSupabaseConfigured()) return { ok: true };
+  const username = normalizeUsername(profile.username ?? "");
+  if (!username || !isValidTagSuffix(profile.tagSuffix)) return { ok: true };
+  return upsertPublicProfileMeta(profile);
 }

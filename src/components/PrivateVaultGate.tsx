@@ -11,23 +11,24 @@ import {
   ScrollView,
   Keyboard,
   Dimensions,
+  StatusBar as RNStatusBar,
   type KeyboardEvent,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useIsFocused } from "@react-navigation/native";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { useVaultTheme, useVaultStyles } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { usePrivateVault } from "../context/PrivateVaultContext";
+import { useTheme } from "../context/ThemeContext";
+import VaultPinSlotInput from "./VaultPinSlotInput";
 import {
   getStoredPin,
   isValidPinFormat,
   setStoredPin,
   PIN_LENGTH_MAX,
-  PIN_LENGTH_MIN,
   setRecoverySecret,
   getRecoveryQuestion,
   hasRecoverySecret,
@@ -117,6 +118,18 @@ function createGateStyles(c: AppThemeColors) {
     rowGap: { marginTop: 8 },
     linkBtn: { marginTop: 14, paddingVertical: 8, alignItems: "center" },
     linkText: { fontSize: 15, fontWeight: "700", color: c.primary },
+    bioIconBtn: {
+      marginTop: 28,
+      alignSelf: "center",
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: c.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     sectionLabel: {
       marginTop: 14,
       fontSize: 12,
@@ -155,9 +168,20 @@ type ForgotPhase = "idle" | "answer" | "reset";
 export default function PrivateVaultGate({ children }: Props) {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
-  const { colors } = useToolTheme("private_list");
-  const styles = useAppStyles(createGateStyles);
+  const { scheme } = useTheme();
+  const { colors } = useVaultTheme();
+  const styles = useVaultStyles(createGateStyles);
   const { ready, hasPin, unlocked, unlock, refreshHasPin } = usePrivateVault();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isFocused) return;
+      RNStatusBar.setBarStyle("light-content");
+      return () => {
+        RNStatusBar.setBarStyle(scheme === "dark" ? "light-content" : "dark-content");
+      };
+    }, [isFocused, scheme])
+  );
 
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [createPin, setCreatePin] = useState("");
@@ -331,7 +355,7 @@ export default function PrivateVaultGate({ children }: Props) {
 
   const continueSetupFromPin = useCallback(() => {
     if (!isValidPinFormat(createPin)) {
-      Alert.alert("PIN length", `Use ${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits (numbers only).`);
+      Alert.alert("PIN length", `Use ${PIN_LENGTH_MAX} digits (numbers only).`);
       return;
     }
     if (createPin !== confirmPin) {
@@ -425,7 +449,7 @@ export default function PrivateVaultGate({ children }: Props) {
 
   const onCompleteForgotReset = useCallback(async () => {
     if (!isValidPinFormat(frPin)) {
-      Alert.alert("PIN length", `Use ${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits (numbers only).`);
+      Alert.alert("PIN length", `Use ${PIN_LENGTH_MAX} digits (numbers only).`);
       return;
     }
     if (frPin !== frConfirm) {
@@ -462,7 +486,7 @@ export default function PrivateVaultGate({ children }: Props) {
 
   const onUnlockWithPin = useCallback(async () => {
     if (!isValidPinFormat(unlockPin)) {
-      Alert.alert("PIN", `Enter your ${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digit PIN.`);
+      Alert.alert("PIN", `Enter all ${PIN_LENGTH_MAX} digits of your PIN.`);
       return;
     }
     setBusy(true);
@@ -507,7 +531,7 @@ export default function PrivateVaultGate({ children }: Props) {
   const headerSubtitle = (() => {
     if (showCreate) {
       if (setupStep === 1) {
-        return `Step 1 of ${bioAvailable ? 3 : 2}: choose a ${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digit PIN (numbers only).`;
+        return `Step 1 of ${bioAvailable ? 3 : 2}: choose a ${PIN_LENGTH_MAX}-digit PIN (numbers only).`;
       }
       if (setupStep === 2) {
         return "Step 2: if you forget your PIN, you can reset it with this answer. Answers are not case-sensitive.";
@@ -564,29 +588,21 @@ export default function PrivateVaultGate({ children }: Props) {
 
           {showCreate && setupStep === 1 ? (
             <View>
-              <TextInput
+              <VaultPinSlotInput
                 value={createPin}
-                onChangeText={(t) => setCreatePin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={[styles.pinInput, { marginTop: 0 }]}
-                placeholder={`${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits`}
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!busy}
+                onChangeValue={setCreatePin}
+                colors={colors}
+                placeholder="Choose PIN"
+                disabled={busy}
                 onFocus={scrollFormToEnd}
               />
               <Text style={[styles.hint, styles.rowGap]}>Confirm PIN</Text>
-              <TextInput
+              <VaultPinSlotInput
                 value={confirmPin}
-                onChangeText={(t) => setConfirmPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setConfirmPin}
+                colors={colors}
                 placeholder="Re-enter PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!busy}
+                disabled={busy}
                 onFocus={scrollFormToEnd}
               />
               <TouchableOpacity
@@ -716,28 +732,21 @@ export default function PrivateVaultGate({ children }: Props) {
           {!showCreate && forgotPhase === "reset" ? (
             <View>
               <Text style={styles.sectionLabel}>New PIN</Text>
-              <TextInput
+              <VaultPinSlotInput
                 value={frPin}
-                onChangeText={(t) => setFrPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={[styles.pinInput, { marginTop: 4 }]}
-                placeholder={`${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits`}
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!busy}
+                onChangeValue={setFrPin}
+                colors={colors}
+                placeholder="New PIN"
+                disabled={busy}
+                style={{ marginTop: 4 }}
               />
               <Text style={[styles.hint, styles.rowGap]}>Confirm new PIN</Text>
-              <TextInput
+              <VaultPinSlotInput
                 value={frConfirm}
-                onChangeText={(t) => setFrConfirm(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
+                onChangeValue={setFrConfirm}
+                colors={colors}
                 placeholder="Re-enter new PIN"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!busy}
+                disabled={busy}
               />
               <RecoveryQuestionPicker
                 colors={colors}
@@ -793,31 +802,13 @@ export default function PrivateVaultGate({ children }: Props) {
 
           {!showCreate && forgotPhase === "idle" ? (
             <View>
-              {bioAvailable && prefBioUnlock ? (
-                <TouchableOpacity
-                  style={[styles.primaryBtn, { marginTop: 0 }, busy && { opacity: 0.7 }]}
-                  onPress={() => void tryBiometricUnlock()}
-                  disabled={busy}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <Ionicons name="finger-print" size={22} color="#fff" />
-                    <Text style={styles.primaryBtnText}>Use biometrics / device lock</Text>
-                  </View>
-                </TouchableOpacity>
-              ) : null}
-              <Text style={[styles.hint, bioAvailable && prefBioUnlock ? { marginTop: 16 } : { marginTop: 0 }]}>
-                {bioAvailable && prefBioUnlock ? "Or enter your app PIN:" : "Enter your app PIN:"}
-              </Text>
-              <TextInput
+              <Text style={[styles.hint, { marginTop: 0 }]}>Enter your app PIN:</Text>
+              <VaultPinSlotInput
                 value={unlockPin}
-                onChangeText={(t) => setUnlockPin(t.replace(/\D/g, "").slice(0, PIN_LENGTH_MAX))}
-                style={styles.pinInput}
-                placeholder={`${PIN_LENGTH_MIN}–${PIN_LENGTH_MAX} digits`}
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={PIN_LENGTH_MAX}
-                editable={!busy}
+                onChangeValue={setUnlockPin}
+                colors={colors}
+                placeholder="Vault PIN"
+                disabled={busy}
                 onFocus={scrollFormToEnd}
                 onSubmitEditing={() => void onUnlockWithPin()}
               />
@@ -831,6 +822,17 @@ export default function PrivateVaultGate({ children }: Props) {
               <TouchableOpacity style={styles.linkBtn} onPress={() => void onStartForgot()} disabled={busy}>
                 <Text style={styles.linkText}>Forgot PIN?</Text>
               </TouchableOpacity>
+              {bioAvailable && prefBioUnlock ? (
+                <TouchableOpacity
+                  style={[styles.bioIconBtn, busy && { opacity: 0.7 }]}
+                  onPress={() => void tryBiometricUnlock()}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Unlock with biometrics or device lock"
+                >
+                  <Ionicons name="finger-print" size={30} color={colors.text} />
+                </TouchableOpacity>
+              ) : null}
               {busy ? <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} /> : null}
             </View>
           ) : null}

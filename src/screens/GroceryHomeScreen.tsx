@@ -12,13 +12,11 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { useAppStyles, useAppStylesWithArgs } from "../hooks/useAppStyles";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { GroceryHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
 import {
@@ -327,7 +325,7 @@ function createHomeStyles(c: AppThemeColors, isDark: boolean) {
 export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("grocery");
-  const styles = useAppStylesWithArgs(createHomeStyles, isDark);
+  const styles = useToolStylesWithArgs("grocery", createHomeStyles, isDark);
   const { lists, loading, removeList, upsertList } = useAppData();
   const [menuList, setMenuList] = useState<GroceryList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;

@@ -11,13 +11,11 @@ import {
   Pressable,
   Animated,
 } from "react-native";
-import { useAppStyles, useAppStylesWithArgs } from "../hooks/useAppStyles";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { PrivateHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useVaultStylesWithArgs, useVaultTheme } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
 import {
@@ -159,8 +157,8 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
 
 export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useToolTheme("private_list");
-  const styles = useAppStylesWithArgs(createStyles, isDark);
+  const { colors, isDark } = useVaultTheme();
+  const styles = useVaultStylesWithArgs(createStyles, isDark);
   const { privateLists, loading, removePrivateList, upsertPrivateList } = useAppData();
   const [menuList, setMenuList] = useState<PrivateList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;

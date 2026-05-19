@@ -10,12 +10,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { NoteEditorProps } from "../navigation/types";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import {
   deleteQuickNote,
@@ -70,7 +69,7 @@ export default function NoteEditorScreen({ navigation, route }: NoteEditorProps)
   const insets = useSafeAreaInsets();
   const paramId = route.params?.noteId;
   const { colors } = useToolTheme("notes");
-  const styles = useAppStyles(createStyles);
+  const styles = useToolStyles("notes", createStyles);
 
   const noteIdRef = useRef(paramId ?? newQuickNoteId());
   const [body, setBody] = useState("");

@@ -17,7 +17,6 @@ import {
   Easing,
   Image,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import * as ImagePicker from "expo-image-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -34,7 +33,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import type { TodoListDetailProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { TodoHistoryEntry, TodoItem, TodoList } from "../types";
 import { generateId } from "../utils/id";
 import {
@@ -138,7 +137,7 @@ type ItemModalMode = "add" | "edit" | null;
 export default function TodoListDetailScreen({ navigation, route }: TodoListDetailProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("todo");
-  const styles = useAppStyles(createListDetailStyles);
+  const styles = useToolStyles("todo", createListDetailStyles);
   const { listId, autoOpenAdd = false } = route.params;
   const { todoLists, loading, upsertTodoList, archiveTodoCompletedList } = useAppData();
 
@@ -161,7 +160,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const activeReorderExtraData = useMemo(() => {
     if (!list) return "";
     const { active: a } = splitTodoActiveAndCompleted(list.items);
-    return a.map((i) => `${i.id}:${i.priority ? 1 : 0}:${i.order}`).join("|");
+    return a
+      .map((i) => `${i.id}:${i.priority ? 1 : 0}:${i.order}:${i.checked ? 1 : 0}:${i.name}`)
+      .join("|");
   }, [list]);
   const listRef = useRef<TodoList | null>(list);
   listRef.current = list;

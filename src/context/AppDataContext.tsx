@@ -131,11 +131,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       nextTodoHistory: TodoHistoryEntry[],
       nextPrivateLists: PrivateList[]
     ) => {
-      setLists(nextLists);
-      setHistory(nextHistory);
-      setTodoLists(nextTodoLists);
-      setTodoHistory(nextTodoHistory);
-      setPrivateLists(nextPrivateLists);
       await savePersisted({
         lists: nextLists,
         history: nextHistory,
@@ -143,6 +138,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         todoHistory: nextTodoHistory,
         privateLists: nextPrivateLists,
       });
+      setLists(nextLists);
+      setHistory(nextHistory);
+      setTodoLists(nextTodoLists);
+      setTodoHistory(nextTodoHistory);
+      setPrivateLists(nextPrivateLists);
     },
     []
   );

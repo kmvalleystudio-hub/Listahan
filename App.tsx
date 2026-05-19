@@ -16,7 +16,13 @@ import { darkColors } from "./src/theme/colors";
 import type { RootStackParamList } from "./src/navigation/types";
 import ToolsDashboardScreen from "./src/screens/ToolsDashboardScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import SyncSearchScreen from "./src/screens/SyncSearchScreen";
+import SyncSettingsScreen from "./src/screens/SyncSettingsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
+import { SyncSessionProvider } from "./src/context/SyncSessionContext";
+import SyncDataBridge from "./src/components/SyncDataBridge";
+import SyncToolsChangeBridge from "./src/components/SyncToolsChangeBridge";
+import { navigationRef } from "./src/navigation/navigationRef";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
 import ShareExportScreen from "./src/screens/ShareExportScreen";
 import ShareImportScreen from "./src/screens/ShareImportScreen";
@@ -40,6 +46,7 @@ import NoteEditorScreen from "./src/screens/NoteEditorScreen";
 import ReminderHomeScreen from "./src/screens/ReminderHomeScreen";
 import ReminderEditorScreen from "./src/screens/ReminderEditorScreen";
 import { reconcileScheduledReminders, registerForegroundReminderFeedback } from "./src/utils/reminderNotifications";
+import { reconcilePublicProfileToCloud } from "./src/services/profileCloudSync";
 import { loadUserProfile } from "./src/utils/userProfileStorage";
 import { normalizeUsername } from "./src/utils/usernameRules";
 import UsernameSetupScreen from "./src/screens/UsernameSetupScreen";
@@ -62,6 +69,7 @@ function NavigationRoot() {
       if (cancelled) return;
       setNeedsUsername(!normalizeUsername(p.username));
       setBootstrapped(true);
+      void reconcilePublicProfileToCloud(p);
     });
     return () => {
       cancelled = true;
@@ -105,7 +113,7 @@ function NavigationRoot() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack.Navigator
         initialRouteName={needsUsername ? "UsernameSetup" : "ToolsDashboard"}
@@ -133,6 +141,8 @@ function NavigationRoot() {
         />
         <Stack.Screen name="ToolsDashboard" component={ToolsDashboardScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="SyncSearch" component={SyncSearchScreen} />
+        <Stack.Screen name="SyncSettings" component={SyncSettingsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
         <Stack.Screen name="ShareExport" component={ShareExportScreen} />
@@ -185,7 +195,11 @@ export default function App() {
           <AppAlertProvider>
             <AppDataProvider>
               <PrivateVaultProvider>
-                <NavigationRoot />
+                <SyncSessionProvider>
+                  <SyncDataBridge />
+                  <SyncToolsChangeBridge />
+                  <NavigationRoot />
+                </SyncSessionProvider>
               </PrivateVaultProvider>
             </AppDataProvider>
           </AppAlertProvider>

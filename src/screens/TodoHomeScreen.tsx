@@ -12,13 +12,11 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { useAppStyles, useAppStylesWithArgs } from "../hooks/useAppStyles";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { TodoHomeProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { ToolHomeFooterListScrim } from "../components/ToolHomeFooterListScrim";
 import {
@@ -193,7 +191,7 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
 export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("todo");
-  const styles = useAppStylesWithArgs(createStyles, isDark);
+  const styles = useToolStylesWithArgs("todo", createStyles, isDark);
   const { todoLists, loading, removeTodoList, upsertTodoList } = useAppData();
   const [menuList, setMenuList] = useState<TodoList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;

@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -19,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ShareImportProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { fetchShareExport } from "../services/shareExportCloud";
@@ -176,7 +175,7 @@ function createStyles(c: AppThemeColors) {
 export default function ShareImportScreen({ navigation, route }: ShareImportProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useToolTheme("grocery");
-  const styles = useAppStyles(createStyles);
+  const styles = useToolStyles("grocery", createStyles);
   const { createList, upsertList, createTodoList, upsertTodoList } = useAppData();
 
   const [paste, setPaste] = useState("");

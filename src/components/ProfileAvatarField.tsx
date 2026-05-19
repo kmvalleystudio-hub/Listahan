@@ -26,6 +26,7 @@ import {
 } from "../services/profileCloudSync";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { persistProfileAvatarLocal } from "../utils/profileAvatarFiles";
+import { reconcilePublicProfileToCloud } from "../services/profileCloudSync";
 import { loadUserProfile, saveUserProfile, type UserProfile } from "../utils/userProfileStorage";
 import AvatarCharacterPickerGrid from "./AvatarCharacterPickerGrid";
 import { ProfilePortrait } from "./ProfilePortrait";
@@ -252,6 +253,9 @@ export default function ProfileAvatarField({
       });
       setProfile(next);
       onProfileUpdated?.(next);
+      if (uploadAfterPick && next.username.trim()) {
+        void reconcilePublicProfileToCloud(next);
+      }
     } catch (e) {
       showAlert({
         title: "Could not save character",

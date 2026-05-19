@@ -13,14 +13,13 @@ import {
   Keyboard,
   Modal,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReminderEditorProps } from "../navigation/types";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
-import { useToolTheme } from "../hooks/useToolTheme";
+import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import {
   deleteReminder,
@@ -293,7 +292,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
   const insets = useSafeAreaInsets();
   const paramId = route.params?.reminderId;
   const { colors, isDark } = useToolTheme("reminder");
-  const styles = useAppStyles(createStyles);
+  const styles = useToolStyles("reminder", createStyles);
 
   const idRef = useRef(paramId ?? newReminderId());
   const [title, setTitle] = useState("");
