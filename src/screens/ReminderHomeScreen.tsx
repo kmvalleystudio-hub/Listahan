@@ -33,6 +33,7 @@ import {
   type SavedReminder,
 } from "../utils/remindersStorage";
 import { cancelReminderScheduleIds, reconcileScheduledReminders } from "../utils/reminderNotifications";
+import SyncAuxRefreshBridge from "../components/SyncAuxRefreshBridge";
 
 function formatFireAt(iso: string): string {
   const d = new Date(iso);
@@ -258,6 +259,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
+      <SyncAuxRefreshBridge tool="reminders" refresh={refresh} />
       <View style={styles.header} collapsable={false}>
         <View style={styles.headerTextCol}>
           <TouchableOpacity

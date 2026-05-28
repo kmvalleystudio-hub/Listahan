@@ -26,6 +26,7 @@ import {
   loadQuickNotes,
   type QuickNote,
 } from "../utils/quickNotesStorage";
+import SyncAuxRefreshBridge from "../components/SyncAuxRefreshBridge";
 
 function previewLine(body: string): string {
   const t = body.trim();
@@ -190,6 +191,7 @@ export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
+      <SyncAuxRefreshBridge tool="notes" refresh={refresh} />
       <View style={styles.header} collapsable={false}>
         <View style={styles.headerTextCol}>
           <TouchableOpacity

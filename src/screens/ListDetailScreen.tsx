@@ -44,6 +44,7 @@ import {
   reindexOrders,
   splitActiveAndCompleted,
 } from "../utils/items";
+import { tombstoneGroceryItems } from "../utils/syncTombstone";
 import { CURRENCY_OPTIONS } from "../constants/currencies";
 import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
 import {
@@ -506,8 +507,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       const maxDone = completed.reduce((m, i) => Math.max(m, i.order), -1);
       const nextOrder = maxDone + 1;
 
+      const ts = nowIso();
       const items = snap.items.map((i) =>
-        i.id === itemId ? { ...i, checkPending: false, order: nextOrder } : i
+        i.id === itemId ? { ...i, checkPending: false, order: nextOrder, updatedAt: ts } : i
       );
 
       if (allItemsCommittedDone(items)) {
@@ -570,8 +572,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     const snap = listRef.current;
     if (!snap) return;
     clearTimer(itemId);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, checked: true, checkPending: true } : i
+      i.id === itemId ? { ...i, checked: true, checkPending: true, updatedAt: ts } : i
     );
     pushList({ ...snap, items });
     timersRef.current[itemId] = setTimeout(() => void commitCheck(itemId), 1000);
@@ -580,8 +583,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const togglePriority = (itemId: string, next?: boolean) => {
     const snap = listRef.current;
     if (!snap) return;
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, priority: next ?? !i.priority } : i
+      i.id === itemId ? { ...i, priority: next ?? !i.priority, updatedAt: ts } : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -648,7 +652,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          const items = snap.items.filter((i) => !selectedIds.has(i.id));
+          const items = tombstoneGroceryItems(snap.items, selectedIds);
           void commitOrFinishList(snap, items);
           exitBulkMode();
         },
@@ -679,8 +683,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     const snap = listRef.current;
     if (!snap) return;
     clearTimer(itemId);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, checked: false, checkPending: false } : i
+      i.id === itemId ? { ...i, checked: false, checkPending: false, updatedAt: ts } : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -691,9 +696,10 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     clearTimer(itemId);
     const { active } = splitActiveAndCompleted(snap.items.filter((i) => i.id !== itemId));
     const maxActive = active.reduce((m, i) => Math.max(m, i.order), -1);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
       i.id === itemId
-        ? { ...i, checked: false, checkPending: false, order: maxActive + 1 }
+        ? { ...i, checked: false, checkPending: false, order: maxActive + 1, updatedAt: ts }
         : i
     );
     pushListWithActiveFlip({ ...snap, items });
@@ -861,7 +867,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           const snap = listRef.current;
           if (!snap) return;
           clearTimer(editingItemId);
-          const items = snap.items.filter((i) => i.id !== editingItemId);
+          const items = tombstoneGroceryItems(snap.items, new Set([editingItemId]));
           void commitOrFinishList(snap, items);
           closeItemModal();
         },

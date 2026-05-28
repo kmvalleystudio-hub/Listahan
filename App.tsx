@@ -22,6 +22,7 @@ import SettingsScreen from "./src/screens/SettingsScreen";
 import { SyncSessionProvider } from "./src/context/SyncSessionContext";
 import SyncDataBridge from "./src/components/SyncDataBridge";
 import SyncToolsChangeBridge from "./src/components/SyncToolsChangeBridge";
+import SyncPartnerRefreshBar from "./src/components/SyncPartnerRefreshBar";
 import { navigationRef } from "./src/navigation/navigationRef";
 import GroceryHomeScreen from "./src/screens/GroceryHomeScreen";
 import ShareExportScreen from "./src/screens/ShareExportScreen";
@@ -198,6 +199,7 @@ export default function App() {
                 <SyncSessionProvider>
                   <SyncDataBridge />
                   <SyncToolsChangeBridge />
+                  <SyncPartnerRefreshBar />
                   <NavigationRoot />
                 </SyncSessionProvider>
               </PrivateVaultProvider>

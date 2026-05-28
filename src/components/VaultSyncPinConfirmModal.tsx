@@ -25,6 +25,10 @@ type Props = {
   onVerified: () => void;
   title?: string;
   message?: string;
+  /** Plain-language note that vault content is uploaded for sync. */
+  disclaimer?: string;
+  /** Short reassurance (PIN on device, partner-only access). */
+  reassurance?: string;
   confirmLabel?: string;
 };
 
@@ -34,7 +38,9 @@ export default function VaultSyncPinConfirmModal({
   onClose,
   onVerified,
   title = "Confirm with PIN",
-  message = "Enter your vault PIN to include Vault sheets in this sync. Biometrics cannot be used for this step.",
+  message = "Enter your vault PIN to continue. Biometrics cannot be used.",
+  disclaimer,
+  reassurance,
   confirmLabel = "Continue",
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -104,6 +110,25 @@ export default function VaultSyncPinConfirmModal({
       paddingTop: 20,
     },
     title: { fontSize: 18, fontWeight: "800", color: colors.text },
+    disclaimer: {
+      marginTop: 12,
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.text,
+      lineHeight: 18,
+      padding: 12,
+      borderRadius: 10,
+      backgroundColor: colors.inputBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    reassurance: {
+      marginTop: 10,
+      fontSize: 13,
+      fontWeight: "500",
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
     hint: {
       marginTop: 10,
       fontSize: 14,
@@ -143,6 +168,8 @@ export default function VaultSyncPinConfirmModal({
             contentContainerStyle={[styles.card, { paddingBottom: insets.bottom + 24 + kbInset }]}
           >
             <Text style={styles.title}>{title}</Text>
+            {disclaimer ? <Text style={styles.disclaimer}>{disclaimer}</Text> : null}
+            {reassurance ? <Text style={styles.reassurance}>{reassurance}</Text> : null}
             <Text style={styles.hint}>{message}</Text>
             <VaultPinSlotInput
               value={pin}

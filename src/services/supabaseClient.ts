@@ -23,6 +23,31 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(readUrl() && readAnonKey());
 }
 
+/** Lightweight reachability check — no native modules (works in any APK build). */
+export async function pingSupabaseReachable(timeoutMs = 5000): Promise<boolean> {
+  const url = readUrl();
+  const key = readAnonKey();
+  if (!url || !key) return false;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/rest/v1/`, {
+      method: "HEAD",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+      signal: controller.signal,
+    });
+    return res.status < 500;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function getSupabaseClient(): SupabaseClient {
   if (client) return client;
   const url = readUrl();

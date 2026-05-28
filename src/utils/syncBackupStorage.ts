@@ -74,6 +74,31 @@ export async function restoreSyncBackupIfAny(storageKey: string): Promise<boolea
   return true;
 }
 
+/** Restore only selected tools from the session backup (keeps backup for other tools / end sync). */
+export async function restoreSyncBackupToolsByIds(
+  sessionId: string,
+  toolIds: SyncToolId[],
+  requestId?: string
+): Promise<boolean> {
+  if (toolIds.length === 0) return false;
+  let backup = await loadSyncBackup(sessionId);
+  if (!backup && requestId && requestId !== sessionId) {
+    backup = await loadSyncBackup(requestId);
+  }
+  if (!backup) return false;
+
+  const subset: Partial<Record<SyncToolId, SyncToolPayload>> = {};
+  for (const id of toolIds) {
+    const payload = backup.tools[id];
+    if (payload != null) subset[id] = payload;
+  }
+  if (Object.keys(subset).length === 0) return false;
+
+  const { restoreSyncBackupTools } = await import("../services/syncSnapshotImport");
+  await restoreSyncBackupTools(subset);
+  return true;
+}
+
 /** Try session id first, then pending request id (initiator backup before accept). */
 export async function restoreSyncBackupForSession(
   sessionId: string,

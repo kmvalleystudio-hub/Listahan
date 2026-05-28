@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -24,9 +24,12 @@ import {
   type SyncToolsConfig,
   hasEnabledSyncTool,
 } from "../constants/syncTools";
-import { useAppData } from "../context/AppDataContext";
-import { restoreSyncBackupForSession } from "../utils/syncBackupStorage";
 import VaultSyncPinConfirmModal from "../components/VaultSyncPinConfirmModal";
+import {
+  VAULT_SYNC_CLOUD_DISCLAIMER,
+  VAULT_SYNC_PIN_PROMPT,
+  VAULT_SYNC_SAFETY_REASSURANCE,
+} from "../constants/vaultSyncDisclosure";
 
 const GRID_PAD = 16;
 
@@ -71,6 +74,26 @@ function createStyles(c: AppThemeColors) {
       borderBottomColor: c.border,
     },
     rowLabel: { fontSize: 16, fontWeight: "600", color: c.text, flex: 1 },
+    statusPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    statusPillOn: {
+      backgroundColor: c.totalBg,
+      borderColor: c.totalBorder,
+    },
+    statusPillOff: {
+      backgroundColor: c.inputBg,
+      borderColor: c.borderMuted,
+    },
+    statusText: { fontSize: 13, fontWeight: "700" },
+    statusTextOn: { color: c.totalLabel },
+    statusTextOff: { color: c.textTertiary },
     unsyncBtn: {
       marginTop: 16,
       backgroundColor: c.danger,
@@ -79,6 +102,20 @@ function createStyles(c: AppThemeColors) {
       alignItems: "center",
     },
     unsyncText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    saveChangesBtn: {
+      marginTop: 16,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    saveChangesText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    discardBtn: {
+      marginTop: 10,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    discardText: { color: c.linkBlue, fontSize: 15, fontWeight: "600" },
   });
 }
 
@@ -87,9 +124,8 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
   const { colors } = useTheme();
   const styles = useAppStyles(createStyles);
   const { showAlert } = useAppAlert();
-  const { session, updateTools, endSession, refreshSyncState, celebrateSyncEnded } = useSyncSession();
+  const { session, updateTools, endSession, celebrateSyncEnded } = useSyncSession();
   const { vaultSyncAllowed, refreshVaultSyncAllowed } = usePrivateVault();
-  const { refresh } = useAppData();
   const [tools, setTools] = useState<SyncToolsConfig>(session?.tools ?? {
     grocery: true,
     todo: true,
@@ -98,10 +134,30 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
     vault: false,
   });
   const [vaultPinModal, setVaultPinModal] = useState(false);
+  const toolsSessionIdRef = useRef<string | undefined>(session?.sessionId);
+
+  const isSyncInitiator = session?.isInitiator ?? false;
+
+  const unsavedChanges = useMemo(() => {
+    if (!isSyncInitiator || !session) return false;
+    return SYNC_TOOL_IDS.some((id) => tools[id] !== session.tools[id]);
+  }, [isSyncInitiator, session, tools]);
 
   useEffect(() => {
-    if (session?.tools) setTools(session.tools);
-  }, [session?.tools, session?.sessionId]);
+    if (!session?.tools) return;
+    if (session.sessionId !== toolsSessionIdRef.current) {
+      toolsSessionIdRef.current = session.sessionId;
+      setTools(session.tools);
+      return;
+    }
+    if (unsavedChanges) return;
+    setTools(session.tools);
+  }, [session?.tools, session?.sessionId, unsavedChanges]);
+
+  const discardChanges = useCallback(() => {
+    if (!session) return;
+    setTools({ ...session.tools });
+  }, [session]);
 
   useFocusEffect(
     useCallback(() => {
@@ -136,29 +192,69 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
     [navigation, showAlert, vaultSyncAllowed]
   );
 
-  const saveTools = async () => {
-    if (!hasEnabledSyncTool(tools)) {
+  const saveTools = useCallback(
+    async (opts?: { silent?: boolean }): Promise<boolean> => {
+      if (!hasEnabledSyncTool(tools)) {
+        showAlert({
+          title: "Choose tools",
+          message: "At least one tool must stay enabled while syncing.",
+          variant: "warning",
+        });
+        return false;
+      }
+      const res = await updateTools(tools);
+      if (!res.ok) {
+        showAlert({ title: "Could not update", message: res.message, variant: "error" });
+        return false;
+      }
+      if (!opts?.silent) {
+        showAlert({ title: "Saved", message: "Sync tools updated.", variant: "success" });
+      }
+      return true;
+    },
+    [tools, updateTools, showAlert]
+  );
+
+  useEffect(() => {
+    const unsub = navigation.addListener("beforeRemove", (e) => {
+      if (!unsavedChanges) return;
+      e.preventDefault();
       showAlert({
-        title: "Choose tools",
-        message: "At least one tool must stay enabled while syncing.",
+        title: "Unsaved changes",
+        message: "Save your tool changes or discard them before leaving.",
         variant: "warning",
+        buttons: [
+          { text: "Keep editing", style: "cancel" },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => {
+              discardChanges();
+              navigation.dispatch(e.data.action);
+            },
+          },
+          {
+            text: "Save",
+            onPress: () => {
+              void (async () => {
+                const ok = await saveTools({ silent: true });
+                if (ok) navigation.dispatch(e.data.action);
+              })();
+            },
+          },
+        ],
       });
-      return;
-    }
-    const res = await updateTools(tools);
-    if (!res.ok) {
-      showAlert({ title: "Could not update", message: res.message, variant: "error" });
-      return;
-    }
-    showAlert({ title: "Saved", message: "Sync tools updated.", variant: "success" });
-  };
+    });
+    return unsub;
+  }, [navigation, unsavedChanges, discardChanges, showAlert, saveTools]);
 
   const handleUnsync = () => {
     if (!session) return;
     showAlert({
       title: "End sync?",
-      message:
-        "This stops sharing with the other user. If you accepted their data, your Listahan from before sync will be restored on this device.",
+      message: isSyncInitiator
+        ? "This stops sharing with the other user. Both devices restore the lists each had before sync."
+        : "This stops sharing and restores your Listahan from before sync on this device.",
       variant: "warning",
       buttons: [
         { text: "Cancel", style: "cancel" },
@@ -168,15 +264,11 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
           onPress: () => {
             void (async () => {
               const sessionId = session.sessionId;
-              const requestId = session.requestId;
               const ended = await endSession();
               if (!ended.ok) {
                 showAlert({ title: "Could not unsync", message: ended.message, variant: "error" });
                 return;
               }
-              const restored = await restoreSyncBackupForSession(sessionId, requestId);
-              if (restored) await refresh();
-              await refreshSyncState();
               celebrateSyncEnded(sessionId);
               navigation.goBack();
             })();
@@ -197,8 +289,6 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
     );
   }
 
-  const isSyncInitiator = session.isInitiator;
-
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
@@ -207,7 +297,7 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sync settings</Text>
-        {isSyncInitiator ? (
+        {isSyncInitiator && unsavedChanges ? (
           <Pressable onPress={() => void saveTools()} hitSlop={12}>
             <Text style={{ color: colors.linkBlue, fontWeight: "700", fontSize: 16 }}>Save</Text>
           </Pressable>
@@ -245,22 +335,50 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
                     </Text>
                   ) : null}
                 </View>
-                <Switch
-                  value={enabled}
-                  onValueChange={isSyncInitiator ? (v) => toggleTool(id, v) : undefined}
-                  disabled={!isSyncInitiator || (id === "vault" && !vaultSyncAllowed)}
-                  trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
-                  thumbColor={enabled ? colors.switchThumbOn : colors.switchThumbOff}
-                  ios_backgroundColor={colors.iosSwitchBg}
-                />
+                {isSyncInitiator ? (
+                  <Switch
+                    value={enabled}
+                    onValueChange={(v) => toggleTool(id, v)}
+                    disabled={id === "vault" && !vaultSyncAllowed}
+                    trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
+                    thumbColor={enabled ? colors.switchThumbOn : colors.switchThumbOff}
+                    ios_backgroundColor={colors.iosSwitchBg}
+                  />
+                ) : (
+                  <View
+                    style={[styles.statusPill, enabled ? styles.statusPillOn : styles.statusPillOff]}
+                    accessibilityRole="text"
+                    accessibilityLabel={`${SYNC_TOOL_LABELS[id]}, ${enabled ? "syncing" : "not syncing"}`}
+                  >
+                    <Ionicons
+                      name={enabled ? "checkmark-circle" : "remove-circle-outline"}
+                      size={17}
+                      color={enabled ? colors.success : colors.textTertiary}
+                    />
+                    <Text style={[styles.statusText, enabled ? styles.statusTextOn : styles.statusTextOff]}>
+                      {enabled ? "On" : "Off"}
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })}
         </View>
 
-        <Pressable style={styles.unsyncBtn} onPress={handleUnsync}>
-          <Text style={styles.unsyncText}>End sync</Text>
-        </Pressable>
+        {isSyncInitiator && unsavedChanges ? (
+          <>
+            <Pressable style={styles.saveChangesBtn} onPress={() => void saveTools()} activeOpacity={0.9}>
+              <Text style={styles.saveChangesText}>Save changes</Text>
+            </Pressable>
+            <Pressable style={styles.discardBtn} onPress={discardChanges} accessibilityRole="button">
+              <Text style={styles.discardText}>Discard changes</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable style={styles.unsyncBtn} onPress={handleUnsync} activeOpacity={0.9}>
+            <Text style={styles.unsyncText}>End sync</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <VaultSyncPinConfirmModal
@@ -271,7 +389,9 @@ export default function SyncSettingsScreen({ navigation }: SyncSettingsProps) {
           setVaultPinModal(false);
           setTools((prev) => ({ ...prev, vault: true }));
         }}
-        message="Enter your vault PIN to turn on Vault syncing for this session. Biometrics cannot be used."
+        disclaimer={VAULT_SYNC_CLOUD_DISCLAIMER}
+        reassurance={VAULT_SYNC_SAFETY_REASSURANCE}
+        message={VAULT_SYNC_PIN_PROMPT}
         confirmLabel="Enable Vault"
       />
     </View>

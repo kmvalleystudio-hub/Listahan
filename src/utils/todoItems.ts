@@ -1,9 +1,15 @@
 import type { TodoItem } from "../types";
+import { isSyncDeleted, nowIso } from "./syncTimestamps";
+
+export function touchTodoItem(item: TodoItem): TodoItem {
+  return { ...item, updatedAt: nowIso() };
+}
 
 export function normalizeTodoItemsForPersist(items: TodoItem[]): TodoItem[] {
   return items.map((i) => ({
     ...i,
     checkPending: false,
+    updatedAt: i.updatedAt ?? nowIso(),
   }));
 }
 
@@ -11,8 +17,9 @@ export function splitTodoActiveAndCompleted(items: TodoItem[]): {
   active: TodoItem[];
   completed: TodoItem[];
 } {
-  const active = items.filter((i) => !i.checked || i.checkPending);
-  const completed = items.filter((i) => i.checked && !i.checkPending);
+  const visible = items.filter((i) => !isSyncDeleted(i));
+  const active = visible.filter((i) => !i.checked || i.checkPending);
+  const completed = visible.filter((i) => i.checked && !i.checkPending);
   active.sort((a, b) => {
     const ap = a.priority ? 1 : 0;
     const bp = b.priority ? 1 : 0;

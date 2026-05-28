@@ -42,6 +42,7 @@ import {
   reindexTodoOrders,
   splitTodoActiveAndCompleted,
 } from "../utils/todoItems";
+import { tombstoneTodoItems } from "../utils/syncTombstone";
 import { toTitleCaseWords } from "../utils/textFormat";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { parseTodoBulkTranscriptLocal } from "../utils/parseTodoBulkTranscriptLocal";
@@ -460,7 +461,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
       const ts = nowIso();
 
       const items = snap.items.map((i) =>
-        i.id === itemId ? { ...i, checkPending: false, order: nextOrder, completedAt: ts } : i
+        i.id === itemId
+          ? { ...i, checkPending: false, order: nextOrder, completedAt: ts, updatedAt: ts }
+          : i
       );
 
       if (allTodosCommittedDone(items)) {
@@ -522,8 +525,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     const snap = listRef.current;
     if (!snap) return;
     clearTimer(itemId);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, checked: true, checkPending: true } : i
+      i.id === itemId ? { ...i, checked: true, checkPending: true, updatedAt: ts } : i
     );
     pushList({ ...snap, items });
     timersRef.current[itemId] = setTimeout(() => void commitCheck(itemId), 1000);
@@ -532,8 +536,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const togglePriority = (itemId: string, next?: boolean) => {
     const snap = listRef.current;
     if (!snap) return;
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, priority: next ?? !i.priority } : i
+      i.id === itemId ? { ...i, priority: next ?? !i.priority, updatedAt: ts } : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -601,7 +606,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          const items = snap.items.filter((i) => !selectedIds.has(i.id));
+          const items = tombstoneTodoItems(snap.items, selectedIds);
           void commitOrFinishList(snap, items);
           exitBulkMode();
         },
@@ -632,8 +637,11 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     const snap = listRef.current;
     if (!snap) return;
     clearTimer(itemId);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, checked: false, checkPending: false, completedAt: undefined } : i
+      i.id === itemId
+        ? { ...i, checked: false, checkPending: false, completedAt: undefined, updatedAt: ts }
+        : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -644,9 +652,17 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     clearTimer(itemId);
     const { active } = splitTodoActiveAndCompleted(snap.items.filter((i) => i.id !== itemId));
     const maxActive = active.reduce((m, i) => Math.max(m, i.order), -1);
+    const ts = nowIso();
     const items = snap.items.map((i) =>
       i.id === itemId
-        ? { ...i, checked: false, checkPending: false, order: maxActive + 1, completedAt: undefined }
+        ? {
+            ...i,
+            checked: false,
+            checkPending: false,
+            order: maxActive + 1,
+            completedAt: undefined,
+            updatedAt: ts,
+          }
         : i
     );
     pushListWithActiveFlip({ ...snap, items });
@@ -739,7 +755,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           const snap = listRef.current;
           if (!snap) return;
           clearTimer(editingItemId);
-          const items = snap.items.filter((i) => i.id !== editingItemId);
+          const items = tombstoneTodoItems(snap.items, new Set([editingItemId]));
           void commitOrFinishList(snap, items);
           closeItemModal();
         },

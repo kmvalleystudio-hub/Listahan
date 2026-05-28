@@ -40,6 +40,11 @@ import {
   PIN_LENGTH_MAX,
 } from "../utils/privateVaultPin";
 import VaultSyncPinConfirmModal from "../components/VaultSyncPinConfirmModal";
+import {
+  VAULT_SYNC_CLOUD_DISCLAIMER,
+  VAULT_SYNC_PIN_PROMPT,
+  VAULT_SYNC_SAFETY_REASSURANCE,
+} from "../constants/vaultSyncDisclosure";
 import VaultPinSlotInput from "../components/VaultPinSlotInput";
 
 function createStyles(c: AppThemeColors) {
@@ -528,7 +533,9 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
         colors={colors}
         onClose={() => !syncPinBusy && setSyncPinModal(false)}
         onVerified={() => void onVaultSyncPinVerified()}
-        message="Enter your 6-digit vault PIN to allow Vault sheets in user sync. Biometrics cannot be used for this step."
+        disclaimer={VAULT_SYNC_CLOUD_DISCLAIMER}
+        reassurance={VAULT_SYNC_SAFETY_REASSURANCE}
+        message={VAULT_SYNC_PIN_PROMPT}
         confirmLabel="Enable Vault sync"
       />
 

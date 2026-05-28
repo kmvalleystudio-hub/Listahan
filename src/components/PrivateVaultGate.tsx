@@ -18,7 +18,7 @@ import {
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/native";
 import { useVaultTheme, useVaultStyles } from "../hooks/useToolTheme";
 import type { AppThemeColors } from "../theme/colors";
 import { usePrivateVault } from "../context/PrivateVaultContext";
@@ -138,6 +138,14 @@ function createGateStyles(c: AppThemeColors) {
       textTransform: "uppercase",
       letterSpacing: 0.6,
     },
+    backBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingVertical: 8,
+      alignSelf: "flex-start",
+    },
+    backText: { fontSize: 16, fontWeight: "600", color: c.linkBlue },
   });
 }
 
@@ -167,6 +175,7 @@ type ForgotPhase = "idle" | "answer" | "reset";
 
 export default function PrivateVaultGate({ children }: Props) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const isFocused = useIsFocused();
   const { scheme } = useTheme();
   const { colors } = useVaultTheme();
@@ -503,6 +512,26 @@ export default function PrivateVaultGate({ children }: Props) {
     }
   }, [unlockPin, unlock]);
 
+  const onBackPress = useCallback(() => {
+    if (forgotPhase === "answer" || forgotPhase === "reset") {
+      resetForgotForm();
+      return;
+    }
+    if (!hasPin) {
+      if (setupStep === 3) {
+        setSetupStep(2);
+        return;
+      }
+      if (setupStep === 2) {
+        setSetupStep(1);
+        return;
+      }
+    }
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  }, [forgotPhase, hasPin, setupStep, resetForgotForm, navigation]);
+
   if (!ready) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
@@ -554,6 +583,18 @@ export default function PrivateVaultGate({ children }: Props) {
    */
   const lockLayer = isFocused && !unlocked ? (
     <View style={[styles.root, { paddingBottom: keyboardBottomGap }]} pointerEvents="auto">
+      <View style={{ paddingTop: insets.top + 4, paddingHorizontal: 16 }}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBackPress}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.linkBlue} />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.keyboard}>
         <ScrollView
           ref={scrollRef}
@@ -564,7 +605,7 @@ export default function PrivateVaultGate({ children }: Props) {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 16,
+              paddingTop: 8,
               paddingBottom: insets.bottom + 24,
             },
           ]}

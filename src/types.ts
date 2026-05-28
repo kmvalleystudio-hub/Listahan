@@ -13,6 +13,10 @@ export type GroceryItem = {
   /** True during the 2s undo window after tapping CHECK; not persisted. */
   checkPending?: boolean;
   order: number;
+  /** Last edit time for sync merge (ISO). */
+  updatedAt?: string;
+  /** Set when deleted while synced — tombstone for last-write-wins. */
+  deletedAt?: string;
 };
 
 export type GroceryList = {
@@ -27,6 +31,8 @@ export type GroceryList = {
   currencySymbol: string;
   /** True when this list was created from a cloud share import (distinct from same-named local lists). */
   importedFromShare?: boolean;
+  /** Tombstone when list removed during sync. */
+  deletedAt?: string;
 };
 
 export type HistoryEntry = {
@@ -49,6 +55,8 @@ export type TodoItem = {
   /** ISO time when the user committed this check (after undo window). Shown in completed-list preview. */
   completedAt?: string;
   order: number;
+  updatedAt?: string;
+  deletedAt?: string;
 };
 
 export type TodoList = {
@@ -60,6 +68,7 @@ export type TodoList = {
   pinned?: boolean;
   /** True when this list was created from a cloud share import. */
   importedFromShare?: boolean;
+  deletedAt?: string;
 };
 
 export type TodoHistoryEntry = {
@@ -84,6 +93,8 @@ export type PrivateItem = {
   notes?: string;
   priority?: boolean;
   order: number;
+  updatedAt?: string;
+  deletedAt?: string;
 };
 
 export type PrivateList = {
@@ -93,4 +104,5 @@ export type PrivateList = {
   updatedAt: string;
   items: PrivateItem[];
   pinned?: boolean;
+  deletedAt?: string;
 };

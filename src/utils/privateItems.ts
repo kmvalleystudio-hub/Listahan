@@ -1,4 +1,5 @@
 import type { PrivateItem } from "../types";
+import { isSyncDeleted, nowIso } from "./syncTimestamps";
 
 export function normalizePrivateItemsForPersist(items: PrivateItem[]): PrivateItem[] {
   return items.map((i) => ({
@@ -8,12 +9,13 @@ export function normalizePrivateItemsForPersist(items: PrivateItem[]): PrivateIt
     secret: String(i.secret ?? ""),
     notes: String(i.notes ?? ""),
     priority: Boolean(i.priority),
+    updatedAt: i.updatedAt ?? nowIso(),
   }));
 }
 
 /** Same ordering as active to-do rows: priority first, then order. */
 export function sortPrivateItemsForDisplay(items: PrivateItem[]): PrivateItem[] {
-  return [...items].sort((a, b) => {
+  return [...items].filter((i) => !isSyncDeleted(i)).sort((a, b) => {
     const ap = a.priority ? 1 : 0;
     const bp = b.priority ? 1 : 0;
     if (ap !== bp) return bp - ap;

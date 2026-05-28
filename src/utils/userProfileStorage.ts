@@ -205,6 +205,42 @@ export function listahanPublicTag(username: string, tagSuffix?: string): string 
   return suffix ? `@${u}_${suffix}` : `@${u}`;
 }
 
+/** Full tag pattern for sync lookup: `@username_xxxx` (4-char suffix). */
+const PUBLIC_TAG_BODY_RE = /^([a-z0-9][a-z0-9_]{2,29})_([a-z0-9]{4})$/;
+
+export type ParsedPublicTag = {
+  publicTag: string;
+  username: string;
+  tagSuffix: string;
+};
+
+/** Parse sync tag body (`username_xxxx`) or full tag if pasted with leading `@`. */
+export function parsePublicTagInput(
+  raw: string
+): { ok: true; parsed: ParsedPublicTag } | { ok: false; message: string } {
+  let body = raw.trim().toLowerCase();
+  if (body.startsWith("@")) body = body.slice(1);
+  if (!body) {
+    return {
+      ok: false,
+      message: "Enter their public tag (e.g. mike_t1ci).",
+    };
+  }
+  const match = PUBLIC_TAG_BODY_RE.exec(body);
+  if (!match) {
+    return {
+      ok: false,
+      message: "Use the full tag from their Profile, e.g. mike_t1ci.",
+    };
+  }
+  const username = match[1]!;
+  const tagSuffix = match[2]!;
+  return {
+    ok: true,
+    parsed: { publicTag: `@${username}_${tagSuffix}`, username, tagSuffix },
+  };
+}
+
 export function formatMemberSince(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";

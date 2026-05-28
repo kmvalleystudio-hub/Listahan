@@ -1,8 +1,15 @@
 import type { SyncToolId, SyncToolsConfig } from "../constants/syncTools";
 import { SYNC_TOOL_IDS } from "../constants/syncTools";
 import { loadPersisted, type PersistShape } from "../storage/persist";
-import { loadQuickNotes } from "../utils/quickNotesStorage";
-import { loadReminders } from "../utils/remindersStorage";
+import {
+  stampGroceryPayload,
+  stampNotesPayload,
+  stampRemindersPayload,
+  stampTodoPayload,
+  stampVaultPayload,
+} from "../utils/syncPayloadStamp";
+import { loadQuickNotesAll } from "../utils/quickNotesStorage";
+import { loadRemindersRaw } from "../utils/remindersStorage";
 
 export type SyncToolPayload = unknown;
 
@@ -20,15 +27,15 @@ export async function exportSyncToolPayload(
 
   switch (tool) {
     case "grocery":
-      return { lists: persisted.lists, history: persisted.history };
+      return stampGroceryPayload({ lists: persisted.lists, history: persisted.history });
     case "todo":
-      return { lists: persisted.todoLists, history: persisted.todoHistory };
+      return stampTodoPayload({ lists: persisted.todoLists, history: persisted.todoHistory });
     case "notes":
-      return { notes: await loadQuickNotes() };
+      return stampNotesPayload({ notes: await loadQuickNotesAll() });
     case "reminders":
-      return { reminders: await loadReminders() };
+      return stampRemindersPayload({ reminders: await loadRemindersRaw() });
     case "vault":
-      return { privateLists: persisted.privateLists };
+      return stampVaultPayload({ privateLists: persisted.privateLists });
     default:
       return null;
   }

@@ -20,6 +20,11 @@ import { generateId } from "../utils/id";
 import { loadPersisted, savePersisted } from "../storage/persist";
 import { reindexOrders } from "../utils/items";
 import { reindexTodoOrders } from "../utils/todoItems";
+import {
+  tombstoneGroceryList,
+  tombstonePrivateList,
+  tombstoneTodoList,
+} from "../utils/syncTombstone";
 
 type AppDataContextValue = {
   lists: GroceryList[];
@@ -165,7 +170,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const removeList = useCallback(
     async (id: string) => {
-      const next = lists.filter((l) => l.id !== id);
+      const next = lists.map((l) => (l.id === id ? tombstoneGroceryList(l) : l));
       await persist(next, history, todoLists, todoHistory, privateLists);
     },
     [lists, history, todoLists, todoHistory, privateLists, persist]
@@ -252,7 +257,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const removeTodoList = useCallback(
     async (id: string) => {
-      const next = todoLists.filter((l) => l.id !== id);
+      const next = todoLists.map((l) => (l.id === id ? tombstoneTodoList(l) : l));
       await persist(lists, history, next, todoHistory, privateLists);
     },
     [lists, history, todoLists, todoHistory, privateLists, persist]
@@ -321,7 +326,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const removePrivateList = useCallback(
     async (id: string) => {
-      const next = privateLists.filter((l) => l.id !== id);
+      const next = privateLists.map((l) => (l.id === id ? tombstonePrivateList(l) : l));
       await persist(lists, history, todoLists, todoHistory, next);
     },
     [lists, history, todoLists, todoHistory, privateLists, persist]

@@ -86,3 +86,69 @@ export async function searchProfiles(
   const rows = (Array.isArray(data) ? data : []) as RpcRow[];
   return { ok: true, results: rows.map(mapRow) };
 }
+
+/** Exact public-tag match for sync (`@username_xxxx` only). */
+export async function lookupProfileByPublicTag(
+  username: string,
+  tagSuffix: string,
+  callerDeviceId: string
+): Promise<
+  | { ok: true; profile: SyncProfileSearchResult }
+  | { ok: false; notFound: true }
+  | { ok: false; notFound?: false; message: string }
+> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Cloud lookup is not configured on this build." };
+  }
+
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), SEARCH_RPC_TIMEOUT_MS);
+  let data: unknown;
+  let error: { message?: string } | null = null;
+  try {
+    const result = await getSupabaseClient()
+      .rpc("lookup_listahan_profile_by_public_tag", {
+        p_username: username.trim().toLowerCase(),
+        p_tag_suffix: tagSuffix.trim().toLowerCase(),
+        p_caller_id: callerDeviceId,
+      })
+      .abortSignal(ac.signal);
+    data = result.data;
+    error = result.error;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.toLowerCase().includes("abort")) {
+      return { ok: false, message: "Lookup timed out. Check your connection and try again." };
+    }
+    return { ok: false, message: msg || "Lookup failed." };
+  } finally {
+    clearTimeout(tid);
+  }
+
+  if (error) {
+    const msg = (error.message ?? "").toLowerCase();
+    if (msg.includes("abort") || msg.includes("timeout")) {
+      return { ok: false, message: "Lookup timed out. Check your connection and try again." };
+    }
+    if (
+      (msg.includes("lookup_listahan_profile_by_public_tag") ||
+        msg.includes("lookup_listahan_profile_by_username")) &&
+      msg.includes("could not find")
+    ) {
+      return {
+        ok: false,
+        message: "Tag lookup is not available yet. Apply the latest Supabase migration.",
+      };
+    }
+    if (msg.includes("caller_required")) {
+      return { ok: false, message: "Profile not ready. Finish username setup and try again." };
+    }
+    return { ok: false, message: error.message ?? "Lookup failed." };
+  }
+
+  const row = (Array.isArray(data) ? data[0] : null) as RpcRow | undefined;
+  if (!row?.device_profile_id) {
+    return { ok: false, notFound: true };
+  }
+  return { ok: true, profile: mapRow(row) };
+}

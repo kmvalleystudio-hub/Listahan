@@ -32,6 +32,7 @@ import {
   reindexPrivateOrders,
   sortPrivateItemsForDisplay,
 } from "../utils/privateItems";
+import { tombstonePrivateItems } from "../utils/syncTombstone";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { createListDetailStyles } from "./listDetailStyles";
 import PrivateVaultGate from "../components/PrivateVaultGate";
@@ -263,6 +264,18 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
           flexShrink: 0,
           zIndex: 3,
           paddingLeft: 2,
+        },
+        trailingActions: {
+          flexShrink: 0,
+          flexDirection: "row",
+          alignItems: "center",
+          zIndex: 3,
+        },
+        trailingIconHit: {
+          width: 36,
+          height: 36,
+          alignItems: "center",
+          justifyContent: "center",
         },
         starBtnHit: {
           width: 36,
@@ -573,7 +586,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          const items = normalizePrivateItemsForPersist(snap.items.filter((i) => !selectedIds.has(i.id)));
+          const items = normalizePrivateItemsForPersist(tombstonePrivateItems(snap.items, selectedIds));
           pushListWithActiveFlip({ ...snap, items: reindexPrivateOrders(items) });
           exitBulkMode();
         },
@@ -736,7 +749,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
           const snap = listRef.current;
           if (!snap) return;
           clearTimer(editingItemId);
-          const items = snap.items.filter((i) => i.id !== editingItemId);
+          const items = tombstonePrivateItems(snap.items, new Set([editingItemId]));
           pushListWithActiveFlip({ ...snap, items: reindexPrivateOrders(normalizePrivateItemsForPersist(items)) });
           closeItemModal();
         },
@@ -879,15 +892,6 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                 <Text style={privateEntryRowStyles.entryTitle} numberOfLines={1}>
                   {item.name || "Entry"}
                 </Text>
-                {item.secret?.trim() ? (
-                  <View
-                    style={{ flexShrink: 0 }}
-                    accessibilityLabel="Has secret"
-                    accessibilityRole="image"
-                  >
-                    <Ionicons name="lock-closed-outline" size={18} color={PRIVATE_ROW_ICON} />
-                  </View>
-                ) : null}
               </View>
               {item.username?.trim() ? (
                 <Text style={privateEntryRowStyles.rowSubtitle} numberOfLines={1}>
@@ -895,25 +899,36 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                 </Text>
               ) : null}
             </View>
-            <View style={privateEntryRowStyles.starBtnOuter}>
-              <TouchableOpacity
-                style={privateEntryRowStyles.starBtnHit}
-                onPress={() => {
-                  if (bulkMode) {
-                    toggleSelected(item.id);
-                    return;
-                  }
-                  togglePriority(item.id);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={item.priority ? "Unpin priority" : "Prioritize entry"}
-              >
-                <Ionicons
-                  name={item.priority ? "star" : "star-outline"}
-                  size={20}
-                  color={item.priority ? PRIVATE_STAR_FILLED : PRIVATE_ROW_ICON}
-                />
-              </TouchableOpacity>
+            <View style={privateEntryRowStyles.trailingActions}>
+              {item.secret?.trim() ? (
+                <View
+                  style={privateEntryRowStyles.trailingIconHit}
+                  accessibilityLabel="Has secret"
+                  accessibilityRole="image"
+                >
+                  <Ionicons name="lock-closed-outline" size={18} color={PRIVATE_ROW_ICON} />
+                </View>
+              ) : null}
+              <View style={privateEntryRowStyles.starBtnOuter}>
+                <TouchableOpacity
+                  style={privateEntryRowStyles.starBtnHit}
+                  onPress={() => {
+                    if (bulkMode) {
+                      toggleSelected(item.id);
+                      return;
+                    }
+                    togglePriority(item.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.priority ? "Unpin priority" : "Prioritize entry"}
+                >
+                  <Ionicons
+                    name={item.priority ? "star" : "star-outline"}
+                    size={20}
+                    color={item.priority ? PRIVATE_STAR_FILLED : PRIVATE_ROW_ICON}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>

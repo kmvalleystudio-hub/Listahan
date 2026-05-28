@@ -22,6 +22,11 @@ import {
 import { useAppAlert } from "../context/AppAlertContext";
 import { ProfilePortrait } from "./ProfilePortrait";
 import VaultSyncPinConfirmModal from "./VaultSyncPinConfirmModal";
+import {
+  VAULT_SYNC_CLOUD_DISCLAIMER,
+  VAULT_SYNC_PIN_PROMPT,
+  VAULT_SYNC_SAFETY_REASSURANCE,
+} from "../constants/vaultSyncDisclosure";
 
 type Props = {
   visible: boolean;
@@ -99,8 +104,8 @@ export default function SyncUserPreviewModal({
     showAlert({
       title: "Upload to the cloud?",
       message: vaultOn
-        ? "Selected Listahan data (including Vault sheets) will be uploaded so the other user can sync. Your Vault PIN never leaves this device."
-        : "Selected Listahan data will be uploaded to the cloud so the other user can sync. Continue?",
+        ? "List data and Vault entries (if enabled) upload to the cloud for your sync partner only. Your vault PIN stays on this device."
+        : "Selected Listahan data will be uploaded to the cloud for your sync partner. Continue?",
       variant: "info",
       buttons: [
         { text: "Cancel", style: "cancel" },
@@ -168,6 +173,9 @@ export default function SyncUserPreviewModal({
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{profile.username}</Text>
               <Text style={styles.tag}>{profile.publicTag || profile.username}</Text>
+              <Text style={[styles.tag, { marginTop: 6, fontWeight: "500", fontSize: 12 }]} selectable>
+                User ID: {profile.deviceProfileId}
+              </Text>
             </View>
           </View>
 
@@ -231,7 +239,9 @@ export default function SyncUserPreviewModal({
           setVaultPinModal(false);
           setTools((prev) => ({ ...prev, vault: true }));
         }}
-        message="Enter your vault PIN to include Vault sheets in this sync request. Vault settings must already allow sync; this confirms it is you. Biometrics cannot be used."
+        disclaimer={VAULT_SYNC_CLOUD_DISCLAIMER}
+        reassurance={VAULT_SYNC_SAFETY_REASSURANCE}
+        message={VAULT_SYNC_PIN_PROMPT}
         confirmLabel="Include Vault"
       />
     </Modal>

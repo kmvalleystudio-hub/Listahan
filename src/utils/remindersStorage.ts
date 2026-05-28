@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { notifyRemindersLocalChange } from "./syncLocalChangeNotify";
 
 const STORAGE_KEY = "@saycart/reminders_v1";
 
@@ -29,6 +30,7 @@ export type SavedReminder = {
   earlyNotificationId: string | null;
   updatedAt: string;
   importedFromShare?: boolean;
+  deletedAt?: string;
 };
 
 function newId(): string {
@@ -217,6 +219,7 @@ function parseReminders(raw: unknown): SavedReminder[] {
     const earlyNotificationId =
       o.earlyNotificationId === null || typeof o.earlyNotificationId === "string" ? o.earlyNotificationId : null;
     const updatedAt = typeof o.updatedAt === "string" ? o.updatedAt : new Date().toISOString();
+    const deletedAt = typeof o.deletedAt === "string" ? o.deletedAt : undefined;
     out.push({
       id: o.id,
       title: o.title,
@@ -230,6 +233,7 @@ function parseReminders(raw: unknown): SavedReminder[] {
       earlyNotificationId,
       updatedAt,
       importedFromShare: o.importedFromShare === true,
+      deletedAt,
     });
   }
   return out;
@@ -277,11 +281,13 @@ export async function loadRemindersRaw(): Promise<SavedReminder[]> {
 }
 
 export async function loadReminders(): Promise<SavedReminder[]> {
-  return sortRemindersForDisplay(await loadRemindersRaw());
+  const all = await loadRemindersRaw();
+  return sortRemindersForDisplay(all.filter((r) => !r.deletedAt));
 }
 
 export async function saveReminders(reminders: SavedReminder[]): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reminders));
+  notifyRemindersLocalChange();
 }
 
 export async function upsertReminder(reminder: SavedReminder): Promise<SavedReminder[]> {
@@ -295,8 +301,8 @@ export async function upsertReminder(reminder: SavedReminder): Promise<SavedRemi
 
 export async function deleteReminder(id: string): Promise<SavedReminder[]> {
   const all = await loadRemindersRaw();
-  const next = all.filter((n) => n.id !== id);
-  const sorted = sortRemindersForDisplay(next);
-  await saveReminders(sorted);
-  return sorted;
+  const at = new Date().toISOString();
+  const next = all.map((n) => (n.id === id ? { ...n, deletedAt: at, updatedAt: at } : n));
+  await saveReminders(next);
+  return sortRemindersForDisplay(next.filter((n) => !n.deletedAt));
 }

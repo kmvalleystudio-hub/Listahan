@@ -25,6 +25,7 @@ import {
   toolHomeListFadeBottomOffset,
 } from "../theme/toolHomeFloatingAddButton";
 import type { TodoList } from "../types";
+import ListRenameModal from "../components/ListRenameModal";
 
 type ListSection = {
   title: string;
@@ -194,6 +195,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   const styles = useToolStylesWithArgs("todo", createStyles, isDark);
   const { todoLists, loading, removeTodoList, upsertTodoList } = useAppData();
   const [menuList, setMenuList] = useState<TodoList | null>(null);
+  const [renameList, setRenameList] = useState<TodoList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -211,8 +213,9 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   }, [menuList]);
 
   const sections = useMemo((): ListSection[] => {
-    const pinned = todoLists.filter((l) => l.pinned).sort(byUpdatedDesc);
-    const normal = todoLists.filter((l) => !l.pinned).sort(byUpdatedDesc);
+    const visible = todoLists.filter((l) => !l.deletedAt);
+    const pinned = visible.filter((l) => l.pinned).sort(byUpdatedDesc);
+    const normal = visible.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
     if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
@@ -226,6 +229,12 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
     const id = menuList.id;
     closeMenu();
     navigation.navigate("TodoListDetail", { listId: id });
+  };
+
+  const renameFromMenu = () => {
+    if (!menuList) return;
+    setRenameList(menuList);
+    closeMenu();
   };
 
   const shareFromMenu = () => {
@@ -396,6 +405,10 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
                   <Ionicons name="open-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Edit</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.menuRow} onPress={renameFromMenu} activeOpacity={0.85}>
+                  <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+                  <Text style={styles.menuRowText}>Rename</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.menuRow} onPress={shareFromMenu} activeOpacity={0.85}>
                   <Ionicons name="share-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Share</Text>
@@ -413,6 +426,18 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
           </View>
         </Animated.View>
       </Modal>
+
+      <ListRenameModal
+        visible={!!renameList}
+        colors={colors}
+        initialName={renameList?.name ?? ""}
+        fallbackName="Tasks"
+        onClose={() => setRenameList(null)}
+        onSave={async (name) => {
+          if (!renameList) return;
+          await upsertTodoList({ ...renameList, name });
+        }}
+      />
     </View>
   );
 }

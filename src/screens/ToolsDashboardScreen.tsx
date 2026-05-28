@@ -27,7 +27,13 @@ import { useSyncSession } from "../context/SyncSessionContext";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { loadUserProfile, profileGreetingName } from "../utils/userProfileStorage";
 import { isSupabaseConfigured } from "../services/supabaseClient";
-import { loadToolOrder, saveToolOrder } from "../utils/toolsDashboardOrder";
+import { syncToolIdForDashboardTool } from "../constants/syncTools";
+import {
+  getCachedToolOrder,
+  loadToolOrder,
+  saveToolOrder,
+  toolOrderIdsEqual,
+} from "../utils/toolsDashboardOrder";
 import ToolsDashboardReorderGrid from "../components/ToolsDashboardReorderGrid";
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
@@ -258,25 +264,15 @@ function createDashboardStyles(c: AppThemeColors) {
       marginTop: 6,
       paddingHorizontal: 0,
     },
-    /** Fills the trailing empty cell when there is an odd number of tools. */
-    gridHintTile: {
-      flex: 1,
+    squareTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
       alignSelf: "stretch",
-      borderRadius: 20,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
-      backgroundColor: c.inputBg,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 10,
       gap: 6,
     },
-    gridHintText: {
-      fontSize: 11,
-      fontWeight: "600",
-      color: c.textTertiary,
-      textAlign: "center",
-      lineHeight: 15,
+    syncToolBadge: {
+      flexShrink: 0,
     },
   });
 }
@@ -301,38 +297,49 @@ function ToolCardInner({
   styles,
   square = false,
   tileWidth,
+  syncEnabled = false,
 }: {
   tool: ToolDefinition;
   styles: ReturnType<typeof createDashboardStyles>;
   square?: boolean;
   /** Passed when `square` — scales icon to tile for visual balance. */
   tileWidth?: number;
+  syncEnabled?: boolean;
 }) {
+  const { colors } = useTheme();
+
   if (square && tileWidth != null) {
     const blob = Math.round(Math.min(58, Math.max(44, tileWidth * 0.34)));
     const radius = Math.round(blob * 0.28);
     const glyph = Math.round(Math.min(30, Math.max(22, blob * 0.48)));
     return (
       <View style={styles.cardSquareRoot}>
-        <View style={styles.squareHero}>
-          <View
-            style={[
-              {
-                width: blob,
-                height: blob,
-                borderRadius: radius,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: tool.dashboardIconBg,
-              },
-            ]}
-          >
-            <Ionicons
-              name={tool.icon as ComponentProps<typeof Ionicons>["name"]}
-              size={glyph}
-              color={tool.dashboardIconFg}
-            />
+        <View style={styles.squareTopRow}>
+          <View style={styles.squareHero}>
+            <View
+              style={[
+                {
+                  width: blob,
+                  height: blob,
+                  borderRadius: radius,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: tool.dashboardIconBg,
+                },
+              ]}
+            >
+              <Ionicons
+                name={tool.icon as ComponentProps<typeof Ionicons>["name"]}
+                size={glyph}
+                color={tool.dashboardIconFg}
+              />
+            </View>
           </View>
+          {syncEnabled ? (
+            <View style={styles.syncToolBadge} accessibilityLabel="Synced for this tool">
+              <Ionicons name="link" size={15} color={colors.linkBlue} />
+            </View>
+          ) : null}
         </View>
         <Text style={styles.cardTitleSquare} numberOfLines={2}>
           {tool.title}
@@ -360,6 +367,11 @@ function ToolCardInner({
         <Text style={styles.cardTitle} numberOfLines={2}>
           {tool.title}
         </Text>
+        {syncEnabled ? (
+          <View style={styles.syncToolBadge} accessibilityLabel="Synced for this tool">
+            <Ionicons name="link" size={15} color={colors.linkBlue} />
+          </View>
+        ) : null}
       </View>
       <Text style={styles.cardDesc} numberOfLines={2}>
         {tool.description}
@@ -378,12 +390,16 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const { colors, isDark } = useTheme();
   const styles = useAppStyles(createDashboardStyles);
   const { lock } = usePrivateVault();
-  const { session: syncSession, pendingIncomingCount, refreshSyncState } = useSyncSession();
+  const { session: syncSession, pendingIncomingCount, refreshSyncState, registerDashboardRefresh } =
+    useSyncSession();
   const [greetingName, setGreetingName] = useState("");
 
-  const [orderedTools, setOrderedTools] = useState<ToolDefinition[]>(() => [...TOOLS_CATALOG]);
+  const [orderedTools, setOrderedTools] = useState<ToolDefinition[]>(() =>
+    toolsFromOrder(getCachedToolOrder())
+  );
   const orderedToolsRef = useRef(orderedTools);
   orderedToolsRef.current = orderedTools;
+  const toolOrderHydratedRef = useRef(false);
 
   const [reorderMode, setReorderMode] = useState(false);
   const [enterReorderBusy, setEnterReorderBusy] = useState(false);
@@ -415,20 +431,52 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
     [wiggleAnim]
   );
 
+  const isToolSynced = useCallback(
+    (toolId: ToolId) => {
+      if (!syncSession) return false;
+      const syncId = syncToolIdForDashboardTool(toolId);
+      return syncId != null && Boolean(syncSession.tools[syncId]);
+    },
+    [syncSession]
+  );
+
+  const applyToolOrderIfNeeded = useCallback((ids: ToolId[]) => {
+    const currentIds = orderedToolsRef.current.map((t) => t.id);
+    if (toolOrderIdsEqual(ids, currentIds)) return;
+    setOrderedTools(toolsFromOrder(ids));
+  }, []);
+
+  const hydrateToolOrder = useCallback(async () => {
+    const ids = await loadToolOrder();
+    toolOrderHydratedRef.current = true;
+    applyToolOrderIfNeeded(ids);
+  }, [applyToolOrderIfNeeded]);
+
+  const reloadDashboard = useCallback(async () => {
+    await refreshSyncState();
+    const p = await loadUserProfile();
+    setGreetingName(profileGreetingName(p.username));
+    if (!reorderMode) {
+      if (toolOrderHydratedRef.current) {
+        applyToolOrderIfNeeded(getCachedToolOrder());
+      } else {
+        await hydrateToolOrder();
+      }
+    }
+  }, [refreshSyncState, reorderMode, applyToolOrderIfNeeded, hydrateToolOrder]);
+
+  useEffect(() => {
+    void hydrateToolOrder();
+  }, [hydrateToolOrder]);
+
+  useEffect(() => registerDashboardRefresh(reloadDashboard), [registerDashboardRefresh, reloadDashboard]);
+
   useFocusEffect(
     useCallback(() => {
       lock();
-      void refreshSyncState();
-      void loadUserProfile().then((p) => setGreetingName(profileGreetingName(p.username)));
-      if (reorderMode) return;
-      let cancelled = false;
-      void loadToolOrder().then((ids) => {
-        if (!cancelled) setOrderedTools(toolsFromOrder(ids));
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [lock, reorderMode, refreshSyncState])
+      void reloadDashboard();
+      return undefined;
+    }, [lock, reloadDashboard])
   );
 
   useEffect(() => {
@@ -461,6 +509,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const finishReorder = useCallback(() => {
     const ids = orderedToolsRef.current.map((t) => t.id);
     void saveToolOrder(ids);
+    toolOrderHydratedRef.current = true;
     setReorderMode(false);
   }, []);
 
@@ -544,7 +593,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
               {greetingName ? `Hello, ${greetingName}` : `Welcome to ${APP_DISPLAY_NAME}`}
             </Text>
             <Text style={styles.welcomeSub}>
-              Groceries, to-dos, notes, reminders, and vault — tap a tile or long-press to reorder.
+              Groceries, to-dos, notes, reminders, and vault — tap a tile. Long-press to reorder.
             </Text>
             {isSupabaseConfigured() && !syncSession && pendingIncomingCount > 0 ? (
               <Pressable
@@ -600,23 +649,16 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
                     { width: tileWidth, height: tileWidth, transform: [{ rotate: wiggleRotate }] },
                   ]}
                 >
-                  <ToolCardInner tool={tool} styles={styles} square tileWidth={tileWidth} />
+                  <ToolCardInner
+                    tool={tool}
+                    styles={styles}
+                    square
+                    tileWidth={tileWidth}
+                    syncEnabled={isToolSynced(tool.id)}
+                  />
                 </Animated.View>
               </Pressable>
             ))}
-            {orderedTools.length % 2 === 1 ? (
-              <View
-                style={{ width: tileWidth, height: tileWidth, alignSelf: "flex-start" }}
-                pointerEvents="none"
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                <View style={styles.gridHintTile}>
-                  <Ionicons name="hand-left-outline" size={22} color={colors.textTertiary} />
-                  <Text style={styles.gridHintText}>Long-press to reorder</Text>
-                </View>
-              </View>
-            ) : null}
           </View>
         </ScrollView>
       ) : (
@@ -630,15 +672,15 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
           columnGap={GRID_COL_GAP}
           paddingBottom={insets.bottom + 24}
           cardStyle={[styles.cardReorderLift, { width: tileWidth, height: tileWidth }]}
-          renderItem={(item) => <ToolCardInner tool={item} styles={styles} square tileWidth={tileWidth} />}
-          trailingSlot={
-            orderedTools.length % 2 === 1 ? (
-              <View style={styles.gridHintTile}>
-                <Ionicons name="hand-left-outline" size={22} color={colors.textTertiary} />
-                <Text style={styles.gridHintText}>Long-press to reorder</Text>
-              </View>
-            ) : undefined
-          }
+          renderItem={(item) => (
+            <ToolCardInner
+              tool={item}
+              styles={styles}
+              square
+              tileWidth={tileWidth}
+              syncEnabled={isToolSynced(item.id)}
+            />
+          )}
         />
       )}
     </View>

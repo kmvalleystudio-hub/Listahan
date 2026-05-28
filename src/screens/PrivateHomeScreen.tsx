@@ -25,6 +25,7 @@ import {
 } from "../theme/toolHomeFloatingAddButton";
 import type { PrivateList } from "../types";
 import PrivateVaultGate from "../components/PrivateVaultGate";
+import ListRenameModal from "../components/ListRenameModal";
 
 type ListSection = {
   title: string;
@@ -161,6 +162,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
   const styles = useVaultStylesWithArgs(createStyles, isDark);
   const { privateLists, loading, removePrivateList, upsertPrivateList } = useAppData();
   const [menuList, setMenuList] = useState<PrivateList | null>(null);
+  const [renameList, setRenameList] = useState<PrivateList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -173,8 +175,9 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
   }, [menuList]);
 
   const sections = useMemo((): ListSection[] => {
-    const pinned = privateLists.filter((l) => l.pinned).sort(byUpdatedDesc);
-    const normal = privateLists.filter((l) => !l.pinned).sort(byUpdatedDesc);
+    const visible = privateLists.filter((l) => !l.deletedAt);
+    const pinned = visible.filter((l) => l.pinned).sort(byUpdatedDesc);
+    const normal = visible.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
     if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
@@ -188,6 +191,12 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
     const id = menuList.id;
     closeMenu();
     navigation.navigate("PrivateListDetail", { listId: id });
+  };
+
+  const renameFromMenu = () => {
+    if (!menuList) return;
+    setRenameList(menuList);
+    closeMenu();
   };
 
   const prioritizeFromMenu = () => {
@@ -338,6 +347,10 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
                   <Ionicons name="open-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Open</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.menuRow} onPress={renameFromMenu} activeOpacity={0.85}>
+                  <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+                  <Text style={styles.menuRowText}>Rename</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.menuRow} onPress={prioritizeFromMenu} activeOpacity={0.85}>
                   <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
                   <Text style={styles.menuRowText}>Pin to top</Text>
@@ -351,6 +364,19 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
           </View>
         </Animated.View>
       </Modal>
+
+      <ListRenameModal
+        visible={!!renameList}
+        colors={colors}
+        initialName={renameList?.name ?? ""}
+        fallbackName="Untitled sheet"
+        title="Rename sheet"
+        onClose={() => setRenameList(null)}
+        onSave={async (name) => {
+          if (!renameList) return;
+          await upsertPrivateList({ ...renameList, name });
+        }}
+      />
     </View>
     </PrivateVaultGate>
   );

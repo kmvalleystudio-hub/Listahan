@@ -24,6 +24,33 @@ export function hasEnabledSyncTool(tools: SyncToolsConfig): boolean {
   return SYNC_TOOL_IDS.some((id) => tools[id]);
 }
 
+/** Whole-tool snapshots: partner payload replaces local rows (merge would keep local-only rows). */
+export const SYNC_WHOLE_TOOL_REPLACE_IDS: SyncToolId[] = ["notes", "reminders"];
+
+export function syncToolUsesReplaceMerge(tool: SyncToolId): boolean {
+  return (SYNC_WHOLE_TOOL_REPLACE_IDS as readonly SyncToolId[]).includes(tool);
+}
+
+/** Dashboard tool tile id → active sync tool key (when a session is active). */
+export function syncToolIdForDashboardTool(
+  toolId: "grocery" | "todo" | "private_list" | "reminder" | "notes"
+): SyncToolId | null {
+  switch (toolId) {
+    case "grocery":
+      return "grocery";
+    case "todo":
+      return "todo";
+    case "notes":
+      return "notes";
+    case "reminder":
+      return "reminders";
+    case "private_list":
+      return "vault";
+    default:
+      return null;
+  }
+}
+
 export function syncToolsToJson(tools: SyncToolsConfig): Record<string, boolean> {
   return {
     grocery: !!tools.grocery,

@@ -9,9 +9,23 @@ import type {
   TodoHistoryEntry,
   TodoList,
 } from "../types";
-import { saveQuickNotes, loadQuickNotes, type QuickNote } from "../utils/quickNotesStorage";
-import { saveReminders, loadReminders, type SavedReminder } from "../utils/remindersStorage";
-import { exportSyncToolPayload } from "./syncSnapshotExport";
+import {
+  mergeGroceryPayload,
+  mergeNotesPayload,
+  mergeRemindersPayload,
+  mergeTodoPayload,
+  mergeVaultPayload,
+} from "../utils/syncMerge";
+import {
+  stampGroceryPayload,
+  stampNotesPayload,
+  stampRemindersPayload,
+  stampTodoPayload,
+  stampVaultPayload,
+} from "../utils/syncPayloadStamp";
+import { saveQuickNotes, loadQuickNotesAll, type QuickNote } from "../utils/quickNotesStorage";
+import { saveReminders, loadRemindersRaw, type SavedReminder } from "../utils/remindersStorage";
+import { exportSyncToolPayload, type SyncExportSource } from "./syncSnapshotExport";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -59,63 +73,133 @@ export async function captureLocalBackupForTools(
   return out;
 }
 
+/** Snapshot every tool on this device before sync merges partner data. */
+export async function captureFullLocalBackup(
+  _vaultSyncAllowed: boolean
+): Promise<Partial<Record<SyncToolId, unknown>>> {
+  const allTools: SyncToolsConfig = {
+    grocery: true,
+    todo: true,
+    notes: true,
+    reminders: true,
+    vault: true,
+  };
+  const out = await captureLocalBackupForTools(allTools, true);
+  if (out.vault == null) {
+    const vaultPayload = await exportSyncToolPayload("vault", true);
+    if (vaultPayload != null) out.vault = vaultPayload;
+  }
+  return out;
+}
+
 export async function applySyncToolPayload(
   tool: SyncToolId,
   payload: unknown,
-  mode: "replace" | "merge" = "replace"
+  mode: "replace" | "merge" = "replace",
+  vaultSyncAllowed = true,
+  /** In-memory rows from SyncDataBridge — avoids merging against stale AsyncStorage. */
+  localSource?: SyncExportSource | null
 ): Promise<void> {
-  const persisted = await loadPersisted();
+  const disk = await loadPersisted();
+  const mergeSource = localSource ?? disk;
 
   switch (tool) {
     case "grocery": {
       const parsed = parseGroceryPayload(payload);
       if (!parsed) return;
       if (mode === "replace") {
+        const stamped = stampGroceryPayload(parsed);
         await savePersisted({
-          ...persisted,
-          lists: parsed.lists,
-          history: parsed.history,
+          ...disk,
+          lists: stamped.lists.filter((l) => !l.deletedAt),
+          history: stamped.history,
         });
+        return;
       }
+      const localRaw = await exportSyncToolPayload("grocery", true, mergeSource);
+      const local = parseGroceryPayload(localRaw) ?? { lists: [], history: [] };
+      const merged = mergeGroceryPayload(local, stampGroceryPayload(parsed));
+      await savePersisted({
+        ...disk,
+        lists: merged.lists.filter((l) => !l.deletedAt),
+        history: merged.history,
+      });
       break;
     }
     case "todo": {
       const parsed = parseTodoPayload(payload);
       if (!parsed) return;
       if (mode === "replace") {
+        const stamped = stampTodoPayload(parsed);
         await savePersisted({
-          ...persisted,
-          todoLists: parsed.lists,
-          todoHistory: parsed.history,
+          ...disk,
+          todoLists: stamped.lists.filter((l) => !l.deletedAt),
+          todoHistory: stamped.history,
         });
+        return;
       }
+      const localRaw = await exportSyncToolPayload("todo", true, mergeSource);
+      const local = parseTodoPayload(localRaw) ?? { lists: [], history: [] };
+      const merged = mergeTodoPayload(local, stampTodoPayload(parsed));
+      await savePersisted({
+        ...disk,
+        todoLists: merged.lists.filter((l) => !l.deletedAt),
+        todoHistory: merged.history,
+      });
       break;
     }
     case "notes": {
       const notes = parseNotesPayload(payload);
       if (!notes) return;
       if (mode === "replace") {
-        await saveQuickNotes(notes);
+        await saveQuickNotes(stampNotesPayload({ notes }).notes.filter((n) => !n.deletedAt));
+        return;
       }
+      const localNotes = await loadQuickNotesAll();
+      const merged = mergeNotesPayload(
+        { notes: localNotes },
+        stampNotesPayload({ notes })
+      );
+      await saveQuickNotes(merged.notes.filter((n) => !n.deletedAt));
       break;
     }
     case "reminders": {
       const reminders = parseRemindersPayload(payload);
       if (!reminders) return;
       if (mode === "replace") {
-        await saveReminders(reminders);
+        await saveReminders(stampRemindersPayload({ reminders }).reminders.filter((r) => !r.deletedAt));
+        return;
       }
+      const localReminders = await loadRemindersRaw();
+      const merged = mergeRemindersPayload(
+        { reminders: localReminders },
+        stampRemindersPayload({ reminders })
+      );
+      await saveReminders(merged.reminders.filter((r) => !r.deletedAt));
       break;
     }
     case "vault": {
+      if (!vaultSyncAllowed) return;
       const privateLists = parseVaultPayload(payload);
       if (!privateLists) return;
       if (mode === "replace") {
+        const stamped = stampVaultPayload({ privateLists });
         await savePersisted({
-          ...persisted,
-          privateLists,
+          ...disk,
+          privateLists: stamped.privateLists.filter((l) => !l.deletedAt),
         });
+        return;
       }
+      const localRaw = await exportSyncToolPayload("vault", true, mergeSource);
+      const localLists = parseVaultPayload(localRaw) ?? [];
+      const merged = mergeVaultPayload(
+        { privateLists: localLists },
+        stampVaultPayload({ privateLists })
+      );
+      await savePersisted({
+        ...disk,
+        privateLists: merged.privateLists.filter((l) => !l.deletedAt),
+      });
       break;
     }
     default:
@@ -130,8 +214,68 @@ export async function applySyncSnapshots(
   for (const snap of snapshots) {
     const tool = snap.toolKey as SyncToolId;
     if (!SYNC_TOOL_IDS.includes(tool) || !toolsFilter[tool]) continue;
-    await applySyncToolPayload(tool, snap.payload, "replace");
+    await applySyncToolPayload(tool, snap.payload, "replace", true);
   }
+}
+
+/** Apply the sync sender's snapshots for specific tools (replace, not merge). */
+export async function applyInitiatorSnapshotsForTools(
+  snapshots: Array<{ toolKey: string; payload: unknown; updatedBy: string; version: number }>,
+  initiatorDeviceId: string,
+  toolIds: SyncToolId[],
+  toolsFilter: SyncToolsConfig
+): Promise<Array<{ toolKey: string; version: number }>> {
+  const want = new Set(toolIds);
+  const applied: Array<{ toolKey: string; version: number }> = [];
+  for (const snap of snapshots) {
+    if (snap.updatedBy !== initiatorDeviceId) continue;
+    const tool = snap.toolKey as SyncToolId;
+    if (!want.has(tool) || !toolsFilter[tool]) continue;
+    await applySyncToolPayload(tool, snap.payload, "replace", true);
+    applied.push({ toolKey: tool, version: snap.version });
+  }
+  return applied;
+}
+
+const INITIATOR_EMPTY_PAYLOAD: Partial<Record<SyncToolId, unknown>> = {
+  notes: { notes: [] },
+  reminders: { reminders: [] },
+};
+
+/**
+ * Recipient: apply sender snapshots for newly enabled tools. If the sender has not
+ * uploaded a row yet, notes/reminders default to empty (sender is source of truth).
+ */
+export async function applyInitiatorSnapshotsForToolsOrEmpty(
+  snapshots: Array<{ toolKey: string; payload: unknown; updatedBy: string; version: number }>,
+  initiatorDeviceId: string,
+  toolIds: SyncToolId[],
+  toolsFilter: SyncToolsConfig
+): Promise<Array<{ toolKey: string; version: number }>> {
+  const applied = await applyInitiatorSnapshotsForTools(
+    snapshots,
+    initiatorDeviceId,
+    toolIds,
+    toolsFilter
+  );
+  const appliedSet = new Set(applied.map((a) => a.toolKey));
+  for (const tool of toolIds) {
+    if (!toolsFilter[tool] || appliedSet.has(tool)) continue;
+    const emptyPayload = INITIATOR_EMPTY_PAYLOAD[tool];
+    if (emptyPayload == null) continue;
+    await applySyncToolPayload(tool, emptyPayload, "replace", true);
+    applied.push({ toolKey: tool, version: 0 });
+  }
+  return applied;
+}
+
+/** Recipient accept: replace local data with the sync sender's snapshots only. */
+export async function applyInitiatorSnapshotsOnAccept(
+  snapshots: Array<{ toolKey: string; payload: unknown; updatedBy: string; version: number }>,
+  initiatorDeviceId: string,
+  toolsFilter: SyncToolsConfig
+): Promise<Array<{ toolKey: string; version: number }>> {
+  return applyInitiatorSnapshotsForTools(snapshots, initiatorDeviceId, SYNC_TOOL_IDS, toolsFilter);
 }
 
 export async function restoreSyncBackupTools(
@@ -140,7 +284,7 @@ export async function restoreSyncBackupTools(
   for (const id of SYNC_TOOL_IDS) {
     const payload = tools[id];
     if (payload == null) continue;
-    await applySyncToolPayload(id, payload, "replace");
+    await applySyncToolPayload(id, payload, "replace", true);
   }
 }
 
