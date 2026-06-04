@@ -554,21 +554,16 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
         <View style={styles.card}>
           <Pressable
             style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
-            onPress={() =>
-              showAlert({
-                title: "Data on this device",
-                message: `${APP_DISPLAY_NAME} keeps your lists, notes, reminders, and vault on this phone. With Supabase configured, your Listahan tag (@username), portrait, and profile upload for future discovery sync; nothing else is uploaded unless you share or import a code.`,
-                variant: "info",
-              })
-            }
+            onPress={() => navigation.navigate("PrivacyPolicy")}
             accessibilityRole="button"
+            accessibilityLabel="Open privacy policy"
           >
             <View style={styles.rowIcon}>
               <Ionicons name="shield-checkmark-outline" size={20} color={colors.primaryDark} />
             </View>
             <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>Data & privacy</Text>
-              <Text style={styles.rowSubtitle}>Where your information lives today.</Text>
+              <Text style={styles.rowTitle}>Privacy policy</Text>
+              <Text style={styles.rowSubtitle}>How your data is stored, synced, and protected.</Text>
             </View>
             {rowChevron()}
           </Pressable>

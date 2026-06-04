@@ -19,6 +19,7 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import SyncSearchScreen from "./src/screens/SyncSearchScreen";
 import SyncSettingsScreen from "./src/screens/SyncSettingsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
+import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
 import { SyncSessionProvider } from "./src/context/SyncSessionContext";
 import SyncDataBridge from "./src/components/SyncDataBridge";
 import SyncToolsChangeBridge from "./src/components/SyncToolsChangeBridge";
@@ -145,6 +146,7 @@ function NavigationRoot() {
         <Stack.Screen name="SyncSearch" component={SyncSearchScreen} />
         <Stack.Screen name="SyncSettings" component={SyncSettingsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         <Stack.Screen name="GroceryHome" component={GroceryHomeScreen} />
         <Stack.Screen name="ShareExport" component={ShareExportScreen} />
         <Stack.Screen name="ShareImport" component={ShareImportScreen} />

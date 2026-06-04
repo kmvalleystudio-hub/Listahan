@@ -155,6 +155,22 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
           </Pressable>
         </View>
 
+        <Text style={styles.sectionTitle}>Legal</Text>
+        <View style={styles.card}>
+          <Pressable
+            style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
+            onPress={() => navigation.navigate("PrivacyPolicy")}
+            accessibilityRole="button"
+            accessibilityLabel="Open privacy policy"
+          >
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>Privacy policy</Text>
+              <Text style={styles.rowSubtitle}>What we store, sync, and how you stay in control.</Text>
+            </View>
+            {rowChevron()}
+          </Pressable>
+        </View>
+
         <Text style={styles.sectionTitle}>Support</Text>
         <View style={styles.card}>
           <Pressable
