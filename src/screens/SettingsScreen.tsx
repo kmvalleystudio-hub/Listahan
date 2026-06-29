@@ -18,6 +18,10 @@ import { useTheme } from "../context/ThemeContext";
 import { useAppStyles } from "../hooks/useAppStyles";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
+import { openSupportEmail } from "../utils/openSupportEmail";
+import ProSubscriptionSettingsCard, {
+  createProSubscriptionStyles,
+} from "../components/ProSubscriptionSettingsCard";
 
 const GRID_PAD = 16;
 
@@ -93,6 +97,7 @@ function createStyles(c: AppThemeColors) {
       lineHeight: 18,
       paddingHorizontal: 4,
     },
+    ...createProSubscriptionStyles(c),
   });
 }
 
@@ -139,6 +144,9 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={styles.sectionTitle}>Listahan Pro</Text>
+        <ProSubscriptionSettingsCard colors={colors} styles={styles} />
+
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.card}>
           <Pressable
@@ -175,36 +183,36 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
         <View style={styles.card}>
           <Pressable
             style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
-            onPress={() =>
-              Alert.alert("FAQ", `Help topics for ${APP_DISPLAY_NAME} will live here in a future update.`)
-            }
+            onPress={() => navigation.navigate("Faq")}
             accessibilityRole="button"
+            accessibilityLabel="Open frequently asked questions"
           >
-            <Text style={[styles.rowTitle, styles.rowBody]}>FAQ</Text>
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>FAQ</Text>
+              <Text style={styles.rowSubtitle}>Sync, voice, import, vault, and troubleshooting.</Text>
+            </View>
             {rowChevron()}
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
-            onPress={() =>
-              Alert.alert(
-                "Report a problem",
-                `Describe what went wrong when contacting support for ${APP_DISPLAY_NAME}.`
-              )
-            }
+            onPress={() => void openSupportEmail({ kind: "problem" })}
             accessibilityRole="button"
+            accessibilityLabel="Report a problem by email"
           >
             <Text style={[styles.rowTitle, styles.rowBody]}>Report a problem</Text>
-            <Ionicons name="open-outline" size={20} color={colors.placeholder} />
+            <Ionicons name="mail-outline" size={20} color={colors.placeholder} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}
-            onPress={() =>
-              Alert.alert("Feedback", `Thanks for helping improve ${APP_DISPLAY_NAME}. More feedback options are coming soon.`)
-            }
+            onPress={() => void openSupportEmail({ kind: "feedback" })}
             accessibilityRole="button"
+            accessibilityLabel="Send general feedback by email"
           >
-            <Text style={[styles.rowTitle, styles.rowBody]}>General feedback</Text>
-            {rowChevron()}
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>General feedback</Text>
+              <Text style={styles.rowSubtitle}>Ideas and suggestions welcome.</Text>
+            </View>
+            <Ionicons name="mail-outline" size={20} color={colors.placeholder} />
           </Pressable>
         </View>
 

@@ -21,7 +21,6 @@ const PRODUCT_REGISTRY: Array<{
   { canonical: "pork", aliases: ["pork"], units: ["500g", "1kg"] },
   { canonical: "beef", aliases: ["beef"], units: ["500g", "1kg"] },
   { canonical: "cooked ham", aliases: ["cooked ham", "ham", "sweet ham"], units: ["100g", "250g", "500g"] },
-  { canonical: "bear brand", aliases: ["bear brand"], units: ["33g", "300g", "840g"] },
   { canonical: "coke", aliases: ["coke", "coca cola", "coca-cola"], units: ["237ml", "330ml", "500ml", "1.5L"] },
   {
     canonical: "pancit canton",

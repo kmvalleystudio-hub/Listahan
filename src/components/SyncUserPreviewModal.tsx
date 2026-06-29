@@ -20,13 +20,16 @@ import {
   hasEnabledSyncTool,
 } from "../constants/syncTools";
 import { useAppAlert } from "../context/AppAlertContext";
+import { usePrivateVault } from "../context/PrivateVaultContext";
 import { ProfilePortrait } from "./ProfilePortrait";
 import VaultSyncPinConfirmModal from "./VaultSyncPinConfirmModal";
+import { setVaultSyncAllowed } from "../utils/privateVaultPin";
 import {
   VAULT_SYNC_CLOUD_DISCLAIMER,
   VAULT_SYNC_PIN_PROMPT,
   VAULT_SYNC_SAFETY_REASSURANCE,
 } from "../constants/vaultSyncDisclosure";
+import { formatDisplayUsername } from "../utils/userProfileStorage";
 
 type Props = {
   visible: boolean;
@@ -54,6 +57,7 @@ export default function SyncUserPreviewModal({
 }: Props) {
   const allowVaultSync = vaultSyncAllowed ?? vaultUnlocked ?? false;
   const { showAlert } = useAppAlert();
+  const { refreshVaultSyncAllowed } = usePrivateVault();
   const [tools, setTools] = useState<SyncToolsConfig>({ ...DEFAULT_SYNC_TOOLS_REQUEST });
   const [vaultPinModal, setVaultPinModal] = useState(false);
 
@@ -171,7 +175,7 @@ export default function SyncUserPreviewModal({
               size={56}
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{profile.username}</Text>
+              <Text style={styles.name}>{formatDisplayUsername(profile.username)}</Text>
               <Text style={styles.tag}>{profile.publicTag || profile.username}</Text>
               <Text style={[styles.tag, { marginTop: 6, fontWeight: "500", fontSize: 12 }]} selectable>
                 User ID: {profile.deviceProfileId}
@@ -236,8 +240,12 @@ export default function SyncUserPreviewModal({
         colors={colors}
         onClose={() => setVaultPinModal(false)}
         onVerified={() => {
-          setVaultPinModal(false);
-          setTools((prev) => ({ ...prev, vault: true }));
+          void (async () => {
+            setVaultPinModal(false);
+            await setVaultSyncAllowed(true);
+            await refreshVaultSyncAllowed();
+            setTools((prev) => ({ ...prev, vault: true }));
+          })();
         }}
         disclaimer={VAULT_SYNC_CLOUD_DISCLAIMER}
         reassurance={VAULT_SYNC_SAFETY_REASSURANCE}

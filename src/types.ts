@@ -33,6 +33,7 @@ export type GroceryList = {
   importedFromShare?: boolean;
   /** Tombstone when list removed during sync. */
   deletedAt?: string;
+  pinned?: boolean;
 };
 
 export type HistoryEntry = {

@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Image, useWindowDimensions, Platform } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, Image, Platform } from "react-native";
 import type { AppThemeColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import { useTheme } from "../context/ThemeContext";
+import { useViewportDimensions } from "../context/PreviewViewportContext";
+import { useImageAspectRatio } from "../hooks/useImageAspectRatio";
 
 const LISTAHAN_LOGO_ON_DARK = require("../../assets/branding/listahan-logo-horizontal-on-dark.png");
 const LISTAHAN_LOGO_ON_LIGHT = require("../../assets/branding/listahan-logo-horizontal.png");
@@ -42,6 +44,7 @@ function createStyles(c: AppThemeColors) {
 
 type Props = {
   colors: AppThemeColors;
+  /** Background behind the logo: `light` → dark ink mark, `dark` → light ink mark. */
   variant?: "dark" | "light";
   logoHeight?: number;
   paddingBottom?: number;
@@ -53,25 +56,11 @@ export default function ListahanOnboardingFooter({
   logoHeight = ONBOARDING_FOOTER_LOGO_HEIGHT,
   paddingBottom = 18,
 }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useViewportDimensions();
   const { styleEpoch } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors, styleEpoch]);
   const logoSource = variant === "dark" ? LISTAHAN_LOGO_ON_DARK : LISTAHAN_LOGO_ON_LIGHT;
-
-  const [logoAspect, setLogoAspect] = useState(LISTAHAN_LOGO_ASPECT_FALLBACK);
-  useEffect(() => {
-    const src = Image.resolveAssetSource(logoSource);
-    const uri = src?.uri;
-    if (!uri) return;
-    Image.getSize(
-      uri,
-      (w, h) => {
-        if (w > 0 && h > 0) setLogoAspect(w / h);
-      },
-      () => {}
-    );
-  }, [logoSource]);
-
+  const logoAspect = useImageAspectRatio(logoSource, LISTAHAN_LOGO_ASPECT_FALLBACK);
   const footerLogoWidth = Math.min(windowWidth - GRID_PAD * 2 - 16, logoHeight * logoAspect);
 
   return (
@@ -86,7 +75,7 @@ export default function ListahanOnboardingFooter({
         />
       </View>
       <Text style={styles.footerTagline}>
-        Groceries, to-dos & reminders — private by default, yours on every device you choose later.
+        Groceries, to-dos, notes, reminders, and vault — private on your phone until you choose to share.
       </Text>
       <Text style={styles.footerMicro}>
         {APP_DISPLAY_NAME} © {new Date().getFullYear()}

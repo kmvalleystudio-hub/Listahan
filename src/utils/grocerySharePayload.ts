@@ -1,7 +1,7 @@
 import type { GroceryItem, GroceryList } from "../types";
 import { generateId } from "./id";
 import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
-import { normalizeItemsForPersist } from "./items";
+import { normalizeItemsForPersist, reindexOrders } from "./items";
 
 export const GROCERY_SHARE_FORMAT_VERSION = 1 as const;
 export const GROCERY_SHARE_KIND = "saycart-grocery" as const;
@@ -118,6 +118,50 @@ export function groceryListFromSharePayload(base: GroceryList, parsed: GrocerySh
     items: normalizeItemsForPersist(items),
     updatedAt: now,
     importedFromShare: true,
+  };
+}
+
+function dedupeGroceryItemsByName(items: GroceryItem[]): GroceryItem[] {
+  const seen = new Set<string>();
+  const out: GroceryItem[] = [];
+  for (const item of items) {
+    const key = item.name.trim().toLowerCase();
+    if (!key) {
+      out.push(item);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+/** Append shared items onto an existing list (skips duplicate names already on the list). */
+export function mergeGroceryShareIntoList(list: GroceryList, parsed: GroceryShareFileV1): GroceryList {
+  const now = new Date().toISOString();
+  let order = list.items.length;
+  const imported: GroceryItem[] = parsed.list.items.map((it) => ({
+    id: generateId(),
+    name: it.name,
+    quantity: it.quantity,
+    unit: it.unit,
+    unitOptions: [...it.unitOptions],
+    price: it.price,
+    priority: it.priority,
+    checked: false,
+    checkPending: false,
+    order: order++,
+    updatedAt: now,
+  }));
+  const items = reindexOrders(dedupeGroceryItemsByName([...list.items, ...imported]));
+  return {
+    ...list,
+    items: normalizeItemsForPersist(items),
+    showItemPrice: list.showItemPrice || parsed.list.showItemPrice,
+    currencySymbol:
+      list.currencySymbol?.trim() || parsed.list.currencySymbol || DEFAULT_CURRENCY_SYMBOL,
+    updatedAt: now,
   };
 }
 

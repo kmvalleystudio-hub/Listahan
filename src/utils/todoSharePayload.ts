@@ -1,6 +1,6 @@
 import type { TodoItem, TodoList } from "../types";
 import { generateId } from "./id";
-import { normalizeTodoItemsForPersist } from "./todoItems";
+import { normalizeTodoItemsForPersist, reindexTodoOrders } from "./todoItems";
 
 export const TODO_SHARE_FORMAT_VERSION = 1 as const;
 export const TODO_SHARE_KIND = "saycart-todo" as const;
@@ -82,5 +82,42 @@ export function todoListFromSharePayload(base: TodoList, parsed: TodoShareFileV1
     items: normalizeTodoItemsForPersist(items),
     updatedAt: now,
     importedFromShare: true,
+  };
+}
+
+function dedupeTodoItemsByName(items: TodoItem[]): TodoItem[] {
+  const seen = new Set<string>();
+  const out: TodoItem[] = [];
+  for (const item of items) {
+    const key = item.name.trim().toLowerCase();
+    if (!key) {
+      out.push(item);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+/** Append shared tasks onto an existing list (skips duplicate names already on the list). */
+export function mergeTodoShareIntoList(list: TodoList, parsed: TodoShareFileV1): TodoList {
+  const now = new Date().toISOString();
+  let order = list.items.length;
+  const imported: TodoItem[] = parsed.list.items.map((it) => ({
+    id: generateId(),
+    name: it.name,
+    priority: it.priority,
+    checked: false,
+    checkPending: false,
+    order: order++,
+    updatedAt: now,
+  }));
+  const items = reindexTodoOrders(dedupeTodoItemsByName([...list.items, ...imported]));
+  return {
+    ...list,
+    items: normalizeTodoItemsForPersist(items),
+    updatedAt: now,
   };
 }

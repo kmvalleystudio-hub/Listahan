@@ -1,15 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -199,7 +190,7 @@ export default function NoteEditorScreen({ navigation, route }: NoteEditorProps)
       </View>
 
       <View style={styles.inputWrap}>
-        <TextInput
+        <AppTextInput
           style={styles.input}
           value={body}
           onChangeText={setBody}

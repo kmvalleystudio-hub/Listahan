@@ -1,14 +1,15 @@
 import React, { useCallback, useMemo, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, Animated, StatusBar as RNStatusBar } from "react-native";
+import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { WelcomeProps } from "../navigation/types";
-import { useTheme } from "../context/ThemeContext";
 import type { AppThemeColors } from "../theme/colors";
+import { darkColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import ListahanOnboardingFooter from "../components/ListahanOnboardingFooter";
-import { useAppStyles } from "../hooks/useAppStyles";
+import { useTheme } from "../context/ThemeContext";
+import { formatDisplayUsername } from "../utils/userProfileStorage";
 
 const GRID_PAD = 24;
 
@@ -71,9 +72,10 @@ function createStyles(c: AppThemeColors) {
 
 export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
   const insets = useSafeAreaInsets();
-  const { colors, scheme } = useTheme();
-  const styles = useAppStyles(createStyles);
-  const username = route.params.username.trim();
+  const { styleEpoch } = useTheme();
+  const colors = darkColors;
+  const styles = useMemo(() => createStyles(colors), [colors, styleEpoch]);
+  const username = formatDisplayUsername(route.params.username);
 
   const ringScale = useRef(new Animated.Value(0)).current;
   const ringOpacity = useRef(new Animated.Value(0)).current;
@@ -108,9 +110,8 @@ export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
 
   useFocusEffect(
     useCallback(() => {
-      RNStatusBar.setBarStyle(scheme === "dark" ? "light-content" : "dark-content");
       playWelcomeCheckAnimation();
-    }, [scheme, playWelcomeCheckAnimation])
+    }, [playWelcomeCheckAnimation])
   );
 
   const goToDashboard = () => {
@@ -155,7 +156,7 @@ export default function WelcomeScreen({ navigation, route }: WelcomeProps) {
 
       <ListahanOnboardingFooter
         colors={colors}
-        variant="light"
+        variant="dark"
         paddingBottom={Math.max(insets.bottom, 18)}
       />
     </View>

@@ -51,11 +51,6 @@ export function useSpeechToText() {
             ? `${bulkCommittedRef.current} ${trimmed}`
             : trimmed;
           onTextRef.current(bulkCommittedRef.current);
-        } else {
-          const live = bulkCommittedRef.current
-            ? `${bulkCommittedRef.current} ${trimmed}`.trim()
-            : trimmed;
-          onTextRef.current(live);
         }
       } else {
         onTextRef.current(t);
@@ -132,7 +127,7 @@ export function useSpeechToText() {
       try {
         ExpoSpeechRecognitionModule.start({
           lang: "en-US",
-          interimResults: true,
+          interimResults: !bulk,
           maxAlternatives: 1,
           continuous: bulk,
           addsPunctuation: bulk,

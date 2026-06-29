@@ -24,6 +24,12 @@ export function hasEnabledSyncTool(tools: SyncToolsConfig): boolean {
   return SYNC_TOOL_IDS.some((id) => tools[id]);
 }
 
+export function formatSyncToolsSummary(tools: SyncToolsConfig): string {
+  return SYNC_TOOL_IDS.filter((id) => tools[id])
+    .map((id) => SYNC_TOOL_LABELS[id])
+    .join(", ");
+}
+
 /** Whole-tool snapshots: partner payload replaces local rows (merge would keep local-only rows). */
 export const SYNC_WHOLE_TOOL_REPLACE_IDS: SyncToolId[] = ["notes", "reminders"];
 

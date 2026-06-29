@@ -85,7 +85,7 @@ Data is stored under `@saycart/lists_v1` and `@saycart/history_v1` in AsyncStora
 
 ## 6. Bulk List by Voice (on-device)
 
-The **Bulk List by Voice** banner records your speech, then **splits the transcript into rows** in `src/utils/parseBulkTranscriptLocal.ts`. **Format:** say **quantity first**, then the item name; say **AND** (or use a **comma**) before the next item—e.g. `one bear brand and two eggs and one coffee` or `3 milk, 2 bread`. **No internet and no API key** are required.
+The **Bulk List by Voice** banner records your speech, then **splits the transcript into rows** in `src/utils/parseBulkTranscriptLocal.ts`. **Format:** say **quantity first**, then the item name; say **AND** (or use a **comma**) before the next item—e.g. `one milk and two eggs and one coffee` or `3 milk, 2 bread`. **No internet and no API key** are required.
 
 If you skip AND/commas and put multiple quantities in one phrase, parsing won’t know where one item ends—stick to the format above. **Spoken prices inside a long bulk phrase are not parsed**—use **Item Price** and edit lines, or add prices per item in the item modal.
 

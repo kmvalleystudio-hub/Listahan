@@ -1,16 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import AppTextInput from "./AppTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AppThemeColors } from "../theme/colors";
 
@@ -115,7 +105,7 @@ export default function ListRenameModal({
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
-          <TextInput
+          <AppTextInput
             ref={inputRef}
             style={styles.input}
             value={name}

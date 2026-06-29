@@ -2,11 +2,15 @@
   "expo": {
     "name": "Listahan",
     "slug": "listahan",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -24,9 +28,10 @@
       }
     },
     "android": {
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#BAC67A"
+        "backgroundColor": "#f9f6f2"
       },
       "package": "com.saycart.app",
       "softwareKeyboardLayoutMode": "resize",
@@ -38,6 +43,14 @@
       ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#f4f6f8"
+        }
+      ],
       [
         "expo-speech-recognition",
         {

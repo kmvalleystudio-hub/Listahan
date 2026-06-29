@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { AllDoneProps } from "../navigation/types";
-import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
+import { leaveAllDone } from "../navigation/leaveAllDone";
+import { useToolTheme } from "../hooks/useToolTheme";
 import type { ToolId } from "../constants/toolsCatalog";
 
 export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
@@ -22,28 +23,26 @@ export default function AllDoneScreen({ navigation, route }: AllDoneProps) {
   const homeName = tool === "todo" ? "TodoHome" : "GroceryHome";
   const autoNavRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const goHome = () => {
+  const goHome = useCallback(() => {
     if (autoNavRef.current) {
       clearTimeout(autoNavRef.current);
       autoNavRef.current = null;
     }
-    navigation.navigate(homeName);
-  };
+    leaveAllDone(navigation, homeName);
+  }, [navigation, homeName]);
 
   useEffect(() => {
-    autoNavRef.current = setTimeout(() => {
-      autoNavRef.current = null;
-      navigation.navigate(homeName);
-    }, 2800);
+    autoNavRef.current = setTimeout(goHome, 2800);
     return () => {
       if (autoNavRef.current) clearTimeout(autoNavRef.current);
     };
-  }, [navigation, homeName]);
+  }, [goHome]);
 
   return (
     <View
       style={[
         styles.screen,
+        Platform.OS === "web" && styles.screenWeb,
         {
           paddingTop: insets.top,
           paddingBottom: insets.bottom + 16,
@@ -84,6 +83,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  screenWeb: {
+    // @ts-expect-error web — fullScreenModal can clip on web preview
+    minHeight: "100%",
+    width: "100%",
   },
   topBar: {
     flexDirection: "row",

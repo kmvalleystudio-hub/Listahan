@@ -27,6 +27,7 @@ import {
   type QuickNote,
 } from "../utils/quickNotesStorage";
 import SyncAuxRefreshBridge from "../components/SyncAuxRefreshBridge";
+import { goToDashboard } from "../navigation/goToDashboard";
 
 function previewLine(body: string): string {
   const t = body.trim();
@@ -172,7 +173,7 @@ export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
           <View style={styles.headerTextCol}>
             <TouchableOpacity
               style={styles.backRow}
-              onPress={() => navigation.navigate("ToolsDashboard")}
+              onPress={() => goToDashboard(navigation)}
               accessibilityRole="button"
               accessibilityLabel="Back to tools"
             >
@@ -196,7 +197,7 @@ export default function NotesHomeScreen({ navigation }: NotesHomeProps) {
         <View style={styles.headerTextCol}>
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => navigation.navigate("ToolsDashboard")}
+            onPress={() => goToDashboard(navigation)}
             accessibilityRole="button"
             accessibilityLabel="Back to tools"
           >

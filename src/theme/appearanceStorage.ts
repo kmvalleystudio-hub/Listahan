@@ -1,10 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  DEFAULT_APP_FONT_FAMILY_ID,
+  normalizeAppFontFamilyId,
+  type AppFontFamilyId,
+} from "./appFontFamilies";
 
 export const COLOR_SCHEME_STORAGE_KEY = "@saycart/color_scheme_v1";
 /** Legacy float multiplier (0.85–1.25); migrated to level on read. */
 export const FONT_SCALE_STORAGE_KEY = "@saycart/font_scale_v1";
 export const FONT_SIZE_LEVEL_STORAGE_KEY = "@saycart/font_size_level_v1";
 export const USE_SYSTEM_FONT_STORAGE_KEY = "@saycart/use_system_font_v1";
+export const FONT_FAMILY_STORAGE_KEY = "@saycart/font_family_v1";
 
 export const FONT_SIZE_LEVEL_MIN = 1;
 export const FONT_SIZE_LEVEL_MAX = 5;
@@ -56,13 +62,15 @@ export async function loadAppearancePreferences(): Promise<{
   scheme: "light" | "dark" | null;
   fontSizeLevel: number;
   useSystemFontSize: boolean;
+  fontFamilyId: AppFontFamilyId;
 }> {
   try {
-    const [schemeRaw, levelRaw, legacyScaleRaw, systemRaw] = await Promise.all([
+    const [schemeRaw, levelRaw, legacyScaleRaw, systemRaw, fontFamilyRaw] = await Promise.all([
       AsyncStorage.getItem(COLOR_SCHEME_STORAGE_KEY),
       AsyncStorage.getItem(FONT_SIZE_LEVEL_STORAGE_KEY),
       AsyncStorage.getItem(FONT_SCALE_STORAGE_KEY),
       AsyncStorage.getItem(USE_SYSTEM_FONT_STORAGE_KEY),
+      AsyncStorage.getItem(FONT_FAMILY_STORAGE_KEY),
     ]);
 
     const scheme = schemeRaw === "dark" || schemeRaw === "light" ? schemeRaw : null;
@@ -88,10 +96,21 @@ export async function loadAppearancePreferences(): Promise<{
       }
     }
     const useSystemFontSize = systemRaw === "true";
+    const fontFamilyId = normalizeAppFontFamilyId(fontFamilyRaw ?? DEFAULT_APP_FONT_FAMILY_ID);
 
-    return { scheme, fontSizeLevel: clampFontSizeLevel(fontSizeLevel), useSystemFontSize };
+    return {
+      scheme,
+      fontSizeLevel: clampFontSizeLevel(fontSizeLevel),
+      useSystemFontSize,
+      fontFamilyId,
+    };
   } catch {
-    return { scheme: null, fontSizeLevel: DEFAULT_FONT_SIZE_LEVEL, useSystemFontSize: false };
+    return {
+      scheme: null,
+      fontSizeLevel: DEFAULT_FONT_SIZE_LEVEL,
+      useSystemFontSize: false,
+      fontFamilyId: DEFAULT_APP_FONT_FAMILY_ID,
+    };
   }
 }
 
@@ -103,6 +122,12 @@ export async function persistFontSizeLevel(level: number): Promise<void> {
 export async function persistUseSystemFontSize(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(USE_SYSTEM_FONT_STORAGE_KEY, enabled ? "true" : "false");
 }
+
+export async function persistFontFamilyId(fontFamilyId: AppFontFamilyId): Promise<void> {
+  await AsyncStorage.setItem(FONT_FAMILY_STORAGE_KEY, normalizeAppFontFamilyId(fontFamilyId));
+}
+
+export { DEFAULT_APP_FONT_FAMILY_ID, type AppFontFamilyId };
 
 /** @deprecated Use clampFontSizeLevel + fontScaleForLevel */
 export function clampFontScale(value: number): number {

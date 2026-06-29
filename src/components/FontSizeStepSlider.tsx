@@ -1,5 +1,12 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type GestureResponderEvent,
+  LayoutChangeEvent,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import type { AppThemeColors } from "../theme/colors";
 import {
   DEFAULT_FONT_SIZE_LEVEL,
@@ -37,44 +44,77 @@ function levelFromOffset(offsetX: number, travel: number): number {
   );
 }
 
+function touchXInTrack(event: GestureResponderEvent, trackPageX: number): number {
+  const { pageX, locationX } = event.nativeEvent;
+  if (typeof pageX === "number" && Number.isFinite(pageX)) {
+    return pageX - trackPageX;
+  }
+  if (typeof locationX === "number" && Number.isFinite(locationX)) {
+    return locationX;
+  }
+  return 0;
+}
+
 export default function FontSizeStepSlider({ colors, value, onValueChange, disabled = false }: Props) {
+  const trackRef = useRef<View>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dragThumbLeft, setDragThumbLeft] = useState(0);
 
-  const level = Math.min(FONT_SIZE_LEVEL_MAX, Math.max(FONT_SIZE_LEVEL_MIN, Math.round(value)));
-  const travel = Math.max(0, trackWidth - THUMB_SIZE);
+  const trackPageXRef = useRef(0);
+  const travelRef = useRef(0);
   const dragStartOffset = useRef(0);
-  const levelRef = useRef(level);
+  const levelRef = useRef(value);
+
+  const level = Math.min(FONT_SIZE_LEVEL_MAX, Math.max(FONT_SIZE_LEVEL_MIN, Math.round(value)));
   levelRef.current = level;
 
-  const restingThumbLeft = useMemo(
-    () => offsetForLevel(level, travel),
-    [level, travel]
-  );
+  const travel = Math.max(0, trackWidth - THUMB_SIZE);
+  travelRef.current = travel;
 
+  const restingThumbLeft = useMemo(() => offsetForLevel(level, travel), [level, travel]);
   const thumbLeft = dragging ? dragThumbLeft : restingThumbLeft;
   const previewLevel = dragging ? levelFromOffset(thumbLeft, travel) : level;
+
+  useEffect(() => {
+    setDragging(false);
+  }, [value]);
+
+  const measureTrack = useCallback((cb?: (pageX: number) => void) => {
+    trackRef.current?.measureInWindow((pageX) => {
+      trackPageXRef.current = pageX;
+      cb?.(pageX);
+    });
+  }, []);
 
   const commitLevel = useCallback(
     (offset: number) => {
       if (disabled) return;
-      onValueChange(levelFromOffset(offset, travel));
+      const t = travelRef.current;
+      if (t <= 0) return;
+      onValueChange(levelFromOffset(offset, t));
     },
-    [disabled, onValueChange, travel]
+    [disabled, onValueChange]
   );
 
-  const onTrackLayout = useCallback((e: LayoutChangeEvent) => {
-    setTrackWidth(e.nativeEvent.layout.width);
-  }, []);
+  const onTrackLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      setTrackWidth(e.nativeEvent.layout.width);
+      measureTrack();
+    },
+    [measureTrack]
+  );
 
   const handleTrackPress = useCallback(
-    (x: number) => {
+    (event: GestureResponderEvent) => {
       if (disabled || trackWidth <= 0) return;
-      const offset = clampOffset(x - THUMB_SIZE / 2, travel);
-      commitLevel(offset);
+      measureTrack((trackPageX) => {
+        const x = touchXInTrack(event, trackPageX);
+        const offset = clampOffset(x - THUMB_SIZE / 2, travelRef.current);
+        commitLevel(offset);
+      });
     },
-    [commitLevel, disabled, trackWidth, travel]
+    [commitLevel, disabled, measureTrack, trackWidth]
   );
 
   const panHandlers = useMemo(() => {
@@ -84,26 +124,30 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
       onMoveShouldSetPanResponder: () => true,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
-        const start = offsetForLevel(levelRef.current, travel);
+        const t = travelRef.current;
+        const start = offsetForLevel(levelRef.current, t);
         dragStartOffset.current = start;
         setDragThumbLeft(start);
         setDragging(true);
       },
       onPanResponderMove: (_, gesture) => {
-        setDragThumbLeft(clampOffset(dragStartOffset.current + gesture.dx, travel));
+        const t = travelRef.current;
+        setDragThumbLeft(clampOffset(dragStartOffset.current + gesture.dx, t));
       },
       onPanResponderRelease: (_, gesture) => {
-        const offset = clampOffset(dragStartOffset.current + gesture.dx, travel);
+        const t = travelRef.current;
+        const offset = clampOffset(dragStartOffset.current + gesture.dx, t);
         setDragging(false);
         commitLevel(offset);
       },
       onPanResponderTerminate: (_, gesture) => {
-        const offset = clampOffset(dragStartOffset.current + gesture.dx, travel);
+        const t = travelRef.current;
+        const offset = clampOffset(dragStartOffset.current + gesture.dx, t);
         setDragging(false);
         commitLevel(offset);
       },
     }).panHandlers;
-  }, [commitLevel, disabled, travel]);
+  }, [commitLevel, disabled]);
 
   const styles = useMemo(
     () =>
@@ -135,7 +179,6 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
           height: TRACK_HEIGHT,
           borderRadius: TRACK_HEIGHT / 2,
           backgroundColor: colors.primary,
-          width: thumbLeft + THUMB_SIZE / 2,
         },
         tickRow: {
           position: "absolute",
@@ -155,7 +198,6 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
         thumb: {
           position: "absolute",
           top: 4,
-          left: thumbLeft,
           width: THUMB_SIZE,
           height: THUMB_SIZE,
           borderRadius: THUMB_SIZE / 2,
@@ -170,26 +212,27 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
           zIndex: 2,
         },
       }),
-    [colors, thumbLeft]
+    [colors]
   );
 
   return (
     <View style={styles.root} accessibilityRole="adjustable" accessibilityState={{ disabled }}>
       <View style={styles.trackArea}>
-        <View
+        <Pressable
+          ref={trackRef}
           style={styles.trackPress}
           onLayout={onTrackLayout}
+          disabled={disabled || dragging}
+          onPress={handleTrackPress}
+          accessibilityRole="adjustable"
           accessibilityLabel={`Text size level ${previewLevel} of ${FONT_SIZE_LEVEL_MAX}`}
         >
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            disabled={disabled || dragging}
-            onPress={(e) => handleTrackPress(e.nativeEvent.locationX)}
-            accessibilityRole="adjustable"
-          />
           <View style={styles.trackLine} pointerEvents="none" />
           {!disabled && previewLevel > FONT_SIZE_LEVEL_MIN ? (
-            <View style={styles.trackFill} pointerEvents="none" />
+            <View
+              style={[styles.trackFill, { width: thumbLeft + THUMB_SIZE / 2 }]}
+              pointerEvents="none"
+            />
           ) : null}
           <View style={styles.tickRow} pointerEvents="none">
             {Array.from({ length: FONT_SIZE_LEVEL_MAX }, (_, i) => i + 1).map((step) => (
@@ -200,7 +243,11 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
             ))}
           </View>
           <View
-            style={[styles.thumb, disabled && { borderColor: colors.border }]}
+            style={[
+              styles.thumb,
+              { left: thumbLeft },
+              disabled && { borderColor: colors.border },
+            ]}
             {...(disabled ? {} : panHandlers)}
             accessibilityRole="adjustable"
             accessibilityLabel={`Text size ${previewLevel}`}
@@ -210,7 +257,7 @@ export default function FontSizeStepSlider({ colors, value, onValueChange, disab
               now: previewLevel,
             }}
           />
-        </View>
+        </Pressable>
       </View>
     </View>
   );

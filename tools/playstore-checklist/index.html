@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Listahan — Play Store Checklist</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-inner">
+        <div>
+          <h1 id="app-title">Listahan — Play Store Release</h1>
+          <p id="app-subtitle" class="subtitle"></p>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="btn-expand" class="btn btn-ghost" title="Expand all sections">
+            Expand all
+          </button>
+          <button type="button" id="btn-collapse" class="btn btn-ghost" title="Collapse all sections">
+            Collapse all
+          </button>
+          <button type="button" id="btn-reset" class="btn btn-danger" title="Clear all checkboxes">
+            Reset
+          </button>
+        </div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <p id="progress-text" class="progress-text">0 / 0 complete</p>
+      </div>
+    </header>
+
+    <section id="getting-started" class="getting-started" hidden></section>
+
+    <main id="main" class="main"></main>
+
+    <section class="signoff">
+      <h2>Sign-off</h2>
+      <div class="signoff-grid">
+        <label>
+          Release manager
+          <input type="text" id="signoff-manager" placeholder="Your name" />
+        </label>
+        <label>
+          Date
+          <input type="date" id="signoff-date" />
+        </label>
+        <label class="signoff-wide">
+          Production AAB build ID / URL
+          <input type="text" id="signoff-build" placeholder="EAS build URL or ID" />
+        </label>
+        <fieldset class="signoff-wide">
+          <legend>Play Console release track</legend>
+          <div class="track-options">
+            <label><input type="checkbox" name="track" value="internal" /> Internal</label>
+            <label><input type="checkbox" name="track" value="closed" /> Closed</label>
+            <label><input type="checkbox" name="track" value="open" /> Open</label>
+            <label><input type="checkbox" name="track" value="production" /> Production</label>
+          </div>
+        </fieldset>
+        <label class="signoff-wide">
+          Notes
+          <textarea id="signoff-notes" rows="3" placeholder="Blockers, build numbers, reviewer feedback…"></textarea>
+        </label>
+      </div>
+      <p id="save-status" class="save-status" aria-live="polite"></p>
+    </section>
+
+    <footer class="footer">
+      <p>
+        Command reference:
+        <code>npm run build:aab</code> ·
+        <code>npx eas-cli env:list --environment production</code> ·
+        <code>npm run eas:env:sync</code>
+      </p>
+      <p id="last-saved" class="last-saved"></p>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

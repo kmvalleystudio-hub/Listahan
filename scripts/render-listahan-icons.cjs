@@ -3,7 +3,7 @@
  * Run after updating files in assets/branding/:
  *   npm run icons:brand
  *
- * - listahan-logo-drawer.svg → assets/icon.png, assets/adaptive-icon.png
+ * - listahan-logo-drawer.png (preferred) or listahan-logo-drawer.svg → assets/icon.png, assets/adaptive-icon.png
  * - listahan-logo-horizontal.svg → listahan-logo-horizontal.png (dashboard header in light UI)
  * - listahan-logo-horizontal-on-dark.svg → listahan-logo-horizontal-on-dark.png (dashboard header in dark UI)
  */
@@ -12,13 +12,15 @@ const fs = require("fs");
 const sharp = require("sharp");
 
 const root = path.join(__dirname, "..");
-const drawer = path.join(root, "assets", "branding", "listahan-logo-drawer.svg");
+const drawerPngSource = path.join(root, "assets", "branding", "listahan-logo-drawer.png");
+const drawerSvgSource = path.join(root, "assets", "branding", "listahan-logo-drawer.svg");
 const horizontal = path.join(root, "assets", "branding", "listahan-logo-horizontal.svg");
 const horizontalOnDark = path.join(root, "assets", "branding", "listahan-logo-horizontal-on-dark.svg");
 
 async function main() {
-  if (!fs.existsSync(drawer)) {
-    throw new Error(`Missing drawer SVG: ${drawer}`);
+  const drawerSource = fs.existsSync(drawerPngSource) ? drawerPngSource : drawerSvgSource;
+  if (!fs.existsSync(drawerSource)) {
+    throw new Error(`Missing drawer logo: ${drawerPngSource} or ${drawerSvgSource}`);
   }
   if (!fs.existsSync(horizontal)) {
     throw new Error(`Missing horizontal SVG: ${horizontal}`);
@@ -27,10 +29,10 @@ async function main() {
     throw new Error(`Missing dark-UI horizontal SVG: ${horizontalOnDark}`);
   }
 
-  const drawerPng = await sharp(drawer)
+  const drawerPng = await sharp(drawerSource)
     .resize(1024, 1024, {
       fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      background: { r: 249, g: 246, b: 242, alpha: 1 },
     })
     .png()
     .toBuffer();
@@ -38,7 +40,9 @@ async function main() {
   await sharp(drawerPng).toFile(path.join(root, "assets", "icon.png"));
   await sharp(drawerPng).toFile(path.join(root, "assets", "adaptive-icon.png"));
   // eslint-disable-next-line no-console
-  console.log("Wrote assets/icon.png and assets/adaptive-icon.png from listahan-logo-drawer.svg");
+  console.log(
+    `Wrote assets/icon.png and assets/adaptive-icon.png from ${path.basename(drawerSource)}`
+  );
 
   const horizOut = path.join(root, "assets", "branding", "listahan-logo-horizontal.png");
   await sharp(horizontal)

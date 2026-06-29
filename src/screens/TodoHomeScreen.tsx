@@ -25,7 +25,9 @@ import {
   toolHomeListFadeBottomOffset,
 } from "../theme/toolHomeFloatingAddButton";
 import type { TodoList } from "../types";
+import { isTodoListCompleted } from "../utils/todoItems";
 import ListRenameModal from "../components/ListRenameModal";
+import { goToDashboard } from "../navigation/goToDashboard";
 
 type ListSection = {
   title: string;
@@ -56,12 +58,8 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
     iconBtn: {
       width: 44,
       height: 44,
-      borderRadius: 14,
-      backgroundColor: c.historyBtnBg,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
     },
     listContent: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
     sectionHeader: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 2 },
@@ -112,6 +110,30 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
       borderColor: c.border,
     },
     importedPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: c.primaryDark,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    cardCompleted: {
+      borderColor: c.primary,
+      backgroundColor: c.inputBg,
+    },
+    completedPill: {
+      flexShrink: 0,
+      marginTop: 2,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.iconBlobBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.primary,
+    },
+    completedPillText: {
       fontSize: 11,
       fontWeight: "800",
       color: c.primaryDark,
@@ -193,7 +215,8 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("todo");
   const styles = useToolStylesWithArgs("todo", createStyles, isDark);
-  const { todoLists, loading, removeTodoList, upsertTodoList } = useAppData();
+  const { todoLists, loading, removeTodoList, upsertTodoList, repeatTodoList, archiveTodoList } =
+    useAppData();
   const [menuList, setMenuList] = useState<TodoList | null>(null);
   const [renameList, setRenameList] = useState<TodoList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
@@ -214,13 +237,18 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
 
   const sections = useMemo((): ListSection[] => {
     const visible = todoLists.filter((l) => !l.deletedAt);
-    const pinned = visible.filter((l) => l.pinned).sort(byUpdatedDesc);
-    const normal = visible.filter((l) => !l.pinned).sort(byUpdatedDesc);
+    const active = visible.filter((l) => !isTodoListCompleted(l));
+    const completed = visible.filter((l) => isTodoListCompleted(l)).sort(byUpdatedDesc);
+    const pinned = active.filter((l) => l.pinned).sort(byUpdatedDesc);
+    const normal = active.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
     if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
+    if (completed.length) out.push({ title: "Completed", data: completed });
     return out;
   }, [todoLists]);
+
+  const menuListCompleted = menuList ? isTodoListCompleted(menuList) : false;
 
   const closeMenu = () => setMenuList(null);
 
@@ -264,41 +292,78 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
     ]);
   };
 
-  const renderItem = ({ item }: { item: TodoList }) => (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => navigation.navigate("TodoListDetail", { listId: item.id })}
-      onLongPress={() => setMenuList(item)}
-      delayLongPress={400}
-      accessibilityHint="Hold briefly to open options"
-    >
-      <View style={styles.cardRow}>
-        <View style={styles.cardIconBlob}>
-          <Ionicons name="checkmark-circle" size={22} color={colors.iconBlobFg} />
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.name}
-            </Text>
-            {item.importedFromShare ? (
-              <View style={styles.importedPill} accessibilityLabel="Imported list">
-                <Text style={styles.importedPillText}>Imported</Text>
-              </View>
-            ) : null}
+  const repeatFromMenu = () => {
+    if (!menuList) return;
+    const id = menuList.id;
+    closeMenu();
+    void repeatTodoList(id);
+  };
+
+  const archiveFromMenu = () => {
+    if (!menuList) return;
+    const target = menuList;
+    closeMenu();
+    Alert.alert("Archive this list?", `"${target.name}" will move to To-dos Archive.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Archive", onPress: () => void archiveTodoList(target.id) },
+    ]);
+  };
+
+  const renderItem = ({ item }: { item: TodoList }) => {
+    const completed = isTodoListCompleted(item);
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          completed && styles.cardCompleted,
+          pressed && styles.cardPressed,
+        ]}
+        onPress={() => navigation.navigate("TodoListDetail", { listId: item.id })}
+        onLongPress={() => setMenuList(item)}
+        delayLongPress={400}
+        accessibilityHint={
+          completed ? "Hold briefly for repeat or archive" : "Hold briefly to open options"
+        }
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.cardIconBlob}>
+            <Ionicons
+              name={completed ? "checkmark-circle" : "checkmark-circle-outline"}
+              size={22}
+              color={colors.iconBlobFg}
+            />
           </View>
-          <Text style={styles.cardMeta}>
-            {item.items.length} task{item.items.length === 1 ? "" : "s"} · Updated{" "}
-            {new Date(item.updatedAt).toLocaleDateString()}
-          </Text>
+          <View style={styles.cardBody}>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {item.name}
+              </Text>
+              {completed ? (
+                <View style={styles.completedPill} accessibilityLabel="Completed list">
+                  <Ionicons name="checkmark" size={12} color={colors.primaryDark} />
+                  <Text style={styles.completedPillText}>Done</Text>
+                </View>
+              ) : item.importedFromShare ? (
+                <View style={styles.importedPill} accessibilityLabel="Imported list">
+                  <Text style={styles.importedPillText}>Imported</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.cardMeta}>
+              {item.items.length} task{item.items.length === 1 ? "" : "s"} ·{" "}
+              {completed
+                ? "Completed"
+                : `Updated ${new Date(item.updatedAt).toLocaleDateString()}`}
+            </Text>
+          </View>
+          {!completed && item.pinned ? (
+            <Ionicons name="pin" size={18} color={colors.pin} style={styles.pinIcon} />
+          ) : null}
+          <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
         </View>
-        {item.pinned ? (
-          <Ionicons name="pin" size={18} color={colors.pin} style={styles.pinIcon} />
-        ) : null}
-        <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
@@ -306,7 +371,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
         <View style={styles.headerTextCol}>
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => navigation.navigate("ToolsDashboard")}
+            onPress={() => goToDashboard(navigation)}
             accessibilityRole="button"
             accessibilityLabel="Back to tools"
           >
@@ -329,7 +394,7 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
             style={styles.iconBtn}
             onPress={() => navigation.navigate("TodoRecent")}
             accessibilityRole="button"
-            accessibilityLabel="Recent completed to-dos"
+            accessibilityLabel="Open to-dos archive"
           >
             <Ionicons name="time-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -401,26 +466,69 @@ export default function TodoHomeScreen({ navigation }: TodoHomeProps) {
                     <Ionicons name="close" size={26} color={colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.menuRow} onPress={openEditFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="open-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuRow} onPress={renameFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="pencil-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Rename</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuRow} onPress={shareFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="share-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Share</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuRow} onPress={prioritizeFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
-                  <Text style={styles.menuRowText}>Prioritize</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuRowDanger} onPress={deleteFromMenu} activeOpacity={0.85}>
-                  <Ionicons name="trash-outline" size={22} color={colors.danger} />
-                  <Text style={styles.menuRowTextDanger}>Delete</Text>
-                </TouchableOpacity>
+                {menuListCompleted ? (
+                  <>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={repeatFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="refresh-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Repeat This List</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={archiveFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="archive-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Archive</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={openEditFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="open-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={renameFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Rename</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={shareFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="share-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Share</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.menuRow}
+                      onPress={prioritizeFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
+                      <Text style={styles.menuRowText}>Prioritize</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.menuRowDanger}
+                      onPress={deleteFromMenu}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                      <Text style={styles.menuRowTextDanger}>Delete</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </Pressable>
           </View>

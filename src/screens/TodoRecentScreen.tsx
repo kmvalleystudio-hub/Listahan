@@ -1,15 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -150,7 +141,7 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
           <Ionicons name="chevron-back" size={22} color={colors.text} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Recent</Text>
+        <Text style={styles.title}>To-dos Archive</Text>
         <View style={{ width: 72 }} />
       </View>
 
@@ -164,7 +155,7 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
             <Ionicons name="file-tray-outline" size={44} color={colors.borderMuted} />
             <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyText}>
-              When you check off every task, the snapshot is saved here. Reuse any snapshot as a template.
+              Archived to-do lists appear here. Long-press a completed list on the home screen to archive it.
             </Text>
           </View>
         }
@@ -177,7 +168,7 @@ export default function TodoRecentScreen({ navigation }: TodoRecentProps) {
         >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Name your to-dos</Text>
-            <TextInput
+            <AppTextInput
               value={newName}
               onChangeText={setNewName}
               style={styles.modalInput}

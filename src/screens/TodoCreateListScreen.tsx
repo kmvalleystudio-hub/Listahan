@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -98,7 +91,7 @@ export default function TodoCreateListScreen({ navigation }: TodoCreateListProps
 
       <View style={styles.body}>
         <Text style={styles.label}>Name</Text>
-        <TextInput
+        <AppTextInput
           value={name}
           onChangeText={setName}
           placeholder="e.g. Weekend errands"

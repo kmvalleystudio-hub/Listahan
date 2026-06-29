@@ -1,22 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
-  Alert,
-  ScrollView,
-  Pressable,
-  Animated,
-  Easing,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, KeyboardAvoidingView, Keyboard, Platform, Alert, ScrollView, Pressable, Animated, Easing, Image, TextInput } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import * as ImagePicker from "expo-image-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -32,9 +16,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import type { TodoListDetailProps } from "../navigation/types";
+import ListDetailExpandableAddFab, {
+  type ListDetailAddFabItem,
+} from "../components/ListDetailExpandableAddFab";
+import ShareImportSheet from "../components/ShareImportSheet";
+import { mergeTodoShareIntoList } from "../utils/todoSharePayload";
+import type { TodoShareFileV1 } from "../utils/todoSharePayload";
+import { EXCLUSIVE_FEATURES } from "../constants/exclusiveFeatures";
 import { useAppData } from "../context/AppDataContext";
+import { useAppAlert } from "../context/AppAlertContext";
 import { useToolTheme, useToolStyles, useToolStylesWithArgs } from "../hooks/useToolTheme";
-import type { TodoHistoryEntry, TodoItem, TodoList } from "../types";
+import type { TodoItem, TodoList } from "../types";
 import { generateId } from "../utils/id";
 import {
   allTodosCommittedDone,
@@ -57,6 +49,7 @@ import {
 } from "../utils/scanOcrLexicon";
 import { ScanLexMirrorOverlay } from "../utils/ScanLexMirrorOverlay";
 import { createListDetailStyles } from "./listDetailStyles";
+import CheckedListRepeatFab from "../components/CheckedListRepeatFab";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -140,7 +133,8 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const { colors } = useToolTheme("todo");
   const styles = useToolStyles("todo", createListDetailStyles);
   const { listId, autoOpenAdd = false } = route.params;
-  const { todoLists, loading, upsertTodoList, archiveTodoCompletedList } = useAppData();
+  const { todoLists, loading, upsertTodoList, repeatTodoList, archiveTodoList } = useAppData();
+  const { showAlert } = useAppAlert();
 
   const checkedRowEntering = useMemo(() => FadeIn.duration(220), []);
 
@@ -169,11 +163,20 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   listRef.current = list;
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const finishingListRef = useRef(false);
+  /** Prevents duplicate All Done navigation when several check timers finish together. */
+  const finishingCelebrateRef = useRef(false);
   const autoOpenHandledRef = useRef(false);
 
   const [bulkMode, setBulkMode] = useState(false);
+  const [addFabOpen, setAddFabOpen] = useState(false);
+  const [shareImportOpen, setShareImportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (bulkMode) setAddFabOpen(false);
+  }, [bulkMode]);
+
+  const closeAddFab = useCallback(() => setAddFabOpen(false), []);
   const wiggleIdRef = useRef<string | null>(null);
   const wiggleAnim = useRef(new Animated.Value(0)).current;
 
@@ -208,7 +211,6 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   );
 
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
-  const [bulkTranscript, setBulkTranscript] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const bulkTranscriptRef = useRef("");
 
@@ -353,7 +355,6 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   }, [listening, clearVoiceIdleStopTimer]);
 
   useEffect(() => {
-    finishingListRef.current = false;
     autoOpenHandledRef.current = false;
     setBulkMode(false);
     setSelectedIds(new Set());
@@ -370,12 +371,13 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     clearScanLexFlash();
     setScanLoading(false);
     setScanLoadingLabel("");
+    finishingCelebrateRef.current = false;
   }, [listId, clearScanLexFlash]);
 
   useFocusEffect(
     useCallback(() => {
       if (loading) return;
-      if (list || finishingListRef.current) return;
+      if (list) return;
       navigation.goBack();
     }, [list, loading, navigation])
   );
@@ -448,6 +450,21 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     delete timersRef.current[itemId];
   };
 
+  const clearAllCheckTimers = useCallback(() => {
+    Object.values(timersRef.current).forEach(clearTimeout);
+    timersRef.current = {};
+  }, []);
+
+  const openAllDoneOnce = useCallback(
+    (id: string) => {
+      if (finishingCelebrateRef.current) return;
+      finishingCelebrateRef.current = true;
+      clearAllCheckTimers();
+      navigation.replace("AllDone", { listId: id, tool: "todo" });
+    },
+    [clearAllCheckTimers, navigation]
+  );
+
   const commitCheck = useCallback(
     async (itemId: string) => {
       const snap = listRef.current;
@@ -467,26 +484,16 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
       );
 
       if (allTodosCommittedDone(items)) {
-        const entry: TodoHistoryEntry = {
-          id: generateId(),
-          sourceListId: snap.id,
-          name: snap.name,
-          createdAt: snap.createdAt,
-          updatedAt: ts,
-          items: normalizeTodoItemsForPersist(items.map((i) => ({ ...i, checked: true, checkPending: false }))),
-        };
-        finishingListRef.current = true;
-        try {
-          await archiveTodoCompletedList(entry);
-          navigation.replace("AllDone", { listId: snap.id, tool: "todo" });
-        } catch {
-          finishingListRef.current = false;
-        }
+        const normalized = normalizeTodoItemsForPersist(
+          items.map((i) => ({ ...i, checked: true, checkPending: false }))
+        );
+        pushListWithActiveFlip({ ...snap, items: normalized });
+        openAllDoneOnce(snap.id);
       } else {
         pushListWithActiveFlip({ ...snap, items });
       }
     },
-    [archiveTodoCompletedList, navigation, pushListWithActiveFlip]
+    [openAllDoneOnce, pushListWithActiveFlip]
   );
 
   const commitOrFinishList = useCallback(
@@ -497,28 +504,16 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           if (!i.checked || i.checkPending) return i;
           return i.completedAt ? i : { ...i, completedAt: ts };
         });
-        const entry: TodoHistoryEntry = {
-          id: generateId(),
-          sourceListId: base.id,
-          name: base.name,
-          createdAt: base.createdAt,
-          updatedAt: ts,
-          items: normalizeTodoItemsForPersist(
-            stamped.map((i) => ({ ...i, checked: true, checkPending: false }))
-          ),
-        };
-        finishingListRef.current = true;
-        try {
-          await archiveTodoCompletedList(entry);
-          navigation.replace("AllDone", { listId: base.id, tool: "todo" });
-        } catch {
-          finishingListRef.current = false;
-        }
+        const normalized = normalizeTodoItemsForPersist(
+          stamped.map((i) => ({ ...i, checked: true, checkPending: false }))
+        );
+        pushListWithActiveFlip({ ...base, items: normalized });
+        openAllDoneOnce(base.id);
         return;
       }
       pushListWithActiveFlip({ ...base, items: nextItems });
     },
-    [archiveTodoCompletedList, navigation, pushListWithActiveFlip]
+    [openAllDoneOnce, pushListWithActiveFlip]
   );
 
   const onTapCheck = (itemId: string) => {
@@ -668,6 +663,23 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     pushListWithActiveFlip({ ...snap, items });
   };
 
+  const onRepeatList = useCallback(() => {
+    void repeatTodoList(listId);
+  }, [repeatTodoList, listId]);
+
+  const onArchiveList = useCallback(() => {
+    const snap = listRef.current;
+    if (!snap) return;
+    showAlert({
+      title: "Archive this list?",
+      message: `"${snap.name}" will move to To-dos Archive.`,
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive", onPress: () => void archiveTodoList(listId) },
+      ],
+    });
+  }, [archiveTodoList, listId, showAlert]);
+
   const onDragEnd = ({ data }: { data: TodoItem[] }) => {
     const snap = listRef.current;
     if (!snap) return;
@@ -788,7 +800,6 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     stopSpeech();
     clearVoiceIdleStopTimer();
     clearLastError();
-    setBulkTranscript("");
     bulkTranscriptRef.current = "";
     setBulkModalVisible(true);
   };
@@ -798,12 +809,60 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     openBulkVoiceModal();
   };
 
+  const openShareImportSheet = useCallback(() => {
+    closeAddFab();
+    setShareImportOpen(true);
+  }, [closeAddFab]);
+
+  const onImportShareIntoList = useCallback(
+    async (payload: TodoShareFileV1) => {
+      const snap = listRef.current;
+      if (!snap) return;
+      const next = mergeTodoShareIntoList(snap, payload);
+      const added = next.items.length - snap.items.length;
+      pushList(next);
+      Alert.alert(
+        "Imported",
+        added > 0
+          ? `${added} task${added === 1 ? "" : "s"} added to this list.`
+          : "No new tasks — names already on this list were skipped."
+      );
+    },
+    [pushList]
+  );
+
+  const addFabItems = useMemo((): ListDetailAddFabItem[] => {
+    const run = (fn: () => void) => () => {
+      closeAddFab();
+      fn();
+    };
+    return [
+      {
+        key: "add",
+        label: "Add Item",
+        icon: "add-circle-outline",
+        onPress: run(openAddModal),
+      },
+      {
+        key: "import",
+        label: "Import with Code/QR",
+        icon: "qr-code-outline",
+        onPress: run(openShareImportSheet),
+      },
+      {
+        key: "voice",
+        label: "Add bulk by Voice",
+        icon: "mic-outline",
+        onPress: run(openBulkVoiceModal),
+      },
+    ];
+  }, [closeAddFab, openAddModal, openBulkVoiceModal, openShareImportSheet]);
+
   const closeBulkVoiceModal = () => {
     stopSpeech();
     clearVoiceIdleStopTimer();
     clearLastError();
     setBulkModalVisible(false);
-    setBulkTranscript("");
     bulkTranscriptRef.current = "";
     setBulkProcessing(false);
   };
@@ -894,6 +953,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   }, [clearScanLexFlash, scanRawText]);
 
   const openScanModal = () => {
+    if (!EXCLUSIVE_FEATURES.scanNotesFromPhoto) return;
     stopSpeech();
     clearVoiceIdleStopTimer();
     setScanActiveTab("capture");
@@ -1200,11 +1260,9 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
     clearVoiceIdleStopTimer();
     setVoiceTarget("bulk");
     bulkTranscriptRef.current = "";
-    setBulkTranscript("");
     await startSpeech(
       (t) => {
         bulkTranscriptRef.current = t;
-        setBulkTranscript(t);
       },
       { bulk: true }
     );
@@ -1221,6 +1279,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const { active, completed } = splitTodoActiveAndCompleted(list.items);
   const checkedCount = completed.length;
   const taskCount = list.items.length;
+  const allItemsChecked = active.length === 0 && completed.length > 0;
   const progressRatio = taskCount > 0 ? checkedCount / taskCount : 0;
   const modalVisible = itemModalMode !== null;
   const canOpenScanResults = Boolean(scanImageUri.trim() || scanRawText.trim() || scanLoading);
@@ -1228,6 +1287,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
   const floatingBarBottom = insets.bottom + 12;
   const bulkActionsBottom = floatingBarBottom + 70;
   const listBottomInset = bulkMode ? bulkActionsBottom + 62 : floatingBarBottom + 74 + 18;
+  const showCompletedActions = allItemsChecked && !bulkMode;
   const overlayHeight = bulkMode ? 320 : 220;
   const overlayOpacities = bulkMode
     ? [0, 0.06, 0.14, 0.24, 0.36, 0.48, 0.6, 0.72, 0.82, 0.9, 0.96]
@@ -1498,22 +1558,25 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           }
           ListFooterComponent={
             <View style={{ paddingBottom: listBottomInset }}>
-              {completed.length ? <Text style={styles.sectionLabel}>Checked</Text> : null}
-              {completed.map((item) => (
-                <Reanimated.View
-                  key={item.id}
-                  entering={checkedRowEntering}
-                  style={{ width: "100%" }}
-                  collapsable={false}
-                >
-                  {renderRow(item, { draggable: false })}
-                </Reanimated.View>
-              ))}
+              {completed.length > 0 ? (
+                <>
+                  <Text style={styles.sectionLabel}>Checked</Text>
+                  {completed.map((item) => (
+                    <Reanimated.View
+                      key={item.id}
+                      entering={checkedRowEntering}
+                      style={{ width: "100%" }}
+                      collapsable={false}
+                    >
+                      {renderRow(item, { draggable: false })}
+                    </Reanimated.View>
+                  ))}
+                </>
+              ) : null}
             </View>
           }
         />
       </View>
-
       <View style={[styles.bulkOverlayFade, { height: overlayHeight }]} pointerEvents="none">
         {overlayOpacities.map((opacity, idx) => (
           <View
@@ -1580,51 +1643,52 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
           </TouchableOpacity>
         </View>
       ) : null}
-
-      <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
-        <View style={styles.fabBar}>
-          <View style={[styles.fabBarLane, styles.fabBarLaneLeft]} />
-          <TouchableOpacity
-            style={styles.fabIconBtn}
-            onPress={openBulkVoiceModal}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Bulk tasks by voice"
-          >
-            <View style={styles.fabMicGradientBase} pointerEvents="none" />
-            <Animated.View
-              style={[styles.fabMicGradientAccentA, micBlobAAnimatedStyle]}
-              pointerEvents="none"
-            />
-            <Animated.View
-              style={[styles.fabMicGradientAccentB, micBlobBAnimatedStyle]}
-              pointerEvents="none"
-            />
-            <View style={styles.fabMicInnerRing} pointerEvents="none" />
-            <Ionicons name="mic" size={22} color={colors.micIcon} />
-          </TouchableOpacity>
-          <View style={[styles.fabBarLane, styles.fabBarLaneRight]}>
-            <TouchableOpacity
-              style={styles.fabScanBtn}
-              onPress={openScanModal}
-              activeOpacity={0.9}
-              accessibilityRole="button"
-              accessibilityLabel="Capture or upload tasks from photo"
-            >
-              <Ionicons name="camera" size={22} color={colors.primaryDark} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.fabPrimaryBtn}
-              onPress={openAddModal}
-              activeOpacity={0.9}
-              accessibilityRole="button"
-              accessibilityLabel="Add task"
-            >
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
+      {showCompletedActions ? (
+        <View
+          style={[styles.repeatListOverlay, { bottom: floatingBarBottom }]}
+          pointerEvents="box-none"
+        >
+          <CheckedListRepeatFab
+            visible
+            onRepeat={onRepeatList}
+            onArchive={onArchiveList}
+            accentColor={colors.primary}
+            styles={{
+              completedActionsRow: styles.completedActionsRow,
+              repeatListBtn: styles.repeatListBtn,
+              repeatListBtnText: styles.repeatListBtnText,
+              archiveListBtn: styles.archiveListBtn,
+              archiveListBtnText: styles.archiveListBtnText,
+            }}
+          />
+        </View>
+      ) : (
+        <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
+          <View style={styles.fabBar}>
+            <View style={[styles.fabBarLane, styles.fabBarLaneLeft]} />
+            <View style={[styles.fabBarLane, styles.fabBarLaneRight, { overflow: "visible" }]}>
+              <ListDetailExpandableAddFab
+                open={addFabOpen}
+                onOpenChange={setAddFabOpen}
+                items={addFabItems}
+                colors={colors}
+                onVoicePress={openBulkVoiceModal}
+                voiceAccessibilityLabel="Bulk tasks by voice"
+                micIconSize={22}
+              />
+            </View>
           </View>
         </View>
-      </View>
+      )}
+
+      <ShareImportSheet
+        visible={shareImportOpen}
+        onClose={() => setShareImportOpen(false)}
+        tool="todo"
+        colors={colors}
+        onImportGrocery={async () => {}}
+        onImportTodo={onImportShareIntoList}
+      />
 
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={closeItemModal}>
         <KeyboardAvoidingView
@@ -1686,7 +1750,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                   </View>
                   <View style={styles.addRow}>
                     <View style={styles.addNameShell}>
-                      <TextInput
+                      <AppTextInput
                         value={formName}
                         onChangeText={setFormName}
                         style={styles.addNameField}
@@ -1820,11 +1884,6 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                   ? "Listening… tap again to finish"
                   : "Tap to speak"}
             </Text>
-            {bulkTranscript ? (
-              <ScrollView style={styles.bulkTranscriptScroll} keyboardShouldPersistTaps="handled">
-                <Text style={styles.bulkTranscriptText}>{bulkTranscript}</Text>
-              </ScrollView>
-            ) : null}
             {bulkProcessing ? (
               <ActivityIndicator style={{ marginTop: 12 }} size="small" color={colors.primary} />
             ) : null}
@@ -2046,7 +2105,7 @@ export default function TodoListDetailScreen({ navigation, route }: TodoListDeta
                       </ScrollView>
                     ) : null}
                     <View style={{ position: "relative", alignSelf: "stretch" }}>
-                      <TextInput
+                      <AppTextInput
                         ref={scanOcrInputRef}
                         value={scanOcrLineFocus ? scanOcrLineFocus.slice : scanRawText}
                         onChangeText={(t) => {

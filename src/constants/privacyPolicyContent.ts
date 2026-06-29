@@ -1,4 +1,5 @@
 import { APP_DISPLAY_NAME } from "./appBranding";
+import { SUPPORT_EMAIL } from "./supportContact";
 
 export type PrivacySection = {
   title: string;
@@ -11,7 +12,7 @@ export type PrivacySection = {
 export const PRIVACY_POLICY_LAST_UPDATED = "May 19, 2026";
 
 export const PRIVACY_POLICY_INTRO =
-  `${APP_DISPLAY_NAME} is built for personal lists and notes on your phone. This page explains what stays on your device, what may go to the cloud, and what choices you have.`;
+  `${APP_DISPLAY_NAME} is built for personal lists and notes on your phone. This page explains what stays on your device, what may go to the cloud, how optional Pro subscriptions work, and what choices you have.`;
 
 export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
   {
@@ -19,7 +20,8 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     paragraphs: [
       "Your grocery lists, to-dos, notes, and reminders are stored on your phone unless you choose to sync or share them.",
       "Your vault PIN never leaves your device. Vault passwords are only uploaded if you explicitly turn on Vault sync with someone you trust.",
-      "We do not sell your data. We do not let other Listahan users browse or search your private content.",
+      "Listahan is free to use. An optional paid subscription (Listahan Pro) removes ads. Payments are handled by Google Play—not by charging your card directly to us.",
+      "We do not sell your list or vault content. We do not let other Listahan users browse or search your private content.",
     ],
   },
   {
@@ -28,7 +30,8 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     bullets: [
       "Grocery, to-do, notes, and reminder content (by default)",
       "Vault PIN and biometric unlock settings",
-      "App preferences such as theme and text size",
+      "App preferences such as theme, text size, and font",
+      "Whether you have an active Pro entitlement (a status flag synced for your account on this device)",
     ],
     paragraphs: [
       "This data remains in local storage on your phone until you delete it or uninstall the app.",
@@ -70,6 +73,38 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     ],
   },
   {
+    title: "Subscriptions (Listahan Pro)",
+    paragraphs: [
+      `${APP_DISPLAY_NAME} Pro is an optional subscription that unlocks an ad-free experience. You can use the core app without subscribing.`,
+      "Purchases are processed by Google Play (or the Apple App Store on iOS when available). We do not collect or store your credit card number.",
+      "We use RevenueCat, a subscription management service, to verify purchases with the store and unlock Pro on your device. RevenueCat may receive purchase receipts, product identifiers, subscription status, and an anonymous app user ID linked to your Listahan profile.",
+      "Manage, cancel, or request refunds through your Google Play account (Play Store → Payments & subscriptions). You can also use Restore purchases in Listahan Settings if you reinstall or change devices.",
+      "Future Pro benefits (such as AI-assisted features) may be added under the same or updated subscription terms. We will update this policy if that changes what data is processed.",
+    ],
+  },
+  {
+    title: "Advertising",
+    paragraphs: [
+      "The free version of the app may show advertisements (for example through Google AdMob) so we can offer the app at no charge.",
+      "Listahan Pro subscribers should not see ads while their subscription is active.",
+      "Ad networks may use advertising identifiers allowed by your device settings to show and measure ads. They do not receive your grocery lists, to-do items, notes, reminders, or vault contents.",
+      "You can limit ad personalization in your device’s Google account and advertising settings.",
+    ],
+  },
+  {
+    title: "Third-party services",
+    bulletsFirst: true,
+    bullets: [
+      "Google Play (and Apple App Store when available) — payment processing and subscription billing",
+      "RevenueCat — purchase verification and entitlement status for Listahan Pro",
+      "Supabase — optional cloud profile, sync, and share-import storage",
+      "Google AdMob (when enabled) — advertising in the free version",
+    ],
+    paragraphs: [
+      "These providers process data only as needed to run billing, sync, or ads. Their own privacy policies apply to how they handle data on their systems.",
+    ],
+  },
+  {
     title: "Who can access cloud data",
     paragraphs: [
       "Your sync partner can see data for tools you have turned on while you are synced.",
@@ -80,10 +115,11 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
   {
     title: "What we do not do",
     bullets: [
-      "Sell or rent your personal content to advertisers",
+      "Sell or rent your grocery lists, notes, reminders, or vault contents to advertisers or data brokers",
       "Show your lists or vault to other users without your action",
       "Upload vault data unless you opt in to Vault sync",
       "Require an email or phone number to use the app",
+      "Charge your payment card directly—we use the app store for all subscriptions",
     ],
   },
   {
@@ -91,8 +127,11 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     bulletsFirst: true,
     bullets: [
       "Use the app offline without sync",
+      "Stay on the free tier or subscribe to Listahan Pro",
       "Decline or end sync at any time",
       "Keep Vault local by leaving Vault sync disabled",
+      "Cancel Pro in Google Play subscriptions at any time",
+      "Restore purchases from Settings after reinstalling",
       "Delete content in the app or uninstall to remove local data",
     ],
     paragraphs: [
@@ -108,10 +147,10 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
   {
     title: "Changes",
     paragraphs: [
-      "We may update this page when features change. The date at the top shows when it was last revised.",
+      "We may update this page when features change (for example new subscription tiers or advertising). The date at the top shows when it was last revised.",
     ],
   },
 ];
 
 export const PRIVACY_POLICY_FOOTER =
-  "Questions? Use Report a problem or General feedback in Settings. We will add a dedicated contact address before store release.";
+  `Questions? Open FAQ in Settings, or email ${SUPPORT_EMAIL} via Report a problem or General feedback.`;

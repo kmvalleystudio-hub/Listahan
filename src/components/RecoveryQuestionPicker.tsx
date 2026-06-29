@@ -1,14 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Pressable,
-  ScrollView,
-  TextInput,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from "react-native";
+import AppTextInput from "./AppTextInput";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { RECOVERY_PRESETS } from "../constants/privateVaultRecovery";
 import type { AppThemeColors } from "../theme/colors";
@@ -139,7 +131,7 @@ export default function RecoveryQuestionPicker({
       </TouchableOpacity>
 
       {useCustom ? (
-        <TextInput
+        <AppTextInput
           value={customQuestion}
           onChangeText={onChangeCustomQuestion}
           style={styles.customInput}

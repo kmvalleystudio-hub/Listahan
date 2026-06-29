@@ -1,20 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Pressable,
-  Switch,
-  Alert,
-  Modal,
-  TextInput,
-  Platform,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Keyboard,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Switch, Alert, Modal, Platform, ActivityIndicator, KeyboardAvoidingView, Keyboard } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 import { useVaultStyles, useVaultTheme } from "../hooks/useToolTheme";
 
 import * as LocalAuthentication from "expo-local-authentication";
@@ -583,7 +569,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
                 onCustomQuestionFocus={scrollRecModalToEnd}
               />
               <Text style={[styles.sectionTitle, { marginTop: 12 }]}>New answer</Text>
-              <TextInput
+              <AppTextInput
                 value={recAns}
                 onChangeText={setRecAns}
                 style={styles.input}
@@ -593,7 +579,7 @@ export default function PrivateVaultSettingsScreen({ navigation }: PrivateVaultS
                 editable={!recBusy}
                 onFocus={scrollRecModalToEnd}
               />
-              <TextInput
+              <AppTextInput
                 value={recAns2}
                 onChangeText={setRecAns2}
                 style={styles.input}

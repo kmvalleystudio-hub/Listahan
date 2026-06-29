@@ -1,4 +1,4 @@
-import type { TodoItem } from "../types";
+import type { TodoItem, TodoList } from "../types";
 import { isSyncDeleted, nowIso } from "./syncTimestamps";
 
 export function touchTodoItem(item: TodoItem): TodoItem {
@@ -33,6 +33,11 @@ export function splitTodoActiveAndCompleted(items: TodoItem[]): {
 export function allTodosCommittedDone(items: TodoItem[]): boolean {
   if (items.length === 0) return false;
   return items.every((i) => i.checked && !i.checkPending);
+}
+
+export function isTodoListCompleted(list: TodoList): boolean {
+  const visible = list.items.filter((i) => !isSyncDeleted(i));
+  return allTodosCommittedDone(visible);
 }
 
 export function reindexTodoOrders(items: TodoItem[]): TodoItem[] {

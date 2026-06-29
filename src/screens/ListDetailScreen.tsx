@@ -1,24 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Switch,
-  ActivityIndicator,
-  Modal,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
-  Alert,
-  ScrollView,
-  Pressable,
-  FlatList,
-  Animated,
-  Easing,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, Modal, KeyboardAvoidingView, Keyboard, Platform, Alert, ScrollView, Pressable, FlatList, Animated, Easing, Image, TextInput } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 import { useAppStyles } from "../hooks/useAppStyles";
 
 import * as ImagePicker from "expo-image-picker";
@@ -36,7 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import type { ListDetailProps } from "../navigation/types";
 import { useAppData } from "../context/AppDataContext";
-import type { GroceryItem, GroceryList, HistoryEntry } from "../types";
+import type { GroceryItem, GroceryList } from "../types";
 import { generateId } from "../utils/id";
 import {
   allItemsCommittedDone,
@@ -47,6 +29,13 @@ import {
 import { tombstoneGroceryItems } from "../utils/syncTombstone";
 import { CURRENCY_OPTIONS } from "../constants/currencies";
 import { DEFAULT_CURRENCY_SYMBOL } from "../constants/currency";
+import { EXCLUSIVE_FEATURES } from "../constants/exclusiveFeatures";
+import ListDetailExpandableAddFab, {
+  type ListDetailAddFabItem,
+} from "../components/ListDetailExpandableAddFab";
+import ShareImportSheet from "../components/ShareImportSheet";
+import { mergeGroceryShareIntoList } from "../utils/grocerySharePayload";
+import type { GroceryShareFileV1 } from "../utils/grocerySharePayload";
 import {
   adjustQuantityString,
   canDecrementQuantity,
@@ -70,7 +59,10 @@ import {
 import { ScanLexMirrorOverlay } from "../utils/ScanLexMirrorOverlay";
 import { extractUnitFromText, lookupUnitsForItem, resolveTrustedProductName } from "../utils/productRegistry";
 import { useTheme } from "../context/ThemeContext";
+import { useAppAlert } from "../context/AppAlertContext";
 import { createListDetailStyles } from "./listDetailStyles";
+import CheckedListRepeatFab from "../components/CheckedListRepeatFab";
+import { useStatusBarOnFocus } from "../hooks/useStatusBarOnFocus";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -169,11 +161,13 @@ function FlipTranslateShell({
 }
 
 export default function ListDetailScreen({ navigation, route }: ListDetailProps) {
+  useStatusBarOnFocus("ListDetail");
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useAppStyles(createListDetailStyles);
   const { listId, autoOpenAdd = false } = route.params;
-  const { lists, upsertList, archiveCompletedList } = useAppData();
+  const { lists, upsertList, repeatGroceryList, archiveGroceryList } = useAppData();
+  const { showAlert } = useAppAlert();
 
   const checkedRowEntering = useMemo(() => FadeIn.duration(220), []);
 
@@ -212,11 +206,19 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   );
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  /** When true, list was removed on purpose (archived); don't auto-goBack. */
-  const finishingListRef = useRef(false);
+  /** Prevents duplicate All Done navigation when several check timers finish together. */
+  const finishingCelebrateRef = useRef(false);
 
   const [bulkMode, setBulkMode] = useState(false);
+  const [addFabOpen, setAddFabOpen] = useState(false);
+  const [shareImportOpen, setShareImportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (bulkMode) setAddFabOpen(false);
+  }, [bulkMode]);
+
+  const closeAddFab = useCallback(() => setAddFabOpen(false), []);
   const wiggleIdRef = useRef<string | null>(null);
   const wiggleAnim = useRef(new Animated.Value(0)).current;
 
@@ -253,7 +255,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   );
 
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
-  const [bulkTranscript, setBulkTranscript] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const bulkTranscriptRef = useRef("");
 
@@ -407,7 +408,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   }, [listening, clearVoiceIdleStopTimer]);
 
   useEffect(() => {
-    finishingListRef.current = false;
     autoOpenHandledRef.current = false;
     setBulkMode(false);
     setSelectedIds(new Set());
@@ -415,10 +415,11 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     rowMeasureRefs.current.clear();
     flipSvRef.current.clear();
     flipReorderPendingRef.current = null;
+    finishingCelebrateRef.current = false;
   }, [listId]);
 
   useEffect(() => {
-    if (!list && !finishingListRef.current) navigation.goBack();
+    if (!list) navigation.goBack();
   }, [list, navigation]);
 
   const clearTimer = (itemId: string) => {
@@ -496,6 +497,21 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     }
   }, [list, pushList]);
 
+  const clearAllCheckTimers = useCallback(() => {
+    Object.values(timersRef.current).forEach(clearTimeout);
+    timersRef.current = {};
+  }, []);
+
+  const openAllDoneOnce = useCallback(
+    (listId: string) => {
+      if (finishingCelebrateRef.current) return;
+      finishingCelebrateRef.current = true;
+      clearAllCheckTimers();
+      navigation.replace("AllDone", { listId });
+    },
+    [clearAllCheckTimers, navigation]
+  );
+
   const commitCheck = useCallback(
     async (itemId: string) => {
       const snap = listRef.current;
@@ -513,59 +529,31 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       );
 
       if (allItemsCommittedDone(items)) {
-        const entry: HistoryEntry = {
-          id: generateId(),
-          sourceListId: snap.id,
-          name: snap.name,
-          createdAt: snap.createdAt,
-          updatedAt: nowIso(),
-          items: normalizeItemsForPersist(
-            items.map((i) => ({ ...i, checked: true, checkPending: false }))
-          ),
-          showItemPrice: snap.showItemPrice,
-          currencySymbol: snap.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL,
-        };
-        finishingListRef.current = true;
-        try {
-          await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: snap.id });
-        } catch {
-          finishingListRef.current = false;
-        }
+        const normalized = normalizeItemsForPersist(
+          items.map((i) => ({ ...i, checked: true, checkPending: false }))
+        );
+        pushListWithActiveFlip({ ...snap, items: normalized });
+        openAllDoneOnce(snap.id);
       } else {
         pushListWithActiveFlip({ ...snap, items });
       }
     },
-    [archiveCompletedList, navigation, pushListWithActiveFlip]
+    [openAllDoneOnce, pushListWithActiveFlip]
   );
 
   const commitOrFinishList = useCallback(
     async (base: GroceryList, nextItems: GroceryItem[]) => {
       if (allItemsCommittedDone(nextItems)) {
-        const entry: HistoryEntry = {
-          id: generateId(),
-          sourceListId: base.id,
-          name: base.name,
-          createdAt: base.createdAt,
-          updatedAt: nowIso(),
-          items: normalizeItemsForPersist(
-            nextItems.map((i) => ({ ...i, checked: true, checkPending: false }))
-          ),
-          showItemPrice: base.showItemPrice,
-          currencySymbol: base.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL,
-        };
-        finishingListRef.current = true;
-        try {
-          await archiveCompletedList(entry);
-          navigation.replace("AllDone", { listId: base.id });
-        } catch {
-          finishingListRef.current = false;
-        }
+        const normalized = normalizeItemsForPersist(
+          nextItems.map((i) => ({ ...i, checked: true, checkPending: false }))
+        );
+        pushListWithActiveFlip({ ...base, items: normalized });
+        openAllDoneOnce(base.id);
         return;
       }
       pushListWithActiveFlip({ ...base, items: nextItems });
     },
-    [archiveCompletedList, navigation, pushListWithActiveFlip]
+    [openAllDoneOnce, pushListWithActiveFlip]
   );
 
   const onTapCheck = (itemId: string) => {
@@ -704,6 +692,23 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     );
     pushListWithActiveFlip({ ...snap, items });
   };
+
+  const onRepeatList = useCallback(() => {
+    void repeatGroceryList(listId);
+  }, [repeatGroceryList, listId]);
+
+  const onArchiveList = useCallback(() => {
+    const snap = listRef.current;
+    if (!snap) return;
+    showAlert({
+      title: "Archive this list?",
+      message: `"${snap.name}" will move to Groceries Archive.`,
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive", onPress: () => void archiveGroceryList(listId) },
+      ],
+    });
+  }, [archiveGroceryList, listId, showAlert]);
 
   const onDragEnd = ({ data }: { data: GroceryItem[] }) => {
     const snap = listRef.current;
@@ -915,7 +920,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const openBulkVoiceModal = () => {
     stopSpeech();
     clearLastError();
-    setBulkTranscript("");
     bulkTranscriptRef.current = "";
     setBulkModalVisible(true);
   };
@@ -925,11 +929,59 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     openBulkVoiceModal();
   };
 
+  const openShareImportSheet = useCallback(() => {
+    closeAddFab();
+    setShareImportOpen(true);
+  }, [closeAddFab]);
+
+  const onImportShareIntoList = useCallback(
+    async (payload: GroceryShareFileV1) => {
+      const snap = listRef.current;
+      if (!snap) return;
+      const next = mergeGroceryShareIntoList(snap, payload);
+      const added = next.items.length - snap.items.length;
+      pushList(next);
+      Alert.alert(
+        "Imported",
+        added > 0
+          ? `${added} item${added === 1 ? "" : "s"} added to this list.`
+          : "No new items — names already on this list were skipped."
+      );
+    },
+    [pushList]
+  );
+
+  const addFabItems = useMemo((): ListDetailAddFabItem[] => {
+    const run = (fn: () => void) => () => {
+      closeAddFab();
+      fn();
+    };
+    return [
+      {
+        key: "add",
+        label: "Add Item",
+        icon: "add-circle-outline",
+        onPress: run(openAddModal),
+      },
+      {
+        key: "import",
+        label: "Import with Code/QR",
+        icon: "qr-code-outline",
+        onPress: run(openShareImportSheet),
+      },
+      {
+        key: "voice",
+        label: "Add bulk by Voice",
+        icon: "mic-outline",
+        onPress: run(openBulkVoiceModal),
+      },
+    ];
+  }, [closeAddFab, navigation, openAddModal, openBulkVoiceModal, openShareImportSheet]);
+
   const closeBulkVoiceModal = () => {
     stopSpeech();
     clearLastError();
     setBulkModalVisible(false);
-    setBulkTranscript("");
     bulkTranscriptRef.current = "";
     setBulkProcessing(false);
   };
@@ -1021,6 +1073,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   }, [clearScanLexFlash, scanRawText]);
 
   const openScanModal = () => {
+    if (!EXCLUSIVE_FEATURES.scanNotesFromPhoto) return;
     stopSpeech();
     setScanActiveTab("capture");
     setScanModalVisible(true);
@@ -1371,11 +1424,9 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
     }
     setVoiceTarget("bulk");
     bulkTranscriptRef.current = "";
-    setBulkTranscript("");
     await startSpeech(
       (t) => {
         bulkTranscriptRef.current = t;
-        setBulkTranscript(t);
       },
       { bulk: true }
     );
@@ -1392,6 +1443,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const { active, completed } = splitActiveAndCompleted(list.items);
   const checkedCount = completed.length;
   const productCount = list.items.length;
+  const allItemsChecked = active.length === 0 && completed.length > 0;
   const progressRatio = productCount > 0 ? checkedCount / productCount : 0;
   const total = totalFromItems(list.items);
   const modalVisible = itemModalMode !== null;
@@ -1401,6 +1453,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
   const floatingBarBottom = insets.bottom + 12;
   const bulkActionsBottom = floatingBarBottom + 70;
   const listBottomInset = bulkMode ? bulkActionsBottom + 62 : floatingBarBottom + 74 + 18;
+  const showCompletedActions = allItemsChecked && !bulkMode;
   const overlayHeight = bulkMode ? 320 : 220;
   const overlayOpacities = bulkMode
     ? [0, 0.06, 0.14, 0.24, 0.36, 0.48, 0.6, 0.72, 0.82, 0.9, 0.96]
@@ -1485,7 +1538,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
       </View>
       <View style={styles.addRow}>
         <View style={styles.addNameShell}>
-          <TextInput
+          <AppTextInput
             value={formName}
             onChangeText={setFormName}
             style={styles.addNameField}
@@ -1535,7 +1588,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               color={canDecrementQuantity(formQty) ? colors.primary : colors.placeholder}
             />
           </TouchableOpacity>
-          <TextInput
+          <AppTextInput
             value={formQty}
             onChangeText={setFormQty}
             style={styles.qtyStepInput}
@@ -1554,7 +1607,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
         {showPriceInForm ? (
           <View style={styles.addPriceRow}>
             <View style={styles.priceFieldShell}>
-              <TextInput
+              <AppTextInput
                 value={formPrice}
                 onChangeText={setFormPrice}
                 style={styles.priceFieldInput}
@@ -1601,7 +1654,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
               </TouchableOpacity>
             ) : (
               <View style={styles.unitManualBlock}>
-                <TextInput
+                <AppTextInput
                   value={formUnit}
                   onChangeText={setFormUnit}
                   style={styles.unitInput}
@@ -1640,7 +1693,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                 </TouchableOpacity>
               ) : (
                 <View style={styles.unitManualBlockCompact}>
-                  <TextInput
+                  <AppTextInput
                     value={formUnit}
                     onChangeText={setFormUnit}
                     style={styles.unitInputCompact}
@@ -1966,19 +2019,21 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           }
           ListFooterComponent={
             <View style={{ paddingBottom: listBottomInset }}>
-              {completed.length ? (
-                <Text style={styles.sectionLabel}>Checked</Text>
+              {completed.length > 0 ? (
+                <>
+                  <Text style={styles.sectionLabel}>Checked</Text>
+                  {completed.map((item) => (
+                    <Reanimated.View
+                      key={item.id}
+                      entering={checkedRowEntering}
+                      style={{ width: "100%" }}
+                      collapsable={false}
+                    >
+                      {renderRow(item, { draggable: false })}
+                    </Reanimated.View>
+                  ))}
+                </>
               ) : null}
-              {completed.map((item) => (
-                <Reanimated.View
-                  key={item.id}
-                  entering={checkedRowEntering}
-                  style={{ width: "100%" }}
-                  collapsable={false}
-                >
-                  {renderRow(item, { draggable: false })}
-                </Reanimated.View>
-              ))}
             </View>
           }
         />
@@ -2048,65 +2103,66 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
           </TouchableOpacity>
         </View>
       ) : null}
-      <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
-        <View style={styles.fabBar}>
-          <View style={[styles.fabBarLane, styles.fabBarLaneLeft]}>
-            <View style={styles.fabPriceToggle}>
-              <View style={styles.fabPriceIconCircle} pointerEvents="none">
-                <Text style={styles.fabPriceIconDollar}>$</Text>
+      {showCompletedActions ? (
+        <View
+          style={[styles.repeatListOverlay, { bottom: floatingBarBottom }]}
+          pointerEvents="box-none"
+        >
+          <CheckedListRepeatFab
+            visible
+            onRepeat={onRepeatList}
+            onArchive={onArchiveList}
+            accentColor={colors.primary}
+            styles={{
+              completedActionsRow: styles.completedActionsRow,
+              repeatListBtn: styles.repeatListBtn,
+              repeatListBtnText: styles.repeatListBtnText,
+              archiveListBtn: styles.archiveListBtn,
+              archiveListBtnText: styles.archiveListBtnText,
+            }}
+          />
+        </View>
+      ) : (
+        <View style={[styles.fabBarWrap, { bottom: floatingBarBottom }]}>
+          <View style={styles.fabBar}>
+            <View style={[styles.fabBarLane, styles.fabBarLaneLeft]}>
+              <View style={styles.fabPriceToggle}>
+                <View style={styles.fabPriceIconCircle} pointerEvents="none">
+                  <Text style={styles.fabPriceIconDollar}>$</Text>
+                </View>
+                <Switch
+                  style={styles.fabPriceSwitch}
+                  accessibilityLabel="Show item prices on this run"
+                  value={list.showItemPrice}
+                  onValueChange={togglePrice}
+                  trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
+                  thumbColor={list.showItemPrice ? colors.primaryDark : colors.switchThumbOff}
+                  ios_backgroundColor={colors.iosSwitchBg}
+                />
               </View>
-              <Switch
-                style={styles.fabPriceSwitch}
-                accessibilityLabel="Show item prices on this run"
-                value={list.showItemPrice}
-                onValueChange={togglePrice}
-                trackColor={{ false: colors.switchTrackOff, true: colors.primaryDark }}
-                thumbColor={list.showItemPrice ? colors.primaryDark : colors.switchThumbOff}
-                ios_backgroundColor={colors.iosSwitchBg}
+            </View>
+            <View style={[styles.fabBarLane, styles.fabBarLaneRight, { overflow: "visible" }]}>
+              <ListDetailExpandableAddFab
+                open={addFabOpen}
+                onOpenChange={setAddFabOpen}
+                items={addFabItems}
+                colors={colors}
+                onVoicePress={openBulkVoiceModal}
+                voiceAccessibilityLabel="Bulk voice add"
               />
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.fabIconBtn}
-            onPress={openBulkVoiceModal}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Bulk voice add"
-          >
-            <View style={styles.fabMicGradientBase} pointerEvents="none" />
-            <Animated.View
-              style={[styles.fabMicGradientAccentA, micBlobAAnimatedStyle]}
-              pointerEvents="none"
-            />
-            <Animated.View
-              style={[styles.fabMicGradientAccentB, micBlobBAnimatedStyle]}
-              pointerEvents="none"
-            />
-            <View style={styles.fabMicInnerRing} pointerEvents="none" />
-            <Ionicons name="mic" size={24} color={colors.micIcon} />
-          </TouchableOpacity>
-          <View style={[styles.fabBarLane, styles.fabBarLaneRight]}>
-            <TouchableOpacity
-              style={styles.fabScanBtn}
-              onPress={openScanModal}
-              activeOpacity={0.9}
-              accessibilityRole="button"
-              accessibilityLabel="Capture or upload from photo"
-            >
-              <Ionicons name="camera" size={22} color={colors.primaryDark} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.fabPrimaryBtn}
-              onPress={openAddModal}
-              activeOpacity={0.9}
-              accessibilityRole="button"
-              accessibilityLabel="Add item"
-            >
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
         </View>
-      </View>
+      )}
+
+      <ShareImportSheet
+        visible={shareImportOpen}
+        onClose={() => setShareImportOpen(false)}
+        tool="grocery"
+        colors={colors}
+        onImportGrocery={onImportShareIntoList}
+        onImportTodo={async () => {}}
+      />
 
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={closeItemModal}>
         <KeyboardAvoidingView
@@ -2252,11 +2308,6 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                   ? "Listening… tap again to finish"
                   : "Tap to speak"}
             </Text>
-            {bulkTranscript ? (
-              <ScrollView style={styles.bulkTranscriptScroll} keyboardShouldPersistTaps="handled">
-                <Text style={styles.bulkTranscriptText}>{bulkTranscript}</Text>
-              </ScrollView>
-            ) : null}
             {bulkProcessing ? (
               <ActivityIndicator style={{ marginTop: 12 }} size="small" color={colors.primary} />
             ) : null}
@@ -2479,7 +2530,7 @@ export default function ListDetailScreen({ navigation, route }: ListDetailProps)
                       </ScrollView>
                     ) : null}
                     <View style={{ position: "relative", alignSelf: "stretch" }}>
-                      <TextInput
+                      <AppTextInput
                         ref={scanOcrInputRef}
                         value={scanOcrLineFocus ? scanOcrLineFocus.slice : scanRawText}
                         onChangeText={(t) => {

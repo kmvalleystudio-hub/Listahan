@@ -8,6 +8,7 @@ import type { ProfileProps } from "../navigation/types";
 import { useTheme } from "../context/ThemeContext";
 import { useAppStyles } from "../hooks/useAppStyles";
 import FontSizeStepSlider from "../components/FontSizeStepSlider";
+import FontFamilyPicker from "../components/FontFamilyPicker";
 import { useAppAlert } from "../context/AppAlertContext";
 import { useAppData } from "../context/AppDataContext";
 import type { AppThemeColors } from "../theme/colors";
@@ -19,6 +20,7 @@ import { reconcilePublicProfileToCloud } from "../services/profileCloudSync";
 import { useSyncSession } from "../context/SyncSessionContext";
 import {
   formatMemberSince,
+  formatDisplayUsername,
   listahanPublicTag,
   loadUserProfile,
   type UserProfile,
@@ -171,7 +173,15 @@ function createStyles(c: AppThemeColors) {
       paddingVertical: 14,
       paddingHorizontal: 16,
       gap: 8,
-      borderBottomWidth: 0,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    fontFamilyBlock: {
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      gap: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
     },
     fontSizeSliderWrap: {
       width: "100%",
@@ -243,6 +253,8 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
     useSystemFontSize,
     setUseSystemFontSize,
     setFontSizeLevel,
+    fontFamilyId,
+    setFontFamilyId,
   } = useTheme();
   const { showAlert } = useAppAlert();
   const styles = useAppStyles(createStyles);
@@ -434,7 +446,7 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
 
             <View style={styles.heroIdentity}>
               <Text style={styles.heroName} numberOfLines={1}>
-                {username.trim() ? username.trim() : "Username"}
+                {username.trim() ? formatDisplayUsername(username) : "Username"}
               </Text>
               {renderListahanTagRow()}
               <Text style={styles.heroSub} numberOfLines={2}>
@@ -475,6 +487,11 @@ export default function ProfileScreen({ navigation }: ProfileProps) {
               thumbColor={useSystemFontSize ? colors.switchThumbOn : colors.switchThumbOff}
               ios_backgroundColor={colors.iosSwitchBg}
             />
+          </View>
+          <View style={styles.fontFamilyBlock}>
+            <Text style={styles.rowTitle}>Font</Text>
+            <Text style={styles.rowSubtitle}>Applies to labels and list text. App icons stay the same.</Text>
+            <FontFamilyPicker colors={colors} value={fontFamilyId} onValueChange={setFontFamilyId} />
           </View>
           <View style={[styles.fontSizeBlock, styles.rowLast]}>
             <Text style={styles.rowTitle}>Text size</Text>

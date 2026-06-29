@@ -1,4 +1,4 @@
-import type { GroceryItem } from "../types";
+import type { GroceryItem, GroceryList } from "../types";
 import { isSyncDeleted } from "./syncTimestamps";
 import { nowIso } from "./syncTimestamps";
 
@@ -34,6 +34,11 @@ export function splitActiveAndCompleted(items: GroceryItem[]): {
 export function allItemsCommittedDone(items: GroceryItem[]): boolean {
   if (items.length === 0) return false;
   return items.every((i) => i.checked && !i.checkPending);
+}
+
+export function isGroceryListCompleted(list: GroceryList): boolean {
+  const visible = list.items.filter((i) => !isSyncDeleted(i));
+  return allItemsCommittedDone(visible);
 }
 
 export function reindexOrders(items: GroceryItem[]): GroceryItem[] {

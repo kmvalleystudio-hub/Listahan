@@ -25,7 +25,10 @@ import {
   toolHomeListFadeBottomOffset,
 } from "../theme/toolHomeFloatingAddButton";
 import type { GroceryList } from "../types";
+import { isGroceryListCompleted } from "../utils/items";
 import ListRenameModal from "../components/ListRenameModal";
+import { useStatusBarOnFocus } from "../hooks/useStatusBarOnFocus";
+import { goToDashboard } from "../navigation/goToDashboard";
 
 type ListSection = {
   title: string;
@@ -83,17 +86,8 @@ function createHomeStyles(c: AppThemeColors, isDark: boolean) {
     iconBtn: {
       width: 44,
       height: 44,
-      borderRadius: 14,
-      backgroundColor: c.historyBtnBg,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: c.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 2,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
     },
     listContent: {
       paddingHorizontal: 16,
@@ -183,6 +177,30 @@ function createHomeStyles(c: AppThemeColors, isDark: boolean) {
       borderColor: c.border,
     },
     importedPillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: c.primaryDark,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    cardCompleted: {
+      borderColor: c.primary,
+      backgroundColor: c.inputBg,
+    },
+    completedPill: {
+      flexShrink: 0,
+      marginTop: 2,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.iconBlobBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.primary,
+    },
+    completedPillText: {
       fontSize: 11,
       fontWeight: "800",
       color: c.primaryDark,
@@ -324,10 +342,12 @@ function createHomeStyles(c: AppThemeColors, isDark: boolean) {
 }
 
 export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
+  useStatusBarOnFocus("GroceryHome");
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useToolTheme("grocery");
   const styles = useToolStylesWithArgs("grocery", createHomeStyles, isDark);
-  const { lists, loading, removeList, upsertList } = useAppData();
+  const { lists, loading, removeList, upsertList, repeatGroceryList, archiveGroceryList } =
+    useAppData();
   const [menuList, setMenuList] = useState<GroceryList | null>(null);
   const [renameList, setRenameList] = useState<GroceryList | null>(null);
   const menuFade = useRef(new Animated.Value(0)).current;
@@ -348,13 +368,18 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
 
   const sections = useMemo((): ListSection[] => {
     const visible = lists.filter((l) => !l.deletedAt);
-    const pinned = visible.filter((l) => l.pinned).sort(byUpdatedDesc);
-    const normal = visible.filter((l) => !l.pinned).sort(byUpdatedDesc);
+    const active = visible.filter((l) => !isGroceryListCompleted(l));
+    const completed = visible.filter((l) => isGroceryListCompleted(l)).sort(byUpdatedDesc);
+    const pinned = active.filter((l) => l.pinned).sort(byUpdatedDesc);
+    const normal = active.filter((l) => !l.pinned).sort(byUpdatedDesc);
     const out: ListSection[] = [];
     if (pinned.length) out.push({ title: "Pinned", data: pinned });
     if (normal.length) out.push({ title: pinned.length ? "More" : "", data: normal });
+    if (completed.length) out.push({ title: "Completed", data: completed });
     return out;
   }, [lists]);
+
+  const menuListCompleted = menuList ? isGroceryListCompleted(menuList) : false;
 
   const closeMenu = () => setMenuList(null);
 
@@ -398,41 +423,82 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
     ]);
   };
 
-  const renderItem = ({ item }: { item: GroceryList }) => (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => navigation.navigate("ListDetail", { listId: item.id })}
-      onLongPress={() => setMenuList(item)}
-      delayLongPress={400}
-      accessibilityHint="Hold briefly to open options"
-    >
-      <View style={styles.cardRow}>
-        <View style={styles.cardIconBlob}>
-          <Ionicons name="cart" size={22} color={colors.iconBlobFg} />
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.name}
-            </Text>
-            {item.importedFromShare ? (
-              <View style={styles.importedPill} accessibilityLabel="Imported list">
-                <Text style={styles.importedPillText}>Imported</Text>
-              </View>
-            ) : null}
+  const repeatFromMenu = () => {
+    if (!menuList) return;
+    const id = menuList.id;
+    closeMenu();
+    void repeatGroceryList(id);
+  };
+
+  const archiveFromMenu = () => {
+    if (!menuList) return;
+    const target = menuList;
+    closeMenu();
+    Alert.alert(
+      "Archive this list?",
+      `"${target.name}" will move to Groceries Archive.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive", onPress: () => void archiveGroceryList(target.id) },
+      ]
+    );
+  };
+
+  const renderItem = ({ item }: { item: GroceryList }) => {
+    const completed = isGroceryListCompleted(item);
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          completed && styles.cardCompleted,
+          pressed && styles.cardPressed,
+        ]}
+        onPress={() => navigation.navigate("ListDetail", { listId: item.id })}
+        onLongPress={() => setMenuList(item)}
+        delayLongPress={400}
+        accessibilityHint={
+          completed ? "Hold briefly for repeat or archive" : "Hold briefly to open options"
+        }
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.cardIconBlob}>
+            <Ionicons
+              name={completed ? "checkmark-circle" : "cart"}
+              size={22}
+              color={colors.iconBlobFg}
+            />
           </View>
-          <Text style={styles.cardMeta}>
-            {item.items.length} item{item.items.length === 1 ? "" : "s"} · Updated{" "}
-            {new Date(item.updatedAt).toLocaleDateString()}
-          </Text>
+          <View style={styles.cardBody}>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {item.name}
+              </Text>
+              {completed ? (
+                <View style={styles.completedPill} accessibilityLabel="Completed list">
+                  <Ionicons name="checkmark" size={12} color={colors.primaryDark} />
+                  <Text style={styles.completedPillText}>Done</Text>
+                </View>
+              ) : item.importedFromShare ? (
+                <View style={styles.importedPill} accessibilityLabel="Imported list">
+                  <Text style={styles.importedPillText}>Imported</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.cardMeta}>
+              {item.items.length} item{item.items.length === 1 ? "" : "s"} ·{" "}
+              {completed
+                ? "Completed"
+                : `Updated ${new Date(item.updatedAt).toLocaleDateString()}`}
+            </Text>
+          </View>
+          {!completed && item.pinned ? (
+            <Ionicons name="pin" size={18} color={colors.pin} style={styles.pinIcon} />
+          ) : null}
+          <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
         </View>
-        {item.pinned ? (
-          <Ionicons name="pin" size={18} color={colors.pin} style={styles.pinIcon} />
-        ) : null}
-        <Ionicons name="chevron-forward" size={20} color={colors.placeholder} />
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
@@ -440,7 +506,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
         <View style={styles.headerTextCol}>
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => navigation.navigate("ToolsDashboard")}
+            onPress={() => goToDashboard(navigation)}
             accessibilityRole="button"
             accessibilityLabel="Back to tools"
           >
@@ -463,7 +529,7 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
             style={styles.iconBtn}
             onPress={() => navigation.navigate("History")}
             accessibilityRole="button"
-            accessibilityLabel="Open completed groceries"
+            accessibilityLabel="Open groceries archive"
           >
             <Ionicons name="time-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -566,34 +632,69 @@ export default function GroceryHomeScreen({ navigation }: GroceryHomeProps) {
                       <Ionicons name="close" size={26} color={colors.textTertiary} />
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={styles.menuRow} onPress={openEditFromMenu} activeOpacity={0.85}>
-                    <Ionicons name="open-outline" size={22} color={colors.primary} />
-                    <Text style={styles.menuRowText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.menuRow} onPress={renameFromMenu} activeOpacity={0.85}>
-                    <Ionicons name="pencil-outline" size={22} color={colors.primary} />
-                    <Text style={styles.menuRowText}>Rename</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.menuRow} onPress={shareFromMenu} activeOpacity={0.85}>
-                    <Ionicons name="share-outline" size={22} color={colors.primary} />
-                    <Text style={styles.menuRowText}>Share</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.menuRow}
-                    onPress={prioritizeFromMenu}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
-                    <Text style={styles.menuRowText}>Prioritize</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.menuRowDanger}
-                    onPress={deleteFromMenu}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="trash-outline" size={22} color={colors.danger} />
-                    <Text style={styles.menuRowTextDanger}>Delete</Text>
-                  </TouchableOpacity>
+                  {menuListCompleted ? (
+                    <>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={repeatFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="refresh-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Repeat This List</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={archiveFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="archive-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Archive</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={openEditFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="open-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={renameFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Rename</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={shareFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="share-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Share</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.menuRow}
+                        onPress={prioritizeFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="arrow-up-circle-outline" size={22} color={colors.primary} />
+                        <Text style={styles.menuRowText}>Prioritize</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.menuRowDanger}
+                        onPress={deleteFromMenu}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                        <Text style={styles.menuRowTextDanger}>Delete</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </Pressable>
             </Animated.View>

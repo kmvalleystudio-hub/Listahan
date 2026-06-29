@@ -1,20 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
-  Alert,
-  ScrollView,
-  Pressable,
-  Animated,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, KeyboardAvoidingView, Keyboard, Platform, Alert, ScrollView, Pressable, Animated } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import Reanimated, { makeMutable, type SharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
@@ -1265,7 +1251,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                 <View style={styles.modalForm}>
                   <View style={styles.addRow}>
                     <View style={styles.addNameShell}>
-                      <TextInput
+                      <AppTextInput
                         value={formName}
                         onChangeText={setFormName}
                         style={styles.addNameField}
@@ -1291,7 +1277,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                     Username or email (optional)
                   </Text>
                   <View style={styles.addNameShell}>
-                    <TextInput
+                    <AppTextInput
                       value={formUsername}
                       onChangeText={setFormUsername}
                       style={styles.addNameField}
@@ -1319,7 +1305,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                     Secret (optional)
                   </Text>
                   <View style={styles.addNameShell}>
-                    <TextInput
+                    <AppTextInput
                       value={formSecret}
                       onChangeText={setFormSecret}
                       style={styles.addNameField}
@@ -1348,7 +1334,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
                     Notes (optional)
                   </Text>
                   <View style={styles.addNameShell}>
-                    <TextInput
+                    <AppTextInput
                       value={formNotes}
                       onChangeText={setFormNotes}
                       style={[

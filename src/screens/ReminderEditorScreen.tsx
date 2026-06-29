@@ -1,18 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  Keyboard,
-  Modal,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, ScrollView, Keyboard, Modal } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -567,7 +555,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Title</Text>
-        <TextInput
+        <AppTextInput
           style={styles.titleInput}
           value={title}
           onChangeText={setTitle}
@@ -577,7 +565,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
         />
 
         <Text style={[styles.label, { marginTop: 16 }]}>Notes (optional)</Text>
-        <TextInput
+        <AppTextInput
           style={styles.notesInput}
           value={notes}
           onChangeText={setNotes}
@@ -754,7 +742,7 @@ export default function ReminderEditorScreen({ navigation, route }: ReminderEdit
             {notifyBefore === "custom" ? (
               <View style={{ marginTop: 8 }}>
                 <View style={styles.customInlineRow}>
-                  <TextInput
+                  <AppTextInput
                     style={styles.customAmountInputInline}
                     value={customAmount}
                     onChangeText={setCustomAmount}

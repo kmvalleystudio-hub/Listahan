@@ -1,16 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-  ScrollView,
-  Keyboard,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Pressable, ActivityIndicator, ScrollView, Keyboard } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,7 +12,7 @@ import { useAppAlert } from "../context/AppAlertContext";
 import { usePrivateVault } from "../context/PrivateVaultContext";
 import { useSyncSession } from "../context/SyncSessionContext";
 import { lookupProfileByPublicTag, type SyncProfileSearchResult } from "../services/syncProfileSearch";
-import { listahanPublicTag, parsePublicTagInput } from "../utils/userProfileStorage";
+import { formatDisplayUsername, listahanPublicTag, parsePublicTagInput } from "../utils/userProfileStorage";
 import { createSyncRequest, listIncomingSyncRequests, respondSyncRequest, type SyncRequestRow } from "../services/syncRequestService";
 import { upsertSyncSnapshot } from "../services/syncSessionService";
 import { exportEnabledSyncPayloads } from "../services/syncSnapshotExport";
@@ -35,6 +25,7 @@ import { isSupabaseConfigured } from "../services/supabaseClient";
 import SyncUserPreviewModal from "../components/SyncUserPreviewModal";
 import { ProfilePortrait } from "../components/ProfilePortrait";
 import type { SyncToolsConfig } from "../constants/syncTools";
+import { formatSyncToolsSummary } from "../constants/syncTools";
 import { useAppData } from "../context/AppDataContext";
 
 const GRID_PAD = 16;
@@ -130,6 +121,7 @@ function createStyles(c: AppThemeColors) {
     primaryBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
     resultName: { fontSize: 16, fontWeight: "700", color: c.text },
     resultTag: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
+    incomingTools: { fontSize: 12, color: c.textTertiary, marginTop: 6, lineHeight: 17 },
     incoming: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.border,
@@ -312,10 +304,11 @@ export default function SyncSearchScreen({ navigation }: SyncSearchProps) {
       return;
     }
 
-    const requestBackup = await captureFullLocalBackup(vaultSyncAllowed);
+    const allowVaultExport = vaultSyncAllowed || tools.vault;
+    const requestBackup = await captureFullLocalBackup(allowVaultExport);
     await saveSyncBackup(created.requestId, requestBackup);
 
-    const payloads = await exportEnabledSyncPayloads(tools, vaultSyncAllowed);
+    const payloads = await exportEnabledSyncPayloads(tools, allowVaultExport);
     for (const [tool, payload] of Object.entries(payloads)) {
       await upsertSyncSnapshot({
         actorId: deviceIdRef.current,
@@ -396,6 +389,14 @@ export default function SyncSearchScreen({ navigation }: SyncSearchProps) {
     await loadIncoming();
     await refreshSyncState();
     celebrateSyncConnected(req.fromPublicTag || req.fromUsername, acceptedSessionId);
+    if (req.tools.vault) {
+      showAlert({
+        title: "Vault included",
+        message:
+          "Open Vault and finish PIN setup on this phone to unlock synced sheets. Your PIN is not copied from your partner's device — each phone keeps its own.",
+        variant: "info",
+      });
+    }
     navigation.reset({
       index: 0,
       routes: [{ name: "ToolsDashboard" }],
@@ -422,15 +423,15 @@ export default function SyncSearchScreen({ navigation }: SyncSearchProps) {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.intro}>
-          Enter their full public tag from Profile (e.g. mike_t1ci — the part after @). There is no user search;
+          Enter their full public tag from Profile (e.g. john_t1ci — the part after @). There is no user search;
           it must match exactly.
         </Text>
 
         <View style={styles.inputWrap}>
           <Text style={styles.tagPrefix}>@</Text>
-          <TextInput
+          <AppTextInput
             style={styles.input}
-            placeholder="mike_t1ci"
+            placeholder="john_t1ci"
             placeholderTextColor={colors.placeholder}
             value={tagInput}
             onChangeText={onTagInputChange}
@@ -471,7 +472,7 @@ export default function SyncSearchScreen({ navigation }: SyncSearchProps) {
                 size={52}
               />
               <View style={{ flex: 1 }}>
-                <Text style={styles.foundName}>{foundUser.username}</Text>
+                <Text style={styles.foundName}>{formatDisplayUsername(foundUser.username)}</Text>
                 {foundUser.publicTag ? (
                   <Text style={styles.foundTag}>{foundUser.publicTag}</Text>
                 ) : null}
@@ -527,6 +528,7 @@ export default function SyncSearchScreen({ navigation }: SyncSearchProps) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.resultName}>{item.fromUsername}</Text>
                   <Text style={styles.resultTag}>{item.fromPublicTag}</Text>
+                  <Text style={styles.incomingTools}>{formatSyncToolsSummary(item.tools)}</Text>
                 </View>
                 <View style={styles.incomingActions}>
                   <Pressable

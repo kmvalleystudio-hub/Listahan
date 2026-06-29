@@ -1,15 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -297,7 +288,7 @@ export default function CompletedListPreviewScreen({ navigation, route }: Comple
         >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Name your groceries</Text>
-            <TextInput
+            <AppTextInput
               value={newName}
               onChangeText={setNewName}
               style={styles.modalInput}

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   useCallback,
@@ -7,7 +6,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Dimensions, PixelRatio, Text, TextInput } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Dimensions, PixelRatio, Text, TextInput, type TextStyle } from "react-native";
 import type { AppThemeColors } from "../theme/colors";
 import { darkColors, lightColors } from "../theme/colors";
 import {
@@ -16,12 +16,22 @@ import {
   DEFAULT_FONT_SIZE_LEVEL,
   fontScaleForLevel,
   loadAppearancePreferences,
+  persistFontFamilyId,
   persistFontSizeLevel,
   persistUseSystemFontSize,
+  type AppFontFamilyId,
 } from "../theme/appearanceStorage";
-import { setStyleSheetFontMultiplier } from "../theme/installStyleSheetScale";
+import {
+  DEFAULT_APP_FONT_FAMILY_ID,
+  previewFontFamilyForId,
+  useAppFontAssets,
+} from "../theme/appFontFamilies";
+import {
+  setStyleSheetFontFamilyId,
+  setStyleSheetFontMultiplier,
+} from "../theme/installStyleSheetScale";
 
-/** Main app defaults to light until the user picks otherwise on Profile (`UsernameSetup` uses a fixed dark palette). */
+/** Main app defaults to light until the user picks otherwise on Profile (`UsernameSetup` / `Welcome` use fixed palettes). */
 
 export type ColorScheme = "light" | "dark";
 
@@ -35,8 +45,10 @@ type ThemeContextValue = {
   fontScale: number;
   useSystemFontSize: boolean;
   effectiveFontScale: number;
+  fontFamilyId: AppFontFamilyId;
   setFontSizeLevel: (level: number) => void;
   setUseSystemFontSize: (enabled: boolean) => void;
+  setFontFamilyId: (id: AppFontFamilyId) => void;
   styleEpoch: number;
 };
 
@@ -47,13 +59,26 @@ function readSystemFontScale(): number {
   return Math.min(1.25, Math.max(0.85, raw));
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+function applyNativeTextDefaults(fontFamilyId: AppFontFamilyId): void {
+  const regular = previewFontFamilyForId(fontFamilyId);
+  const textDefaults = Text as typeof Text & { defaultProps?: { style?: TextStyle; allowFontScaling?: boolean } };
+  const inputDefaults = TextInput as typeof TextInput & {
+    defaultProps?: { style?: TextStyle; allowFontScaling?: boolean };
+  };
+  const style = regular ? { fontFamily: regular } : undefined;
+  textDefaults.defaultProps = { ...(textDefaults.defaultProps ?? {}), style };
+  inputDefaults.defaultProps = { ...(inputDefaults.defaultProps ?? {}), style };
+}
+
+function ThemeProviderInner({ children }: { children: React.ReactNode }) {
   const [scheme, setSchemeState] = useState<ColorScheme>("light");
   const [fontSizeLevel, setFontSizeLevelState] = useState(DEFAULT_FONT_SIZE_LEVEL);
   const [useSystemFontSize, setUseSystemFontSizeState] = useState(false);
+  const [fontFamilyId, setFontFamilyIdState] = useState<AppFontFamilyId>(DEFAULT_APP_FONT_FAMILY_ID);
   const [styleEpoch, setStyleEpoch] = useState(0);
   const [dimensionsTick, setDimensionsTick] = useState(0);
   const [hydrated, setHydrated] = useState(false);
+  const fontsLoaded = useAppFontAssets();
 
   const fontScale = useMemo(() => fontScaleForLevel(fontSizeLevel), [fontSizeLevel]);
 
@@ -64,6 +89,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (prefs.scheme) setSchemeState(prefs.scheme);
       setFontSizeLevelState(prefs.fontSizeLevel);
       setUseSystemFontSizeState(prefs.useSystemFontSize);
+      setFontFamilyIdState(prefs.fontFamilyId);
       setHydrated(true);
     });
     return () => {
@@ -76,11 +102,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     [fontScale, useSystemFontSize, dimensionsTick]
   );
 
+  const effectiveFontFamilyId = fontsLoaded ? fontFamilyId : DEFAULT_APP_FONT_FAMILY_ID;
+
   useEffect(() => {
     if (!hydrated) return;
     setStyleSheetFontMultiplier(effectiveFontScale);
+    setStyleSheetFontFamilyId(effectiveFontFamilyId);
+    applyNativeTextDefaults(effectiveFontFamilyId);
     setStyleEpoch((n) => n + 1);
-  }, [effectiveFontScale, hydrated]);
+  }, [effectiveFontScale, effectiveFontFamilyId, hydrated]);
 
   useEffect(() => {
     const allowFontScaling = useSystemFontSize;
@@ -122,6 +152,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     void persistUseSystemFontSize(enabled);
   }, []);
 
+  const setFontFamilyId = useCallback((next: AppFontFamilyId) => {
+    setFontFamilyIdState(next);
+    void persistFontFamilyId(next);
+  }, []);
+
   const colors = scheme === "dark" ? darkColors : lightColors;
 
   const value = useMemo(
@@ -135,8 +170,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       fontScale,
       useSystemFontSize,
       effectiveFontScale,
+      fontFamilyId: effectiveFontFamilyId,
       setFontSizeLevel,
       setUseSystemFontSize,
+      setFontFamilyId,
       styleEpoch,
     }),
     [
@@ -148,13 +185,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       fontScale,
       useSystemFontSize,
       effectiveFontScale,
+      effectiveFontFamilyId,
       setFontSizeLevel,
       setUseSystemFontSize,
+      setFontFamilyId,
       styleEpoch,
     ]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  return <ThemeProviderInner>{children}</ThemeProviderInner>;
 }
 
 export function useTheme(): ThemeContextValue {

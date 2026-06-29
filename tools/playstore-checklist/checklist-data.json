@@ -1,0 +1,547 @@
+{
+  "title": "Listahan — Play Store Release",
+  "subtitle": "Follow the blue “What you do” steps below each checkbox. Click Copy on any command, paste into PowerShell, press Enter.",
+  "lastUpdated": "May 19, 2026",
+  "gettingStarted": {
+    "title": "Start here (first time only)",
+    "steps": [
+      {
+        "type": "note",
+        "text": "You need: a free Expo account, a Google Play Developer account ($25), and Listahan at C:\\SayCart."
+      },
+      {
+        "type": "terminal",
+        "label": "1. Open PowerShell and go to the project:",
+        "command": "cd C:\\SayCart"
+      },
+      {
+        "type": "terminal",
+        "label": "2. Install EAS CLI (once only):",
+        "command": "npm install -g eas-cli"
+      },
+      {
+        "type": "terminal",
+        "label": "3. Log in to Expo:",
+        "command": "eas login"
+      },
+      {
+        "type": "browser",
+        "label": "4. Create Expo account (if needed):",
+        "url": "https://expo.dev/signup",
+        "urlText": "https://expo.dev/signup"
+      },
+      {
+        "type": "browser",
+        "label": "5. Create Google Play Developer account:",
+        "url": "https://play.google.com/console/signup",
+        "urlText": "https://play.google.com/console/signup"
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "a",
+      "title": "A. App & build readiness",
+      "items": [
+        {
+          "id": "a-1",
+          "label": "Production AAB builds successfully",
+          "actions": [
+            { "type": "note", "text": "AAB = Android App Bundle. Google Play requires this format (not APK)." },
+            { "type": "terminal", "label": "Run this in PowerShell:", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then run:", "command": "npm run build:aab" },
+            { "type": "note", "text": "Wait 10–20 minutes. When done, copy the build URL from the terminal into Sign-off at the bottom of this page." }
+          ]
+        },
+        {
+          "id": "a-2",
+          "label": "EAS Android signing / keystore set up and backed up",
+          "actions": [
+            { "type": "note", "text": "First production build usually asks to create a keystore. Say YES and let Expo store it." },
+            { "type": "terminal", "label": "Run this in PowerShell:", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then run:", "command": "eas credentials -p android" },
+            { "type": "manual", "text": "Screenshot or save any keystore recovery info Expo shows. You need it to update the app forever." }
+          ]
+        },
+        {
+          "id": "a-3",
+          "label": "versionName and versionCode correct for this release",
+          "actions": [
+            { "type": "note", "text": "First release can stay 1.0.0 / versionCode 1. Every future Play upload must increase versionCode." },
+            { "type": "manual", "text": "Open C:\\SayCart\\app.json — check \"version\" is 1.0.0 (or your chosen version)." },
+            { "type": "manual", "text": "Open C:\\SayCart\\android\\app\\build.gradle — check versionName and versionCode match." }
+          ]
+        },
+        {
+          "id": "a-4",
+          "label": "Launcher icon and adaptive icon correct on a real device",
+          "actions": [
+            { "type": "terminal", "label": "Regenerate icons (if you changed the logo):", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then:", "command": "npm run icons:brand" },
+            { "type": "terminal", "label": "Update native Android icons:", "command": "npx expo prebuild --platform android --no-install" },
+            { "type": "note", "text": "Rebuild the AAB after this, then install on your phone and check the app drawer icon." }
+          ]
+        },
+        {
+          "id": "a-5",
+          "label": "Splash screen looks correct on cold start",
+          "actions": [
+            { "type": "manual", "text": "Install your production or preview build on a phone. Force-close the app, then open it again." },
+            { "type": "manual", "text": "You should see the Listahan splash briefly, then the app — no blank screen or error." }
+          ]
+        },
+        {
+          "id": "a-6",
+          "label": "App opens and completes bootstrap without Metro",
+          "actions": [
+            { "type": "note", "text": "Release builds must NOT need \"npx expo start\" on your PC." },
+            { "type": "manual", "text": "Turn off Wi‑Fi on your phone (or unplug USB). Open Listahan from the app drawer." },
+            { "type": "manual", "text": "App should open to dashboard or username setup. If you see \"Could not connect to Metro\", rebuild the AAB/APK." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b",
+      "title": "B. EAS environment (production ≠ preview)",
+      "items": [
+        {
+          "id": "b-1",
+          "label": "EXPO_PUBLIC_SUPABASE_URL on EAS production",
+          "actions": [
+            { "type": "note", "text": "Sync/share need Supabase keys baked into the store build. Preview APK keys do NOT automatically apply to production." },
+            { "type": "terminal", "label": "Check what is on production now:", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then:", "command": "npx eas-cli env:list --environment production" },
+            { "type": "manual", "text": "If EXPO_PUBLIC_SUPABASE_URL is missing, add it (see next item b-2 steps — same process for URL and anon key)." }
+          ]
+        },
+        {
+          "id": "b-2",
+          "label": "EXPO_PUBLIC_SUPABASE_ANON_KEY on EAS production",
+          "actions": [
+            { "type": "note", "text": "Get values from your .env file or Supabase dashboard → Project Settings → API." },
+            { "type": "terminal", "label": "Add Supabase URL to production (replace YOUR_URL with real value):", "command": "npx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_URL --value \"YOUR_URL\" --environment production --visibility plaintext --non-interactive --force" },
+            { "type": "terminal", "label": "Add anon key to production (replace YOUR_KEY):", "command": "npx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value \"YOUR_KEY\" --environment production --visibility sensitive --non-interactive --force" },
+            { "type": "terminal", "label": "Verify both are set:", "command": "npx eas-cli env:list --environment production" }
+          ]
+        },
+        {
+          "id": "b-3",
+          "label": "EXPO_PUBLIC_OPENAI_API_KEY on production (optional)",
+          "optional": true,
+          "actions": [
+            { "type": "note", "text": "Skip unless you use OpenAI for bulk voice. Local voice parsing works without this key." },
+            { "type": "terminal", "label": "Optional — add OpenAI key to production:", "command": "npx eas-cli env:create production --name EXPO_PUBLIC_OPENAI_API_KEY --value \"YOUR_KEY\" --environment production --visibility sensitive --non-interactive --force" }
+          ]
+        },
+        {
+          "id": "b-4",
+          "label": "Rebuild AAB after any env change",
+          "actions": [
+            { "type": "terminal", "label": "Run this in PowerShell after changing env vars:", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then:", "command": "npm run build:aab" }
+          ]
+        },
+        {
+          "id": "b-5",
+          "label": "Extend sync-eas-env script for production (not only preview)",
+          "actions": [
+            { "type": "note", "text": "Today the script only syncs to preview. For production you used the eas-cli commands in b-2 above." },
+            { "type": "manual", "text": "Ask your developer to update scripts/sync-eas-env-from-dotenv.mjs to also push to production — or keep using b-2 commands manually." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c",
+      "title": "C. Legal, privacy & support",
+      "items": [
+        {
+          "id": "c-1",
+          "label": "Public privacy policy URL live",
+          "actions": [
+            { "type": "note", "text": "Google Play requires a web link — the in-app policy alone is not enough." },
+            { "type": "manual", "text": "Host your policy on a public page (GitHub Pages, your website, Notion public page, etc.)." },
+            { "type": "manual", "text": "Copy that URL — you will paste it in Play Console → App content → Privacy policy." }
+          ]
+        },
+        {
+          "id": "c-2",
+          "label": "Privacy policy matches actual app behavior",
+          "actions": [
+            { "type": "manual", "text": "Read the in-app policy: Listahan → Settings → Privacy policy." },
+            { "type": "manual", "text": "Developer file to edit: C:\\SayCart\\src\\constants\\privacyPolicyContent.ts" },
+            { "type": "manual", "text": "Make sure hosted web policy matches what the app really does (sync, vault, camera, mic)." }
+          ]
+        },
+        {
+          "id": "c-3",
+          "label": "Remove placeholder footer about contact address before store release",
+          "actions": [
+            { "type": "manual", "text": "Edit privacyPolicyContent.ts — remove text: \"We will add a dedicated contact address before store release.\"" },
+            { "type": "manual", "text": "Replace with your real support email." }
+          ]
+        },
+        {
+          "id": "c-4",
+          "label": "Developer support email in Play Console",
+          "actions": [
+            { "type": "browser", "label": "Open Play Console:", "url": "https://play.google.com/console", "urlText": "https://play.google.com/console" },
+            { "type": "manual", "text": "Account details → Developer contact → add an email you check regularly." }
+          ]
+        },
+        {
+          "id": "c-5",
+          "label": "Support email in privacy policy and in-app Settings",
+          "actions": [
+            { "type": "manual", "text": "Use the same email as Play Console everywhere (policy web page + privacyPolicyContent.ts)." }
+          ]
+        },
+        {
+          "id": "c-6",
+          "label": "Settings support flows wired (FAQ, Report, Feedback)",
+          "optional": true,
+          "actions": [
+            { "type": "note", "text": "Optional but recommended before public launch." },
+            { "type": "manual", "text": "Settings → Report a problem / Feedback currently show placeholder alerts. Wire to mailto:your@email.com or a form." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d",
+      "title": "D. Play Console — store listing",
+      "items": [
+        {
+          "id": "d-1",
+          "label": "Google Play Developer account created ($25)",
+          "actions": [
+            { "type": "browser", "label": "Sign up here:", "url": "https://play.google.com/console/signup", "urlText": "https://play.google.com/console/signup" }
+          ]
+        },
+        {
+          "id": "d-2",
+          "label": "App created with package com.saycart.app",
+          "actions": [
+            { "type": "browser", "label": "Open Play Console:", "url": "https://play.google.com/console", "urlText": "https://play.google.com/console" },
+            { "type": "manual", "text": "Create app → name: Listahan → default language → App / Game: App → Free/Paid." },
+            { "type": "manual", "text": "Package name must be: com.saycart.app (must match your AAB)." }
+          ]
+        },
+        {
+          "id": "d-3",
+          "label": "Short description (80 chars max)",
+          "actions": [
+            { "type": "manual", "text": "Play Console → Grow → Store presence → Main store listing → Short description." },
+            { "type": "manual", "text": "Example: \"Lists for groceries, to-dos, notes, reminders, and a secure vault.\"" }
+          ]
+        },
+        {
+          "id": "d-4",
+          "label": "Full description (4000 chars max)",
+          "actions": [
+            { "type": "manual", "text": "Same page → Full description. Explain features: grocery lists, voice, sync, vault, reminders." }
+          ]
+        },
+        {
+          "id": "d-5",
+          "label": "App icon 512×512 PNG",
+          "actions": [
+            { "type": "manual", "text": "Export from C:\\SayCart\\assets\\icon.png — resize to 512×512 PNG if needed, no transparency." }
+          ]
+        },
+        {
+          "id": "d-6",
+          "label": "Feature graphic 1024×500",
+          "actions": [
+            { "type": "manual", "text": "Create a banner image 1024×500 px for the store page header (Canva/Figma/etc.)." }
+          ]
+        },
+        {
+          "id": "d-7",
+          "label": "Phone screenshots (min 2, recommend 4–8)",
+          "actions": [
+            { "type": "manual", "text": "On your phone: open Listahan → take screenshots of dashboard, grocery list, vault, sync." },
+            { "type": "manual", "text": "Upload under Main store listing → Phone screenshots." }
+          ]
+        },
+        {
+          "id": "d-8",
+          "label": "Tablet screenshots (optional)",
+          "optional": true,
+          "actions": [
+            { "type": "manual", "text": "Skip for v1 unless you test on a tablet." }
+          ]
+        },
+        {
+          "id": "d-9",
+          "label": "App category selected",
+          "actions": [
+            { "type": "manual", "text": "Play Console → Store settings → App category → e.g. Productivity or Lifestyle." }
+          ]
+        },
+        {
+          "id": "d-10",
+          "label": "Contact email and website filled in",
+          "actions": [
+            { "type": "manual", "text": "Store listing → Contact details → email (required). Website optional." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e",
+      "title": "E. Play Console — policy forms",
+      "items": [
+        {
+          "id": "e-1",
+          "label": "Data safety form completed accurately",
+          "actions": [
+            { "type": "browser", "label": "Play Console → App content → Data safety:", "url": "https://play.google.com/console", "urlText": "https://play.google.com/console" },
+            { "type": "manual", "text": "Declare: local list data, optional cloud profile (Supabase), optional sync, optional vault upload, camera, microphone, device ID for sync." },
+            { "type": "manual", "text": "Say you do NOT sell data. Match your privacy policy exactly." }
+          ]
+        },
+        {
+          "id": "e-2",
+          "label": "Content rating questionnaire (IARC)",
+          "actions": [
+            { "type": "manual", "text": "Play Console → App content → Content rating → Start questionnaire → answer honestly → apply rating." }
+          ]
+        },
+        {
+          "id": "e-3",
+          "label": "Target audience and content declarations",
+          "actions": [
+            { "type": "manual", "text": "Play Console → App content → Target audience. App is not directed at children under 13." }
+          ]
+        },
+        {
+          "id": "e-4",
+          "label": "Ads declaration (none unless you add ads)",
+          "actions": [
+            { "type": "manual", "text": "Play Console → App content → Ads → No, my app does not contain ads." }
+          ]
+        },
+        {
+          "id": "e-5",
+          "label": "News / COVID / government declarations if applicable",
+          "optional": true,
+          "actions": [
+            { "type": "manual", "text": "Usually N/A for Listahan — skip unless Play Console asks." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f",
+      "title": "F. Sensitive permissions",
+      "items": [
+        {
+          "id": "f-1",
+          "label": "CAMERA declared and justified",
+          "actions": [
+            { "type": "manual", "text": "Play Console → App content → Permission declarations. Reason: scan QR share codes / import from image." }
+          ]
+        },
+        {
+          "id": "f-2",
+          "label": "RECORD_AUDIO declared and justified",
+          "actions": [
+            { "type": "manual", "text": "Reason: voice entry for grocery items and bulk lists." }
+          ]
+        },
+        {
+          "id": "f-3",
+          "label": "POST_NOTIFICATIONS declared and justified",
+          "actions": [
+            { "type": "manual", "text": "Reason: reminders and to-do timer chimes." }
+          ]
+        },
+        {
+          "id": "f-4",
+          "label": "SCHEDULE_EXACT_ALARM declared (reminders)",
+          "actions": [
+            { "type": "manual", "text": "Play Console may ask about exact alarms. Reason: fire reminders at the exact time user chose." }
+          ]
+        },
+        {
+          "id": "f-5",
+          "label": "USE_BIOMETRIC / FINGERPRINT (Vault)",
+          "actions": [
+            { "type": "manual", "text": "Reason: optional fingerprint/Face unlock for Vault." }
+          ]
+        },
+        {
+          "id": "f-6",
+          "label": "Storage permissions — verify Android 13+ behavior",
+          "actions": [
+            { "type": "manual", "text": "On Android 13+ phone: try importing a QR from gallery. Confirm it works or shows a clear permission prompt." }
+          ]
+        },
+        {
+          "id": "f-7",
+          "label": "INTERNET (Supabase / optional OpenAI)",
+          "actions": [
+            { "type": "manual", "text": "Standard — used for optional sync and cloud profile." }
+          ]
+        },
+        {
+          "id": "f-8",
+          "label": "In-app permission rationale strings clear",
+          "actions": [
+            { "type": "manual", "text": "When app asks for camera/mic/notifications, the popup text should make sense. Test on device." }
+          ]
+        },
+        {
+          "id": "f-9",
+          "label": "Play Console permission declarations match usage",
+          "actions": [
+            { "type": "manual", "text": "Do not declare permissions the app does not use. Match AndroidManifest.xml / app.json." }
+          ]
+        },
+        {
+          "id": "f-10",
+          "label": "Graceful fallback when user denies permissions",
+          "actions": [
+            { "type": "manual", "text": "Deny camera → QR import should explain what's needed. Deny mic → voice buttons should not crash app." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "g",
+      "title": "G. Pre-release manual test (production AAB)",
+      "subsections": [
+        {
+          "title": "Onboarding & profile",
+          "items": [
+            {
+              "id": "g-1",
+              "label": "First launch → username setup",
+              "actions": [
+                { "type": "manual", "text": "Install production AAB from Play internal testing link. Open app fresh → pick username → continue." }
+              ]
+            },
+            {
+              "id": "g-2",
+              "label": "Profile saves; greeting correct on dashboard",
+              "actions": [
+                { "type": "manual", "text": "Close and reopen app. Dashboard should say Hello, [your name] — not a flash of wrong text." }
+              ]
+            },
+            {
+              "id": "g-3",
+              "label": "Privacy policy opens from Settings / Profile",
+              "actions": [
+                { "type": "manual", "text": "Settings → Privacy policy. Page should load without error." }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Core tools",
+          "items": [
+            { "id": "g-4", "label": "Grocery: create, add, check off, complete, archive", "actions": [{ "type": "manual", "text": "Create list → add items → check all → see Completed section → archive." }] },
+            { "id": "g-5", "label": "To-do: create list, timers/chimes", "actions": [{ "type": "manual", "text": "Create to-do list, add task, test timer/chime if you use them." }] },
+            { "id": "g-6", "label": "Notes: create and edit", "actions": [{ "type": "manual", "text": "Notes tile → new note → save → reopen and edit." }] },
+            { "id": "g-7", "label": "Reminder fires at expected time (exact alarm)", "actions": [{ "type": "manual", "text": "Set reminder 2 minutes from now. Lock phone. Wait — notification should appear on time." }] },
+            { "id": "g-8", "label": "Vault: PIN setup, lock/unlock, biometrics", "actions": [{ "type": "manual", "text": "Vault → set PIN → add entry → lock app or leave → unlock with PIN/biometrics." }] }
+          ]
+        },
+        {
+          "title": "Voice & import",
+          "items": [
+            { "id": "g-9", "label": "Single-item voice add on device", "actions": [{ "type": "manual", "text": "Grocery list → Add item → tap mic → speak item name → confirm it appears." }] },
+            { "id": "g-10", "label": "Bulk voice parses locally (no OpenAI)", "actions": [{ "type": "manual", "text": "Open + menu → Add bulk by Voice → say \"one milk and two eggs\" → check rows created." }] },
+            { "id": "g-11", "label": "Import code/QR on list detail sheet", "actions": [{ "type": "manual", "text": "Inside a list → + → Import with Code/QR → paste code or scan QR." }] },
+            { "id": "g-12", "label": "Share import creates new list from code", "actions": [{ "type": "manual", "text": "From home/share flow, import a share code → new list appears with items." }] }
+          ]
+        },
+        {
+          "title": "Sync",
+          "items": [
+            { "id": "g-13", "label": "Sync visible when Supabase configured", "actions": [{ "type": "manual", "text": "Dashboard or profile should show Sync if production Supabase keys were in the AAB." }] },
+            { "id": "g-14", "label": "Lookup partner by public tag", "actions": [{ "type": "manual", "text": "Sync → enter partner's full tag (e.g. john_t1ci) → Look up." }] },
+            { "id": "g-15", "label": "Send / accept sync request", "actions": [{ "type": "manual", "text": "Send request from phone A → accept on phone B (or second account)." }] },
+            { "id": "g-16", "label": "Data merges on both sides", "actions": [{ "type": "manual", "text": "After sync, lists on both phones should match selected tools." }] },
+            { "id": "g-17", "label": "Vault sync only when enabled + PIN confirmed", "actions": [{ "type": "manual", "text": "Vault → Settings → Include Vault in sync → enter PIN → confirm sync includes vault only when opted in." }] }
+          ]
+        },
+        {
+          "title": "UI / polish",
+          "items": [
+            { "id": "g-18", "label": "Dashboard tiles square; long descriptions scroll", "actions": [{ "type": "manual", "text": "Vault tile description — swipe inside card to scroll if text is long." }] },
+            { "id": "g-19", "label": "Dark mode readable", "actions": [{ "type": "manual", "text": "Settings → Theme → Dark. Check dashboard and a list screen." }] },
+            { "id": "g-20", "label": "No greeting flash returning to dashboard", "actions": [{ "type": "manual", "text": "Open Grocery → back to dashboard. Greeting should not flash \"Welcome to Listahan\"." }] },
+            { "id": "g-21", "label": "Launcher icon is list+pen logo (not coral placeholder)", "actions": [{ "type": "manual", "text": "Check app drawer — cream square with list + pen icon." }] }
+          ]
+        },
+        {
+          "title": "Offline / edge cases",
+          "items": [
+            { "id": "g-22", "label": "Usable offline for local lists", "actions": [{ "type": "manual", "text": "Airplane mode → open app → grocery/to-do still work for existing lists." }] },
+            { "id": "g-23", "label": "Clear message when Supabase missing", "actions": [{ "type": "manual", "text": "If keys missing, import/sync should say to configure Supabase — not crash." }] },
+            { "id": "g-24", "label": "Data survives kill and relaunch", "actions": [{ "type": "manual", "text": "Add items → force-close app from Android recents → reopen → data still there." }] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "h",
+      "title": "H. Release track strategy",
+      "items": [
+        {
+          "id": "h-1",
+          "label": "Upload AAB to Internal testing",
+          "actions": [
+            { "type": "terminal", "label": "Build AAB if you have not yet:", "command": "cd C:\\SayCart" },
+            { "type": "terminal", "label": "Then:", "command": "npm run build:aab" },
+            { "type": "browser", "label": "Or upload in Play Console:", "url": "https://play.google.com/console", "urlText": "https://play.google.com/console" },
+            { "type": "manual", "text": "Release → Testing → Internal testing → Create release → upload .aab from EAS download link." }
+          ]
+        },
+        {
+          "id": "h-2",
+          "label": "Install from internal link; run section G tests",
+          "actions": [
+            { "type": "manual", "text": "Play Console gives a tester opt-in link. Open on your phone → install → work through section G checkboxes." }
+          ]
+        },
+        {
+          "id": "h-3",
+          "label": "Promote to Closed testing (3–7 days)",
+          "actions": [
+            { "type": "manual", "text": "Testing → Closed testing → add testers by email → promote release from internal." }
+          ]
+        },
+        {
+          "id": "h-4",
+          "label": "Fix crashes or policy feedback",
+          "actions": [
+            { "type": "manual", "text": "Play Console → Quality → Android vitals / Pre-launch report. Fix any crashes before production." }
+          ]
+        },
+        {
+          "id": "h-5",
+          "label": "Promote to Production (staged rollout recommended)",
+          "actions": [
+            { "type": "manual", "text": "Production → Create release → use tested AAB → start with 10% rollout → increase to 100%." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "j",
+      "title": "J. Known repo gaps (before public launch)",
+      "items": [
+        { "id": "j-1", "label": "Production env sync script", "actions": [{ "type": "note", "text": "Use section B commands until script is updated." }] },
+        { "id": "j-2", "label": "Hosted privacy policy URL", "actions": [{ "type": "manual", "text": "See section C item c-1." }] },
+        { "id": "j-3", "label": "Support email everywhere", "actions": [{ "type": "manual", "text": "See section C items c-4 and c-5." }] },
+        { "id": "j-4", "label": "Privacy policy footer placeholder removed", "actions": [{ "type": "manual", "text": "See section C item c-3." }] },
+        { "id": "j-5", "label": "Settings FAQ / Report / Feedback — real contact", "actions": [{ "type": "manual", "text": "See section C item c-6." }] },
+        { "id": "j-6", "label": "Manual test pass (no automated suite)", "actions": [{ "type": "manual", "text": "Complete all of section G on a production build." }] }
+      ]
+    }
+  ]
+}

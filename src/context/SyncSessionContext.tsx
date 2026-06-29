@@ -223,7 +223,8 @@ export function SyncSessionProvider({ children }: { children: React.ReactNode })
           try {
             const localSource = exportSourceRef.current?.() ?? null;
             const mode = syncToolUsesReplaceMerge(tool) ? "replace" : "merge";
-            await applySyncToolPayload(tool, snap.payload, mode, vaultSyncAllowed, localSource);
+            const vaultImportOk = tool !== "vault" || active.tools.vault;
+            await applySyncToolPayload(tool, snap.payload, mode, vaultImportOk, localSource);
             lastAppliedVersion.current[verKey] = snap.version;
             if (tool === "notes") notesChanged = true;
             else if (tool === "reminders") remindersChanged = true;

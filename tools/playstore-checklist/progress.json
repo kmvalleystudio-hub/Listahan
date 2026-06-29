@@ -1,0 +1,16 @@
+{
+  "checked": {
+    "a-1": true,
+    "b-1": true,
+    "b-2": true
+  },
+  "signoff": {
+    "manager": "",
+    "date": "",
+    "build": "https://expo.dev/artifacts/eas/EbZvylEO4VaSDlgFnYVqL1o4Lh83znExuUuSF897TiE.aab",
+    "buildLogs": "https://expo.dev/accounts/kmvalleyapps/projects/saycart/builds/9c54f813-87a3-4ce4-819e-538aa1318609",
+    "notes": "Production AAB v1.0.0 — May 2026",
+    "tracks": []
+  },
+  "updatedAt": "2026-06-19T00:00:00.000Z"
+}

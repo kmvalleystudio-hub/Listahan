@@ -18,8 +18,12 @@ import type {
 } from "../types";
 import { generateId } from "../utils/id";
 import { loadPersisted, savePersisted } from "../storage/persist";
-import { reindexOrders } from "../utils/items";
-import { reindexTodoOrders } from "../utils/todoItems";
+import { isGroceryListCompleted, normalizeItemsForPersist, reindexOrders } from "../utils/items";
+import {
+  isTodoListCompleted,
+  normalizeTodoItemsForPersist,
+  reindexTodoOrders,
+} from "../utils/todoItems";
 import {
   tombstoneGroceryList,
   tombstonePrivateList,
@@ -39,12 +43,16 @@ type AppDataContextValue = {
   appendHistory: (entry: HistoryEntry) => Promise<void>;
   archiveCompletedList: (entry: HistoryEntry) => Promise<void>;
   createListFromHistory: (historyId: string, name: string) => Promise<GroceryList | null>;
+  repeatGroceryList: (listId: string) => Promise<void>;
+  archiveGroceryList: (listId: string) => Promise<void>;
 
   upsertTodoList: (list: TodoList) => Promise<void>;
   removeTodoList: (id: string) => Promise<void>;
   createTodoList: (name: string) => Promise<TodoList>;
   archiveTodoCompletedList: (entry: TodoHistoryEntry) => Promise<void>;
   createTodoListFromHistory: (historyId: string, name: string) => Promise<TodoList | null>;
+  repeatTodoList: (listId: string) => Promise<void>;
+  archiveTodoList: (listId: string) => Promise<void>;
 
   privateLists: PrivateList[];
   upsertPrivateList: (list: PrivateList) => Promise<void>;
@@ -56,6 +64,39 @@ const AppDataContext = createContext<AppDataContextValue | null>(null);
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function buildGroceryHistoryEntry(list: GroceryList): HistoryEntry {
+  return {
+    id: generateId(),
+    sourceListId: list.id,
+    name: list.name,
+    createdAt: list.createdAt,
+    updatedAt: nowIso(),
+    items: normalizeItemsForPersist(
+      list.items.map((i) => ({ ...i, checked: true, checkPending: false }))
+    ),
+    showItemPrice: list.showItemPrice,
+    currencySymbol: list.currencySymbol?.trim() || DEFAULT_CURRENCY_SYMBOL,
+  };
+}
+
+function buildTodoHistoryEntry(list: TodoList): TodoHistoryEntry {
+  const ts = nowIso();
+  const stamped = list.items.map((i) => {
+    if (!i.checked || i.checkPending) return i;
+    return i.completedAt ? i : { ...i, completedAt: ts };
+  });
+  return {
+    id: generateId(),
+    sourceListId: list.id,
+    name: list.name,
+    createdAt: list.createdAt,
+    updatedAt: ts,
+    items: normalizeTodoItemsForPersist(
+      stamped.map((i) => ({ ...i, checked: true, checkPending: false }))
+    ),
+  };
 }
 
 function cloneItemsForNewList(items: GroceryItem[]): GroceryItem[] {
@@ -214,6 +255,34 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     [persist]
   );
 
+  const repeatGroceryList = useCallback(
+    async (listId: string) => {
+      const data = await loadPersisted();
+      const list = data.lists.find((l) => l.id === listId && !l.deletedAt);
+      if (!list) return;
+      const items = reindexOrders(
+        list.items.map((i) => ({ ...i, checked: false, checkPending: false }))
+      );
+      const next: GroceryList = { ...list, items, updatedAt: nowIso(), pinned: false };
+      const nextLists = data.lists.map((l) => (l.id === listId ? next : l));
+      await persist(nextLists, data.history, data.todoLists, data.todoHistory, data.privateLists ?? []);
+    },
+    [persist]
+  );
+
+  const archiveGroceryList = useCallback(
+    async (listId: string) => {
+      const data = await loadPersisted();
+      const list = data.lists.find((l) => l.id === listId && !l.deletedAt);
+      if (!list || !isGroceryListCompleted(list)) return;
+      const entry = buildGroceryHistoryEntry(list);
+      const nextLists = data.lists.filter((l) => l.id !== listId);
+      const nextHistory = [entry, ...data.history];
+      await persist(nextLists, nextHistory, data.todoLists, data.todoHistory, data.privateLists ?? []);
+    },
+    [persist]
+  );
+
   const createListFromHistory = useCallback(
     async (historyId: string, name: string) => {
       const data = await loadPersisted();
@@ -285,6 +354,37 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       const data = await loadPersisted();
       const sid = entry.sourceListId;
       const nextTodo = sid ? data.todoLists.filter((l) => l.id !== sid) : data.todoLists;
+      const nextHist = [entry, ...data.todoHistory];
+      await persist(data.lists, data.history, nextTodo, nextHist, data.privateLists ?? []);
+    },
+    [persist]
+  );
+
+  const repeatTodoList = useCallback(
+    async (listId: string) => {
+      const data = await loadPersisted();
+      const list = data.todoLists.find((l) => l.id === listId && !l.deletedAt);
+      if (!list) return;
+      const items = reindexTodoOrders(
+        list.items.map((i) => {
+          const { completedAt: _omitCompleted, ...rest } = i;
+          return { ...rest, checked: false, checkPending: false };
+        })
+      );
+      const next: TodoList = { ...list, items, updatedAt: nowIso(), pinned: false };
+      const nextTodo = data.todoLists.map((l) => (l.id === listId ? next : l));
+      await persist(data.lists, data.history, nextTodo, data.todoHistory, data.privateLists ?? []);
+    },
+    [persist]
+  );
+
+  const archiveTodoList = useCallback(
+    async (listId: string) => {
+      const data = await loadPersisted();
+      const list = data.todoLists.find((l) => l.id === listId && !l.deletedAt);
+      if (!list || !isTodoListCompleted(list)) return;
+      const entry = buildTodoHistoryEntry(list);
+      const nextTodo = data.todoLists.filter((l) => l.id !== listId);
       const nextHist = [entry, ...data.todoHistory];
       await persist(data.lists, data.history, nextTodo, nextHist, data.privateLists ?? []);
     },
@@ -364,11 +464,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       appendHistory,
       archiveCompletedList,
       createListFromHistory,
+      repeatGroceryList,
+      archiveGroceryList,
       upsertTodoList,
       removeTodoList,
       createTodoList,
       archiveTodoCompletedList,
       createTodoListFromHistory,
+      repeatTodoList,
+      archiveTodoList,
       upsertPrivateList,
       removePrivateList,
       createPrivateList,
@@ -387,11 +491,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       appendHistory,
       archiveCompletedList,
       createListFromHistory,
+      repeatGroceryList,
+      archiveGroceryList,
       upsertTodoList,
       removeTodoList,
       createTodoList,
       archiveTodoCompletedList,
       createTodoListFromHistory,
+      repeatTodoList,
+      archiveTodoList,
       upsertPrivateList,
       removePrivateList,
       createPrivateList,

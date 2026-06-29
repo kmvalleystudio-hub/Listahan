@@ -1,0 +1,9 @@
+{
+  "name": "listahan-playstore-checklist",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local Play Store release checklist for Listahan",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

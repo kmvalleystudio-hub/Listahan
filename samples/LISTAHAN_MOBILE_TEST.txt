@@ -30,7 +30,7 @@ LINE A (use the word AND between items):
 one milk and two coffee and three lemons and one mayonnaise and three eggs
 
 LINE B (commas also work):
-3 bear brand, 2 pancit canton, 1 coffee, 5 apples
+3 milk, 2 bread, 1 coffee, 5 apples
 
 Expected: each piece becomes its own row; quantity is a NUMBER in Qty, not "One" in the name.
 

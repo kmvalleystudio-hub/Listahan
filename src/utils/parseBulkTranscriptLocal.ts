@@ -14,7 +14,7 @@ export type ParsedBulkItem = {
 /**
  * Each chunk should be: **quantity first**, then the item name.
  * Separate items with the word **AND**. Example:
- * `one bear brand and two eggs and one coffee`
+ * `one milk and two eggs and one coffee`
  */
 function splitItemChunks(transcript: string): string[] {
   return transcript
@@ -76,7 +76,7 @@ function coerceIntWord(fragment: string): number | null {
 }
 
 /**
- * "bear brand 1 pancit 2" → repeated (name, trailing digit qty) pairs (legacy / typo helper).
+ * "milk 1 bread 2" → repeated (name, trailing digit qty) pairs (legacy / typo helper).
  */
 function parseNameQtyChain(s: string): { name: string; qty: string }[] {
   const out: { name: string; qty: string }[] = [];
@@ -100,7 +100,7 @@ function parseNameQtyChain(s: string): { name: string; qty: string }[] {
   return out;
 }
 
-/** Quantity first: "3 milk", "2x bread", "4 pieces eggs", "one bear brand", "twenty four bottles" (first tokens = number). */
+/** Quantity first: "3 milk", "2x bread", "4 pieces eggs", "one milk", "twenty four bottles" (first tokens = number). */
 function parseLeadingQty(rest: string): { qty: string; name: string } | null {
   const t = rest.trim();
   let m = t.match(/^(\d+)\s*x\s+(.+)$/i);

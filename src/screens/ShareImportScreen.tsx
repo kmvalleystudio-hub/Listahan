@@ -1,16 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import AppTextInput from "../components/AppTextInput";
 
 import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -123,14 +113,17 @@ function createStyles(c: AppThemeColors) {
     },
     shareCodeRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "stretch",
       gap: 10,
+      alignSelf: "stretch",
     },
-    shareCodeInput: {
+    shareCodeField: {
       flex: 1,
       minWidth: 0,
+    },
+    shareCodeInput: {
+      width: "100%",
       minHeight: 48,
-      maxHeight: 120,
     },
     shareImportInlineBtn: {
       flexShrink: 0,
@@ -428,16 +421,17 @@ export default function ShareImportScreen({ navigation, route }: ShareImportProp
           <Text style={styles.sectionTitle}>SHARE CODE</Text>
           <View style={[styles.card, { marginTop: 8 }]}>
             <View style={styles.shareCodeRow}>
-              <TextInput
-                style={[styles.input, styles.shareCodeInput]}
-                value={paste}
-                onChangeText={setPaste}
-                placeholder="Share code or link"
-                placeholderTextColor={colors.placeholder}
-                multiline
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={styles.shareCodeField}>
+                <AppTextInput
+                  style={[styles.input, styles.shareCodeInput]}
+                  value={paste}
+                  onChangeText={setPaste}
+                  placeholder="Share code or link"
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
               <TouchableOpacity
                 style={styles.shareImportInlineBtn}
                 onPress={() => void onImportPaste()}

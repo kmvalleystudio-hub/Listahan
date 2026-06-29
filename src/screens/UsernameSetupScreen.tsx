@@ -1,27 +1,23 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   Pressable,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  StatusBar as RNStatusBar,
 } from "react-native";
-import { useAppStyles } from "../hooks/useAppStyles";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useTheme } from "../context/ThemeContext";
 import { useAppAlert } from "../context/AppAlertContext";
 import type { AppThemeColors } from "../theme/colors";
-import { darkColors } from "../theme/colors";
+import { lightColors } from "../theme/colors";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
 import ListahanOnboardingFooter from "../components/ListahanOnboardingFooter";
+import AppTextInput from "../components/AppTextInput";
 import ProfileAvatarField from "../components/ProfileAvatarField";
 import UsernameSetupBackgroundArt from "../components/UsernameSetupBackgroundArt";
 import {
@@ -137,25 +133,16 @@ function createStyles(c: AppThemeColors) {
 
 export default function UsernameSetupScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { scheme, setScheme } = useTheme();
+  const { setScheme, styleEpoch } = useTheme();
   const { showAlert } = useAppAlert();
-  const colors = darkColors;
-  const styles = useAppStyles(createStyles);
+  const colors = lightColors;
+  const styles = useMemo(() => createStyles(colors), [colors, styleEpoch]);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
   const draftTrimmed = draft.trim();
   const showAvatar = draftTrimmed.length > 0;
-
-  useFocusEffect(
-    useCallback(() => {
-      RNStatusBar.setBarStyle("light-content");
-      return () => {
-        RNStatusBar.setBarStyle(scheme === "dark" ? "light-content" : "dark-content");
-      };
-    }, [scheme])
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -269,7 +256,7 @@ export default function UsernameSetupScreen({ navigation }: Props) {
           <Text style={styles.label}>Username</Text>
           <View style={styles.inlineRow}>
             <View style={styles.inputWrap}>
-              <TextInput
+              <AppTextInput
                 style={[styles.input, busy && styles.inputBusy]}
                 value={draft}
                 onChangeText={setDraft}
@@ -304,7 +291,7 @@ export default function UsernameSetupScreen({ navigation }: Props) {
 
         <ListahanOnboardingFooter
           colors={colors}
-          variant="dark"
+          variant="light"
           paddingBottom={Math.max(insets.bottom, 18)}
         />
       </View>

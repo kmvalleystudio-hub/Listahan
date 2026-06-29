@@ -10,9 +10,9 @@ import {
   Animated,
   BackHandler,
   Platform,
-  useWindowDimensions,
   Image,
 } from "react-native";
+import { useViewportDimensions } from "../context/PreviewViewportContext";
 import { useAppStyles } from "../hooks/useAppStyles";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,7 +25,11 @@ import type { AppThemeColors } from "../theme/colors";
 import { usePrivateVault } from "../context/PrivateVaultContext";
 import { useSyncSession } from "../context/SyncSessionContext";
 import { APP_DISPLAY_NAME } from "../constants/appBranding";
-import { loadUserProfile, profileGreetingName } from "../utils/userProfileStorage";
+import {
+  getCachedProfileGreetingName,
+  loadUserProfile,
+  profileGreetingName,
+} from "../utils/userProfileStorage";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { syncToolIdForDashboardTool } from "../constants/syncTools";
 import {
@@ -35,6 +39,9 @@ import {
   toolOrderIdsEqual,
 } from "../utils/toolsDashboardOrder";
 import ToolsDashboardReorderGrid from "../components/ToolsDashboardReorderGrid";
+import { useImageAspectRatio } from "../hooks/useImageAspectRatio";
+import { useStatusBarOnFocus } from "../hooks/useStatusBarOnFocus";
+import { useIsProAdFree } from "../context/ProSubscriptionContext";
 
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 
@@ -67,10 +74,32 @@ function createDashboardStyles(c: AppThemeColors) {
       minWidth: 0,
       alignItems: "flex-start",
     },
+    headerBrandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      maxWidth: "100%",
+    },
     headerLogoSvgWrap: {
       alignSelf: "flex-start",
       height: HEADER_LOGO_HEIGHT,
       maxWidth: "100%",
+      flexShrink: 1,
+    },
+    headerProPill: {
+      marginLeft: 4,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      backgroundColor: c.primary,
+      borderRadius: 6,
+      borderTopLeftRadius: 2,
+      borderBottomLeftRadius: 2,
+    },
+    headerProPillText: {
+      fontSize: 10,
+      fontWeight: "900",
+      color: "#000",
+      letterSpacing: 0.8,
     },
     headerLogoImage: {
       width: "100%",
@@ -230,26 +259,20 @@ function createDashboardStyles(c: AppThemeColors) {
       color: c.placeholder,
       lineHeight: 18,
     },
-    /** Square tile: hero icon, title, description (left-aligned). */
+    /** Square tile: icon + title row, scrollable description below. */
     cardSquareRoot: {
       flex: 1,
       minHeight: 0,
       alignItems: "stretch",
       justifyContent: "flex-start",
     },
-    squareHero: {
-      alignItems: "flex-start",
-      alignSelf: "stretch",
-      paddingTop: 2,
-    },
     cardTitleSquare: {
+      flex: 1,
       fontSize: 15,
       fontWeight: "800",
       color: c.text,
       textAlign: "left",
       letterSpacing: -0.2,
-      marginTop: 8,
-      paddingHorizontal: 0,
     },
     cardDescSquare: {
       fontSize: 12,
@@ -260,16 +283,16 @@ function createDashboardStyles(c: AppThemeColors) {
     squareDescWell: {
       flex: 1,
       minHeight: 0,
-      justifyContent: "flex-start",
-      marginTop: 6,
-      paddingHorizontal: 0,
+      marginTop: 8,
+    },
+    squareDescScrollContent: {
+      flexGrow: 1,
     },
     squareTopRow: {
       flexDirection: "row",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
+      alignItems: "center",
       alignSelf: "stretch",
-      gap: 6,
+      gap: 8,
     },
     syncToolBadge: {
       flexShrink: 0,
@@ -309,45 +332,46 @@ function ToolCardInner({
   const { colors } = useTheme();
 
   if (square && tileWidth != null) {
-    const blob = Math.round(Math.min(58, Math.max(44, tileWidth * 0.34)));
+    const blob = Math.round(Math.min(48, Math.max(40, tileWidth * 0.28)));
     const radius = Math.round(blob * 0.28);
-    const glyph = Math.round(Math.min(30, Math.max(22, blob * 0.48)));
+    const glyph = Math.round(Math.min(26, Math.max(20, blob * 0.48)));
     return (
       <View style={styles.cardSquareRoot}>
         <View style={styles.squareTopRow}>
-          <View style={styles.squareHero}>
-            <View
-              style={[
-                {
-                  width: blob,
-                  height: blob,
-                  borderRadius: radius,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: tool.dashboardIconBg,
-                },
-              ]}
-            >
-              <Ionicons
-                name={tool.icon as ComponentProps<typeof Ionicons>["name"]}
-                size={glyph}
-                color={tool.dashboardIconFg}
-              />
-            </View>
+          <View
+            style={{
+              width: blob,
+              height: blob,
+              borderRadius: radius,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: tool.dashboardIconBg,
+              flexShrink: 0,
+            }}
+          >
+            <Ionicons
+              name={tool.icon as ComponentProps<typeof Ionicons>["name"]}
+              size={glyph}
+              color={tool.dashboardIconFg}
+            />
           </View>
+          <Text style={styles.cardTitleSquare} numberOfLines={2}>
+            {tool.title}
+          </Text>
           {syncEnabled ? (
             <View style={styles.syncToolBadge} accessibilityLabel="Synced for this tool">
               <Ionicons name="link" size={15} color={colors.linkBlue} />
             </View>
           ) : null}
         </View>
-        <Text style={styles.cardTitleSquare} numberOfLines={2}>
-          {tool.title}
-        </Text>
         <View style={styles.squareDescWell}>
-          <Text style={styles.cardDescSquare} numberOfLines={5}>
-            {tool.description}
-          </Text>
+          <ScrollView
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.squareDescScrollContent}
+          >
+            <Text style={styles.cardDescSquare}>{tool.description}</Text>
+          </ScrollView>
         </View>
       </View>
     );
@@ -383,16 +407,18 @@ function ToolCardInner({
 }
 
 export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps) {
+  useStatusBarOnFocus("ToolsDashboard");
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useViewportDimensions();
   const tileWidth = useMemo(() => dashboardTileWidth(windowWidth), [windowWidth]);
   const gridInnerWidth = useMemo(() => windowWidth - GRID_H_PAD * 2, [windowWidth]);
   const { colors, isDark } = useTheme();
   const styles = useAppStyles(createDashboardStyles);
+  const isProAdFree = useIsProAdFree();
   const { lock } = usePrivateVault();
   const { session: syncSession, pendingIncomingCount, refreshSyncState, registerDashboardRefresh } =
     useSyncSession();
-  const [greetingName, setGreetingName] = useState("");
+  const [greetingName, setGreetingName] = useState(getCachedProfileGreetingName);
 
   const [orderedTools, setOrderedTools] = useState<ToolDefinition[]>(() =>
     toolsFromOrder(getCachedToolOrder())
@@ -406,20 +432,7 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   const preEditOrderRef = useRef<ToolId[]>([]);
 
   const headerLogoSource = isDark ? LISTAHAN_HEADER_LOGO_DARK_UI : LISTAHAN_HEADER_LOGO_LIGHT_UI;
-
-  const [logoAspect, setLogoAspect] = useState(LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK);
-  useEffect(() => {
-    const src = Image.resolveAssetSource(headerLogoSource);
-    const uri = src?.uri;
-    if (!uri) return;
-    Image.getSize(
-      uri,
-      (w, h) => {
-        if (w > 0 && h > 0) setLogoAspect(w / h);
-      },
-      () => {}
-    );
-  }, [headerLogoSource]);
+  const logoAspect = useImageAspectRatio(headerLogoSource, LISTAHAN_HEADER_LOGO_ASPECT_FALLBACK);
 
   const wiggleAnim = useRef(new Animated.Value(0)).current;
   const wiggleRotate = useMemo(
@@ -453,9 +466,9 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
   }, [applyToolOrderIfNeeded]);
 
   const reloadDashboard = useCallback(async () => {
-    await refreshSyncState();
     const p = await loadUserProfile();
     setGreetingName(profileGreetingName(p.username));
+    await refreshSyncState();
     if (!reorderMode) {
       if (toolOrderHydratedRef.current) {
         applyToolOrderIfNeeded(getCachedToolOrder());
@@ -538,14 +551,25 @@ export default function ToolsDashboardScreen({ navigation }: ToolsDashboardProps
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
         <View style={styles.headerBrandCol}>
-          <View style={[styles.headerLogoSvgWrap, { aspectRatio: logoAspect }]}>
-            <Image
-              source={headerLogoSource}
-              style={styles.headerLogoImage}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-              accessibilityLabel={`${APP_DISPLAY_NAME} logo`}
-            />
+          <View style={styles.headerBrandRow}>
+            <View style={[styles.headerLogoSvgWrap, { aspectRatio: logoAspect }]}>
+              <Image
+                source={headerLogoSource}
+                style={styles.headerLogoImage}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+                accessibilityLabel={`${APP_DISPLAY_NAME} logo`}
+              />
+            </View>
+            {isProAdFree ? (
+              <View
+                style={styles.headerProPill}
+                accessibilityRole="text"
+                accessibilityLabel="Listahan Pro active"
+              >
+                <Text style={styles.headerProPillText}>PRO</Text>
+              </View>
+            ) : null}
           </View>
         </View>
         {reorderMode ? (

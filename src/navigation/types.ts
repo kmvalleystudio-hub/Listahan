@@ -15,6 +15,7 @@ export type RootStackParamList = {
   SyncSearch: undefined;
   SyncSettings: undefined;
   Settings: undefined;
+  Faq: undefined;
   PrivacyPolicy: undefined;
   GroceryHome: undefined;
   ShareExport: ShareExportRouteParams;
@@ -48,6 +49,7 @@ export type ProfileProps = NativeStackScreenProps<RootStackParamList, "Profile">
 export type SyncSearchProps = NativeStackScreenProps<RootStackParamList, "SyncSearch">;
 export type SyncSettingsProps = NativeStackScreenProps<RootStackParamList, "SyncSettings">;
 export type SettingsProps = NativeStackScreenProps<RootStackParamList, "Settings">;
+export type FaqProps = NativeStackScreenProps<RootStackParamList, "Faq">;
 export type PrivacyPolicyProps = NativeStackScreenProps<RootStackParamList, "PrivacyPolicy">;
 export type ToolsDashboardProps = NativeStackScreenProps<RootStackParamList, "ToolsDashboard">;
 export type GroceryHomeProps = NativeStackScreenProps<RootStackParamList, "GroceryHome">;

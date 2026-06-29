@@ -22,7 +22,8 @@
 
 ## Current codebase status (snapshot)
 
-- Subscriptions / Plan A–B **not implemented**.
+- **Listahan Pro (ad-free)** — RevenueCat scaffold in app (`ProSubscriptionProvider`, Settings). Requires Play + RevenueCat dashboard setup; see `docs/REVENUECAT_PRO_SETUP.md`.
+- Subscriptions **not live** until API keys, Play product, and new AAB are shipped.
 - OpenAI used for **bulk voice grocery** parsing in `src/services/openaiBulkItems.ts` only.
 - Scan “smart review” uses **local** `scanOcrLexicon` (no OpenAI).
 

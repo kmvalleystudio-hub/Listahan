@@ -1,16 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type NativeSyntheticEvent,
-  type StyleProp,
-  type TextInputKeyPressEventData,
-  type ViewStyle,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type StyleProp, type TextInputKeyPressEventData, type ViewStyle } from "react-native";
+import AppTextInput from "./AppTextInput";
 import type { AppThemeColors } from "../theme/colors";
 import { PIN_LENGTH_MAX } from "../utils/privateVaultPin";
 
@@ -149,7 +139,7 @@ export default function VaultPinSlotInput({
           );
         })}
       </View>
-      <TextInput
+      <AppTextInput
         ref={inputRef}
         value=""
         onChangeText={handlePinChange}

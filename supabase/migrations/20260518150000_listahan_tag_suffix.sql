@@ -1,4 +1,4 @@
--- 4-character suffix on public Listahan tags (e.g. @mike_x7k2).
+-- 4-character suffix on public Listahan tags (e.g. @john_x7k2).
 
 alter table public.listahan_public_profiles
   add column if not exists tag_suffix text not null default '';

@@ -34,6 +34,7 @@ import {
 } from "../utils/remindersStorage";
 import { cancelReminderScheduleIds, reconcileScheduledReminders } from "../utils/reminderNotifications";
 import SyncAuxRefreshBridge from "../components/SyncAuxRefreshBridge";
+import { goToDashboard } from "../navigation/goToDashboard";
 
 function formatFireAt(iso: string): string {
   const d = new Date(iso);
@@ -65,12 +66,8 @@ function createStyles(c: AppThemeColors, isDark: boolean) {
     iconBtn: {
       width: 44,
       height: 44,
-      borderRadius: 14,
-      backgroundColor: c.historyBtnBg,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.border,
     },
     backRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
     backTextSmall: { fontSize: 14, fontWeight: "600", color: c.linkBlue },
@@ -211,7 +208,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
           <View style={styles.headerTextCol}>
             <TouchableOpacity
               style={styles.backRow}
-              onPress={() => navigation.navigate("ToolsDashboard")}
+              onPress={() => goToDashboard(navigation)}
               accessibilityRole="button"
               accessibilityLabel="Back to tools"
             >
@@ -235,7 +232,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
           <View style={styles.headerTextCol}>
             <TouchableOpacity
               style={styles.backRow}
-              onPress={() => navigation.navigate("ToolsDashboard")}
+              onPress={() => goToDashboard(navigation)}
               accessibilityRole="button"
               accessibilityLabel="Back to tools"
             >
@@ -264,7 +261,7 @@ export default function ReminderHomeScreen({ navigation }: ReminderHomeProps) {
         <View style={styles.headerTextCol}>
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => navigation.navigate("ToolsDashboard")}
+            onPress={() => goToDashboard(navigation)}
             accessibilityRole="button"
             accessibilityLabel="Back to tools"
           >

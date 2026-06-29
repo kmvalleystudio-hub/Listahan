@@ -26,6 +26,7 @@ import {
 import type { PrivateList } from "../types";
 import PrivateVaultGate from "../components/PrivateVaultGate";
 import ListRenameModal from "../components/ListRenameModal";
+import { goToDashboard } from "../navigation/goToDashboard";
 
 type ListSection = {
   title: string;
@@ -254,7 +255,7 @@ export default function PrivateHomeScreen({ navigation }: PrivateHomeProps) {
         <View style={styles.headerTextCol}>
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => navigation.navigate("ToolsDashboard")}
+            onPress={() => goToDashboard(navigation)}
             accessibilityRole="button"
             accessibilityLabel="Back to tools"
           >

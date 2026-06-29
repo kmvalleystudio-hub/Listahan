@@ -85,6 +85,38 @@ function normalize(parsed: unknown): UserProfile {
   });
 }
 
+/** Title-case a stored username for greetings and profile UI (storage stays lowercase). */
+export function formatDisplayUsername(username: string): string {
+  const t = username.trim();
+  if (!t) return "";
+  return t
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+export function profileGreetingName(username: string): string {
+  const display = formatDisplayUsername(username);
+  return display || "there";
+}
+
+let memoryGreetingName: string | null = null;
+
+function rememberProfileGreeting(username: string): void {
+  memoryGreetingName = profileGreetingName(username);
+}
+
+/** Best-known greeting for first paint after profile has loaded at least once this session. */
+export function getCachedProfileGreetingName(): string {
+  return memoryGreetingName ?? "";
+}
+
+function withProfileCache(profile: UserProfile): UserProfile {
+  rememberProfileGreeting(profile.username);
+  return profile;
+}
+
 export async function loadUserProfile(): Promise<UserProfile> {
   try {
     const raw = await AsyncStorage.getItem(USER_PROFILE_STORAGE_KEY);
@@ -96,7 +128,7 @@ export async function loadUserProfile(): Promise<UserProfile> {
         deviceProfileId: generateDeviceProfileId(),
       });
       await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(fresh));
-      return fresh;
+      return withProfileCache(fresh);
     }
     const parsed = JSON.parse(raw) as unknown;
     const next = normalize(parsed);
@@ -116,7 +148,7 @@ export async function loadUserProfile(): Promise<UserProfile> {
     ) {
       await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));
     }
-    return next;
+    return withProfileCache(next);
   } catch {
     const fresh = ensureTagSuffix({
       ...DEFAULT_PROFILE,
@@ -125,7 +157,7 @@ export async function loadUserProfile(): Promise<UserProfile> {
       deviceProfileId: generateDeviceProfileId(),
     });
     await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(fresh));
-    return fresh;
+    return withProfileCache(fresh);
   }
 }
 
@@ -171,7 +203,7 @@ export async function saveUserProfile(
     next.avatarPortraitTouched = true;
   }
   await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));
-  return next;
+  return withProfileCache(next);
 }
 
 /** Reads legacy `displayName` from stored JSON for onboarding hint only. */
@@ -192,12 +224,7 @@ export function profileInitials(username: string): string {
   return t.slice(0, 2).toUpperCase();
 }
 
-export function profileGreetingName(username: string): string {
-  const t = username.trim();
-  return t || "there";
-}
-
-/** Public handle shown in profile and discovery (e.g. `@mike_lists_x7k2`). */
+/** Public handle shown in profile and discovery (e.g. `@john_lists_x7k2`). */
 export function listahanPublicTag(username: string, tagSuffix?: string): string | null {
   const u = username.trim().toLowerCase();
   if (!u) return null;
@@ -223,14 +250,14 @@ export function parsePublicTagInput(
   if (!body) {
     return {
       ok: false,
-      message: "Enter their public tag (e.g. mike_t1ci).",
+      message: "Enter their public tag (e.g. john_t1ci).",
     };
   }
   const match = PUBLIC_TAG_BODY_RE.exec(body);
   if (!match) {
     return {
       ok: false,
-      message: "Use the full tag from their Profile, e.g. mike_t1ci.",
+      message: "Use the full tag from their Profile, e.g. john_t1ci.",
     };
   }
   const username = match[1]!;

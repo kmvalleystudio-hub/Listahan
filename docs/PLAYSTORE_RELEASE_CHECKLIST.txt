@@ -1,0 +1,242 @@
+Listahan — Google Play Store Release Checklist
+================================================
+Last updated: May 19, 2026
+Project root: C:\SayCart
+
+Use this before uploading to Play Console. Check items off as you complete them.
+Start with Closed testing; promote to Production only when all critical items are done.
+
+
+================================================================================
+A. APP & BUILD READINESS
+================================================================================
+
+[ ] Production AAB builds successfully
+    Command: npm run build:aab
+    Profile: eas.json → production (outputs .aab, not .apk)
+
+[ ] EAS Android signing / keystore is set up and backed up
+    Command: eas credentials -p android
+    Save Expo’s keystore recovery instructions somewhere safe.
+
+[ ] versionName and versionCode are correct for this release
+    Files: app.json (version), android/app/build.gradle (versionCode, versionName)
+    Note: Bump versionCode for every Play upload.
+
+[ ] Launcher icon and adaptive icon look correct on a real device
+    Source: assets/branding/listahan-logo-drawer.png
+    Regenerate: npm run icons:brand
+    Native mipmaps: npx expo prebuild --platform android --no-install (if needed)
+
+[ ] Splash screen looks correct on cold start
+
+[ ] App opens and completes bootstrap without Metro (release build only)
+
+
+================================================================================
+B. EAS ENVIRONMENT (CRITICAL — production ≠ preview)
+================================================================================
+
+[ ] EXPO_PUBLIC_SUPABASE_URL is set on EAS **production** environment
+[ ] EXPO_PUBLIC_SUPABASE_ANON_KEY is set on EAS **production** environment
+
+    Verify:
+      npx eas-cli env:list --environment production
+
+    Current gap: scripts/sync-eas-env-from-dotenv.mjs only syncs to **preview**.
+    Either run env:create for production manually or extend the script.
+
+[ ] (Optional) EXPO_PUBLIC_OPENAI_API_KEY on production if you rely on OpenAI bulk voice
+    Note: Bulk list voice also works offline via parseBulkTranscriptLocal.ts without OpenAI.
+
+[ ] Rebuild AAB after any env change (env is baked into the bundle at build time)
+
+
+================================================================================
+C. LEGAL, PRIVACY & SUPPORT (PLAY STORE BLOCKERS)
+================================================================================
+
+[ ] Public privacy policy URL is live (required by Google Play)
+    Cannot be in-app only — must be a web URL entered in Play Console.
+
+[ ] Privacy policy content matches what the app actually does
+    In-app source: src/constants/privacyPolicyContent.ts
+    Update PRIVACY_POLICY_LAST_UPDATED when you change it.
+
+[ ] Remove or replace placeholder footer text:
+    "We will add a dedicated contact address before store release."
+
+[ ] Developer support email is set in Google Play Console
+[ ] Same support email appears in privacy policy (and ideally in-app Settings)
+
+[ ] Replace placeholder Settings support flows (optional but recommended):
+    - FAQ → currently shows "coming soon" alert
+    - Report a problem → currently shows alert only, no mailto/link
+    - General feedback → currently shows "coming soon" alert
+
+
+================================================================================
+D. GOOGLE PLAY CONSOLE — STORE LISTING
+================================================================================
+
+[ ] Google Play Developer account created ($25 one-time fee)
+[ ] App created in Play Console with package name: com.saycart.app
+    Display name on store: Listahan (package ID stays com.saycart.app unless you create a new app)
+
+[ ] Short description (80 chars max)
+[ ] Full description (4000 chars max)
+[ ] App icon (512×512 PNG, no transparency)
+[ ] Feature graphic (1024×500)
+[ ] Phone screenshots (min 2; recommend 4–8)
+[ ] (Optional) 7-inch and 10-inch tablet screenshots
+[ ] App category selected (e.g. Productivity or Lifestyle)
+[ ] Contact email and website (if any) filled in
+
+
+================================================================================
+E. GOOGLE PLAY CONSOLE — POLICY FORMS
+================================================================================
+
+[ ] Data safety form completed accurately
+    Declare at minimum what the app may collect/use:
+    - Local list data (grocery, to-do, notes, reminders) — on device by default
+    - Optional cloud profile (username, public tag, avatar) via Supabase
+    - Optional user sync data when two users connect
+    - Optional Vault upload only if user enables Vault sync
+    - Camera / photos (QR scan, image import)
+    - Microphone / speech (voice entry)
+    - Device identifiers used for sync (not phone number / email by default)
+
+[ ] Content rating questionnaire completed (IARC)
+    App states not directed at children under 13 (privacyPolicyContent.ts).
+
+[ ] Target audience and content declarations
+
+[ ] Ads declaration: app does not contain ads (unless you add them later)
+
+[ ] News app / COVID / government declarations (if applicable — usually N/A)
+
+
+================================================================================
+F. SENSITIVE PERMISSIONS — DECLARE & JUSTIFY IN PLAY CONSOLE
+================================================================================
+
+Permissions in AndroidManifest.xml / app.json to account for:
+
+[ ] CAMERA — QR share codes, optional list scan
+[ ] RECORD_AUDIO — voice entry for items and bulk lists
+[ ] POST_NOTIFICATIONS — reminders and to-do chimes
+[ ] SCHEDULE_EXACT_ALARM — exact-time reminders (may need extra declaration on Android 12+)
+[ ] USE_BIOMETRIC / USE_FINGERPRINT — Vault unlock
+[ ] READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE — photo import (legacy paths; verify behavior on Android 13+)
+[ ] INTERNET — Supabase sync and optional OpenAI
+
+For each sensitive permission:
+[ ] In-app rationale strings are clear (app.json plugins / infoPlist)
+[ ] Play Console permission declaration matches actual usage
+[ ] Feature still works after user denies permission (graceful fallback)
+
+
+================================================================================
+G. PRE-RELEASE MANUAL TEST (on production AAB via internal/closed track)
+================================================================================
+
+Install the production build on at least one physical Android phone.
+
+Onboarding & profile
+[ ] First launch → username setup
+[ ] Profile saves; greeting shows correct name on dashboard
+[ ] Privacy policy screen opens from Settings / Profile
+
+Core tools
+[ ] Grocery: create list, add items, check off, complete list, archive
+[ ] To-do: create list, timers/chimes if used
+[ ] Notes: create and edit
+[ ] Reminder: schedule fires at expected time (test exact alarm)
+[ ] Vault: PIN setup, lock/unlock, biometrics if enabled
+
+Voice & import
+[ ] Single-item voice add (dev/release build on device)
+[ ] Bulk voice add parses items locally (no OpenAI required)
+[ ] Import with code/QR on list detail sheet
+[ ] Share import creates new list from code
+
+Sync (requires production Supabase env in AAB)
+[ ] Sync button visible when Supabase configured
+[ ] Lookup partner by public tag
+[ ] Send / accept sync request
+[ ] Data merges on both sides
+[ ] Vault sync only when explicitly enabled + PIN confirmed
+
+UI / polish
+[ ] Dashboard tiles square; descriptions scroll when long (Vault)
+[ ] Dark mode readable
+[ ] No “Welcome to Listahan” flash on return to dashboard
+[ ] Launcher icon is Listahan list+pen logo (not old coral placeholder)
+
+Offline / edge cases
+[ ] App usable without network for local lists
+[ ] Clear message when Supabase missing (share import / sync)
+[ ] App survives kill and relaunch with data intact
+
+
+================================================================================
+H. RELEASE TRACK STRATEGY (RECOMMENDED)
+================================================================================
+
+[ ] Step 1: Upload AAB to Internal testing
+[ ] Step 2: Install from Play internal link; run section G checklist
+[ ] Step 3: Promote to Closed testing (small group, 3–7 days)
+[ ] Step 4: Fix any crashes or policy feedback
+[ ] Step 5: Promote to Production (staged rollout 10% → 50% → 100% recommended)
+
+
+================================================================================
+I. QUICK COMMAND REFERENCE
+================================================================================
+
+Sync env to EAS preview (existing script):
+  npm run eas:env:sync
+
+Verify preview env:
+  npx eas-cli env:list --environment preview
+
+Verify production env (do this before store build):
+  npx eas-cli env:list --environment production
+
+Build store bundle:
+  npm run build:aab
+
+Build sideload APK for quick tests (not for Play upload):
+  npm run build:apk:full
+
+Regenerate brand icons:
+  npm run icons:brand
+
+
+================================================================================
+J. KNOWN GAPS IN REPO (address before public launch)
+================================================================================
+
+[ ] sync-eas-env-from-dotenv.mjs → production environment (not only preview)
+[ ] Public privacy policy URL (hosted web page)
+[ ] Support email in policy + Play Console + optionally Settings mailto
+[ ] Privacy policy footer placeholder text removed
+[ ] Settings FAQ / Report a problem / Feedback — real contact or mailto links
+[ ] No automated test suite — rely on section G manual pass
+
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+Release manager: _________________________   Date: __________
+
+Production AAB build ID / URL: _______________________________________________
+
+Play Console release track: [ ] Internal  [ ] Closed  [ ] Open  [ ] Production
+
+Notes:
+_____________________________________________________________________________
+_____________________________________________________________________________
+_____________________________________________________________________________

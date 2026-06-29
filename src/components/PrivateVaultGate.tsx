@@ -1,19 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-  Alert,
-  ScrollView,
-  Keyboard,
-  Dimensions,
-  StatusBar as RNStatusBar,
-  type KeyboardEvent,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert, ScrollView, Keyboard, Dimensions, StatusBar as RNStatusBar, type KeyboardEvent } from "react-native";
+import AppTextInput from "./AppTextInput";
 
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -674,7 +661,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 onCustomQuestionFocus={scrollFormToEnd}
               />
               <Text style={styles.sectionLabel}>Your answer</Text>
-              <TextInput
+              <AppTextInput
                 value={recoveryAnswer}
                 onChangeText={setRecoveryAnswer}
                 style={styles.textInput}
@@ -686,7 +673,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 onFocus={scrollFormToEnd}
               />
               <Text style={[styles.hint, styles.rowGap]}>Confirm answer</Text>
-              <TextInput
+              <AppTextInput
                 value={recoveryConfirm}
                 onChangeText={setRecoveryConfirm}
                 style={styles.textInput}
@@ -746,7 +733,7 @@ export default function PrivateVaultGate({ children }: Props) {
               <Text style={[styles.hint, { textAlign: "left", marginTop: 0 }]}>
                 {recoveryQDisplay ?? "Your question"}
               </Text>
-              <TextInput
+              <AppTextInput
                 value={forgotAnswer}
                 onChangeText={setForgotAnswer}
                 style={styles.textInput}
@@ -805,7 +792,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 onCustomQuestionFocus={scrollFormToEnd}
               />
               <Text style={styles.sectionLabel}>New answer</Text>
-              <TextInput
+              <AppTextInput
                 value={frAns}
                 onChangeText={setFrAns}
                 style={styles.textInput}
@@ -817,7 +804,7 @@ export default function PrivateVaultGate({ children }: Props) {
                 onFocus={scrollFormToEnd}
               />
               <Text style={[styles.hint, styles.rowGap]}>Confirm answer</Text>
-              <TextInput
+              <AppTextInput
                 value={frAns2}
                 onChangeText={setFrAns2}
                 style={styles.textInput}
