@@ -61,6 +61,14 @@ npm run build:aab
 - Settings → **Listahan Pro** → subscribe / restore.
 - RevenueCat dashboard → **Customers** should show the device profile id (Listahan user id).
 
+### Restore fails but Play shows an active subscription
+
+1. **Same Google account** — Play Store profile must match the account under **Play → Subscriptions**.
+2. **RevenueCat product id** — for Play base plans use `listahan_pro_monthly:monthly` (not only `listahan_pro_monthly`) when importing/linking the product.
+3. **Entitlement** — product must grant entitlement `pro` in RevenueCat → Offerings.
+4. **Service account** — Play Console **account** permissions (not just app permissions) for the RevenueCat service account.
+5. Reinstall app → open **Settings** → **Restore purchases** (v10+ auto-syncs on launch).
+
 ## 5. Ads (later)
 
 Free tier will show ads when AdMob is added. Use `useIsProAdFree()` from `src/context/ProSubscriptionContext.tsx` to hide them for Pro users.

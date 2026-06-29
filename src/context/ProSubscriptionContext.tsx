@@ -11,7 +11,8 @@ import { AppState, Platform } from "react-native";
 import type { CustomerInfo, PurchasesPackage } from "../services/revenueCat";
 import {
   configureRevenueCat,
-  customerHasProEntitlement,
+  customerHasProAccess,
+  describeProSyncState,
   fetchCustomerInfo,
   fetchProMonthlyPackage,
   getRevenueCatApiKey,
@@ -19,9 +20,8 @@ import {
   isRevenueCatSupported,
   purchaseProPackage,
   resolveProEntitlementAfterPurchase,
-  restoreRevenueCatPurchases,
+  restoreAndSyncProFromStore,
   subscribeToCustomerInfoUpdates,
-  syncPurchasesFromStore,
 } from "../services/revenueCat";
 import { loadUserProfile } from "../utils/userProfileStorage";
 
@@ -74,7 +74,7 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
 
   const applyCustomerInfo = useCallback((info: CustomerInfo | null) => {
     setCustomerInfo(info);
-    setIsProAdFree(customerHasProEntitlement(info));
+    setIsProAdFree(customerHasProAccess(info));
   }, []);
 
   const applyCustomerInfoRef = useRef(applyCustomerInfo);
@@ -91,7 +91,8 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
       const ok = await configureRevenueCat(profile.deviceProfileId);
       if (!ok) return;
       const [info, pkg] = await Promise.all([fetchCustomerInfo(), fetchProMonthlyPackage()]);
-      applyCustomerInfo(info);
+      const synced = customerHasProAccess(info) ? info : await resolveProEntitlementAfterPurchase(info);
+      applyCustomerInfo(synced);
       setMonthlyPackage(pkg);
     } finally {
       setLoading(false);
@@ -131,7 +132,7 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
       const info = await purchaseProPackage(monthlyPackage);
       const resolved = await resolveProEntitlementAfterPurchase(info);
       applyCustomerInfo(resolved);
-      if (customerHasProEntitlement(resolved)) {
+      if (customerHasProAccess(resolved)) {
         return { ok: true, activated: true };
       }
       return {
@@ -147,7 +148,7 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
       if (isAlreadySubscribedError(err?.message)) {
         const resolved = await resolveProEntitlementAfterPurchase(null);
         applyCustomerInfo(resolved);
-        if (customerHasProEntitlement(resolved)) {
+        if (customerHasProAccess(resolved)) {
           return { ok: true, activated: true };
         }
       }
@@ -160,18 +161,18 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
       return { ok: false, message: "Subscriptions are not available in this build yet." };
     }
     try {
-      let info = await restoreRevenueCatPurchases();
-      if (!customerHasProEntitlement(info)) {
-        info = (await syncPurchasesFromStore()) ?? info;
-      }
-      if (!customerHasProEntitlement(info)) {
-        info = (await resolveProEntitlementAfterPurchase(info)) ?? info;
-      }
+      const info = await restoreAndSyncProFromStore();
       applyCustomerInfo(info);
-      if (customerHasProEntitlement(info)) {
+      if (customerHasProAccess(info)) {
         return { ok: true, activated: true };
       }
-      return { ok: false, message: "No active Pro subscription found for this account." };
+      return {
+        ok: false,
+        message:
+          "Google Play shows no active Listahan Pro for this device account. " +
+          "Use the same Google account as Play → Subscriptions, then try again. " +
+          describeProSyncState(info),
+      };
     } catch (e) {
       return {
         ok: false,

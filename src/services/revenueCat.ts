@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import {
+  GOOGLE_PLAY_PRO_SUBSCRIPTION_IDS,
   REVENUECAT_ENTITLEMENT_PRO,
   REVENUECAT_PRO_MONTHLY_PACKAGE_ID,
 } from "../constants/proSubscription";
@@ -46,9 +47,55 @@ export function isRevenueCatConfigured(): boolean {
   return configured && isRevenueCatSupported() && getRevenueCatApiKey() != null;
 }
 
+function matchesProProductId(productId: string): boolean {
+  const id = productId.trim().toLowerCase();
+  if (!id) return false;
+  return GOOGLE_PLAY_PRO_SUBSCRIPTION_IDS.some((sku) => id === sku.toLowerCase() || id.startsWith(`${sku.toLowerCase()}:`));
+}
+
+function subscriptionRecordIsActive(
+  sub: NonNullable<CustomerInfo["subscriptionsByProductIdentifier"]>[string] | undefined
+): boolean {
+  if (!sub) return false;
+  if (sub.refundedAt) return false;
+  if (!sub.expiresDate) return true;
+  return new Date(sub.expiresDate).getTime() > Date.now();
+}
+
+/** RevenueCat entitlement `pro` is active. */
 export function customerHasProEntitlement(info: CustomerInfo | null | undefined): boolean {
   if (!info) return false;
-  return Boolean(info.entitlements.active[REVENUECAT_ENTITLEMENT_PRO]);
+  if (info.entitlements.active[REVENUECAT_ENTITLEMENT_PRO]) return true;
+  const all = info.entitlements.all[REVENUECAT_ENTITLEMENT_PRO];
+  return Boolean(all?.isActive);
+}
+
+/** Pro access for ad-free — entitlement or an active Play subscription synced into CustomerInfo. */
+export function customerHasProAccess(info: CustomerInfo | null | undefined): boolean {
+  if (!info) return false;
+  if (customerHasProEntitlement(info)) return true;
+
+  if ((info.activeSubscriptions ?? []).some(matchesProProductId)) return true;
+
+  for (const sku of GOOGLE_PLAY_PRO_SUBSCRIPTION_IDS) {
+    if (subscriptionRecordIsActive(info.subscriptionsByProductIdentifier[sku])) return true;
+  }
+
+  for (const [productId, sub] of Object.entries(info.subscriptionsByProductIdentifier ?? {})) {
+    if (matchesProProductId(productId) && subscriptionRecordIsActive(sub)) return true;
+  }
+
+  return false;
+}
+
+export function describeProSyncState(info: CustomerInfo | null | undefined): string {
+  if (!info) return "No RevenueCat customer info.";
+  if (customerHasProEntitlement(info)) return "Pro entitlement active.";
+  const subs = info.activeSubscriptions ?? [];
+  if (subs.length > 0) {
+    return `Play subscription(s) on device: ${subs.join(", ")} — entitlement not linked yet.`;
+  }
+  return "No active Play subscription found for this Google account on this device.";
 }
 
 export async function configureRevenueCat(appUserId: string): Promise<boolean> {
@@ -117,6 +164,38 @@ export async function restoreRevenueCatPurchases(): Promise<CustomerInfo | null>
   return customerInfo;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Android-first: sync Play billing, then restore, with a short retry for RC propagation. */
+export async function restoreAndSyncProFromStore(): Promise<CustomerInfo | null> {
+  const attempts: Array<() => Promise<CustomerInfo | null>> =
+    Platform.OS === "android"
+      ? [
+          () => syncPurchasesFromStore(),
+          () => restoreRevenueCatPurchases(),
+          () => syncPurchasesFromStore(),
+          async () => {
+            await delay(1500);
+            return syncPurchasesFromStore();
+          },
+          () => invalidateAndFetchCustomerInfo(),
+        ]
+      : [
+          () => restoreRevenueCatPurchases(),
+          () => syncPurchasesFromStore(),
+          () => invalidateAndFetchCustomerInfo(),
+        ];
+
+  let last: CustomerInfo | null = null;
+  for (const attempt of attempts) {
+    last = (await attempt()) ?? last;
+    if (customerHasProAccess(last)) return last;
+  }
+  return last;
+}
+
 export async function syncPurchasesFromStore(): Promise<CustomerInfo | null> {
   const mod = loadPurchasesModule();
   if (!mod || !configured) return null;
@@ -143,18 +222,8 @@ export async function invalidateAndFetchCustomerInfo(): Promise<CustomerInfo | n
 export async function resolveProEntitlementAfterPurchase(
   info: CustomerInfo | null | undefined
 ): Promise<CustomerInfo | null> {
-  if (customerHasProEntitlement(info)) return info ?? null;
-
-  const synced = await syncPurchasesFromStore();
-  if (customerHasProEntitlement(synced)) return synced;
-
-  const restored = await restoreRevenueCatPurchases();
-  if (customerHasProEntitlement(restored)) return restored;
-
-  const refreshed = await invalidateAndFetchCustomerInfo();
-  if (customerHasProEntitlement(refreshed)) return refreshed;
-
-  return info ?? synced ?? restored ?? refreshed ?? null;
+  if (customerHasProAccess(info)) return info ?? null;
+  return restoreAndSyncProFromStore();
 }
 
 export function subscribeToCustomerInfoUpdates(
