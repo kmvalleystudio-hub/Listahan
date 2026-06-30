@@ -108,6 +108,11 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
 
   const appVersion =
     Constants.expoConfig?.version ?? (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion ?? "—";
+  const androidVersionCode =
+    Platform.OS === "android"
+      ? String(Constants.expoConfig?.android?.versionCode ?? "")
+      : "";
+  const buildLabel = androidVersionCode ? `${appVersion} (${androidVersionCode})` : appVersion;
 
   const openSystemSettings = () => {
     if (Platform.OS === "web") {
@@ -220,7 +225,7 @@ export default function SettingsScreen({ navigation }: SettingsProps) {
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={[styles.rowTitle, styles.rowBody]}>Version</Text>
-            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.textTertiary }}>{appVersion}</Text>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.textTertiary }}>{buildLabel}</Text>
           </View>
           <Pressable
             style={({ pressed }) => [styles.row, styles.rowLast, pressed && { opacity: 0.85 }]}

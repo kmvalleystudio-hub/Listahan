@@ -11,6 +11,7 @@ export type PurchasesPackage = import("react-native-purchases").PurchasesPackage
 
 let purchasesMod: PurchasesModule | null | undefined;
 let configured = false;
+let configuredAppUserId: string | null = null;
 
 function loadPurchasesModule(): PurchasesModule | null {
   if (purchasesMod !== undefined) return purchasesMod;
@@ -90,12 +91,13 @@ export function customerHasProAccess(info: CustomerInfo | null | undefined): boo
 
 export function describeProSyncState(info: CustomerInfo | null | undefined): string {
   if (!info) return "No RevenueCat customer info.";
-  if (customerHasProEntitlement(info)) return "Pro entitlement active.";
+  if (customerHasProAccess(info)) return "Pro is active on this device.";
   const subs = info.activeSubscriptions ?? [];
+  const rcId = configuredAppUserId ?? info.originalAppUserId ?? "unknown";
   if (subs.length > 0) {
-    return `Play subscription(s) on device: ${subs.join(", ")} — entitlement not linked yet.`;
+    return `Play subscription(s): ${subs.join(", ")}. RevenueCat user: ${rcId}.`;
   }
-  return "No active Play subscription found for this Google account on this device.";
+  return `No Play subscription on this billing account. RevenueCat user: ${rcId}.`;
 }
 
 export async function configureRevenueCat(appUserId: string): Promise<boolean> {
@@ -111,15 +113,25 @@ export async function configureRevenueCat(appUserId: string): Promise<boolean> {
   if (!configured) {
     Purchases.configure({ apiKey, appUserID: appUserId });
     configured = true;
+    configuredAppUserId = appUserId;
+    return true;
+  }
+
+  if (configuredAppUserId === appUserId) {
     return true;
   }
 
   try {
     await Purchases.logIn(appUserId);
+    configuredAppUserId = appUserId;
   } catch {
-    // same user or transient — entitlement refresh still works
+    // keep previous session if login fails
   }
   return true;
+}
+
+export function getConfiguredRevenueCatAppUserId(): string | null {
+  return configuredAppUserId;
 }
 
 export async function fetchCustomerInfo(): Promise<CustomerInfo | null> {
@@ -168,7 +180,7 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Android-first: sync Play billing, then restore, with a short retry for RC propagation. */
+/** Android-first: sync Play billing, then restore, with retries for RC propagation. */
 export async function restoreAndSyncProFromStore(): Promise<CustomerInfo | null> {
   const attempts: Array<() => Promise<CustomerInfo | null>> =
     Platform.OS === "android"
@@ -177,7 +189,11 @@ export async function restoreAndSyncProFromStore(): Promise<CustomerInfo | null>
           () => restoreRevenueCatPurchases(),
           () => syncPurchasesFromStore(),
           async () => {
-            await delay(1500);
+            await delay(2000);
+            return syncPurchasesFromStore();
+          },
+          async () => {
+            await delay(4000);
             return syncPurchasesFromStore();
           },
           () => invalidateAndFetchCustomerInfo(),
@@ -190,7 +206,11 @@ export async function restoreAndSyncProFromStore(): Promise<CustomerInfo | null>
 
   let last: CustomerInfo | null = null;
   for (const attempt of attempts) {
-    last = (await attempt()) ?? last;
+    try {
+      last = (await attempt()) ?? last;
+    } catch {
+      // try next strategy
+    }
     if (customerHasProAccess(last)) return last;
   }
   return last;

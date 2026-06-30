@@ -23,7 +23,7 @@ import {
   restoreAndSyncProFromStore,
   subscribeToCustomerInfoUpdates,
 } from "../services/revenueCat";
-import { loadUserProfile } from "../utils/userProfileStorage";
+import { getOrCreateRevenueCatAppUserId } from "../utils/revenueCatAppUserId";
 
 type ProSubscriptionContextValue = {
   /** Native billing available and API key present. */
@@ -87,8 +87,8 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
     }
     setLoading(true);
     try {
-      const profile = await loadUserProfile();
-      const ok = await configureRevenueCat(profile.deviceProfileId);
+      const revenueCatUserId = await getOrCreateRevenueCatAppUserId();
+      const ok = await configureRevenueCat(revenueCatUserId);
       if (!ok) return;
       const [info, pkg] = await Promise.all([fetchCustomerInfo(), fetchProMonthlyPackage()]);
       const synced = customerHasProAccess(info) ? info : await resolveProEntitlementAfterPurchase(info);
@@ -128,6 +128,11 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
         message: "Pro plan is not set up in the store yet. Try again after the next app update.",
       };
     }
+    const existing = await restoreAndSyncProFromStore();
+    if (customerHasProAccess(existing)) {
+      applyCustomerInfo(existing);
+      return { ok: true, activated: true };
+    }
     try {
       const info = await purchaseProPackage(monthlyPackage);
       const resolved = await resolveProEntitlementAfterPurchase(info);
@@ -146,11 +151,18 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
         return { ok: false, message: "", cancelled: true };
       }
       if (isAlreadySubscribedError(err?.message)) {
-        const resolved = await resolveProEntitlementAfterPurchase(null);
+        const resolved = await restoreAndSyncProFromStore();
         applyCustomerInfo(resolved);
         if (customerHasProAccess(resolved)) {
           return { ok: true, activated: true };
         }
+        return {
+          ok: false,
+          message:
+            "Play says you're already subscribed, but Pro didn't sync yet. " +
+            "Confirm the same Google account as Play → Subscriptions, wait a minute, then tap Restore again. " +
+            describeProSyncState(resolved),
+        };
       }
       return { ok: false, message: purchaseErrorMessage(e) };
     }

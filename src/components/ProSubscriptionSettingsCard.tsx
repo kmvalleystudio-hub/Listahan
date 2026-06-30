@@ -128,7 +128,10 @@ export default function ProSubscriptionSettingsCard({ colors, styles }: Props) {
         if (res.ok && res.activated) {
           Alert.alert("Welcome to Pro", "Ads are off on this device. AI perks will arrive in a later update.");
         } else if (!res.cancelled && res.message) {
-          Alert.alert(res.message.includes("Restore") ? "Sync Pro" : "Could not subscribe", res.message);
+          const title = res.message.includes("already subscribed") || res.message.includes("didn't sync")
+            ? "Sync Pro"
+            : "Could not subscribe";
+          Alert.alert(title, res.message);
         }
       } finally {
         setBusy(false);
