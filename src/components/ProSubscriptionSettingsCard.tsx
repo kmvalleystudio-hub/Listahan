@@ -110,7 +110,7 @@ export default function ProSubscriptionSettingsCard({ colors, styles }: Props) {
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>{PRO_PLAN_DISPLAY_NAME}</Text>
             <Text style={styles.rowSubtitle}>
-              Ad-free Pro will appear here once RevenueCat keys are added to this build.
+              Ad-free Pro will appear here once subscriptions are available in this build.
             </Text>
           </View>
         </View>

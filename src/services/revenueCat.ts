@@ -90,14 +90,13 @@ export function customerHasProAccess(info: CustomerInfo | null | undefined): boo
 }
 
 export function describeProSyncState(info: CustomerInfo | null | undefined): string {
-  if (!info) return "No RevenueCat customer info.";
-  if (customerHasProAccess(info)) return "Pro is active on this device.";
+  if (!info) return "";
+  if (customerHasProAccess(info)) return "";
   const subs = info.activeSubscriptions ?? [];
-  const rcId = configuredAppUserId ?? info.originalAppUserId ?? "unknown";
   if (subs.length > 0) {
-    return `Play subscription(s): ${subs.join(", ")}. RevenueCat user: ${rcId}.`;
+    return "Play sees a subscription but Pro hasn't unlocked yet — wait a minute and tap Restore again.";
   }
-  return `No Play subscription on this billing account. RevenueCat user: ${rcId}.`;
+  return "";
 }
 
 export async function configureRevenueCat(appUserId: string): Promise<boolean> {

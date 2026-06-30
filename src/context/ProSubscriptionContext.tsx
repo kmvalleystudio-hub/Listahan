@@ -160,8 +160,7 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
           ok: false,
           message:
             "Play says you're already subscribed, but Pro didn't sync yet. " +
-            "Confirm the same Google account as Play → Subscriptions, wait a minute, then tap Restore again. " +
-            describeProSyncState(resolved),
+            "Wait a minute, then tap Restore purchases again with the same Google account as Play → Subscriptions.",
         };
       }
       return { ok: false, message: purchaseErrorMessage(e) };
@@ -178,12 +177,13 @@ export function ProSubscriptionProvider({ children }: { children: React.ReactNod
       if (customerHasProAccess(info)) {
         return { ok: true, activated: true };
       }
+      const extra = describeProSyncState(info);
       return {
         ok: false,
         message:
-          "Google Play shows no active Listahan Pro for this device account. " +
-          "Use the same Google account as Play → Subscriptions, then try again. " +
-          describeProSyncState(info),
+          "We couldn't find Listahan Pro on this Google account. " +
+          "Use the same account as Play → Subscriptions, then tap Restore again." +
+          (extra ? ` ${extra}` : ""),
       };
     } catch (e) {
       return {
