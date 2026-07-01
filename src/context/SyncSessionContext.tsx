@@ -111,6 +111,9 @@ export function SyncSessionProvider({ children }: { children: React.ReactNode })
   const pushAllEnabledToolsRef = useRef<() => Promise<void>>(async () => {});
   const suppressSyncPushRef = useRef(false);
   const syncAcceptInProgressRef = useRef(false);
+  const finalizeEndSyncRef = useRef<
+    (args: { sessionId: string; requestId?: string }) => Promise<void>
+  >(async () => {});
 
   const flushPushTool = useCallback(
     async (tool: SyncToolId): Promise<boolean> => {
@@ -125,7 +128,8 @@ export function SyncSessionProvider({ children }: { children: React.ReactNode })
       }
 
       const source = exportSourceRef.current?.() ?? null;
-      const payload = await exportSyncToolPayload(tool, vaultSyncAllowed, source);
+      const allowVaultExport = tool !== "vault" || vaultSyncAllowed || active.tools.vault;
+      const payload = await exportSyncToolPayload(tool, allowVaultExport, source);
       if (payload == null) return false;
 
       isOnlineRef.current = true;
@@ -416,10 +420,18 @@ export function SyncSessionProvider({ children }: { children: React.ReactNode })
 
     if (active) {
       await applyRemoteSnapshots({ showRefreshing: false });
+    } else if (prev) {
+      const sessionId = prev.sessionId;
+      if (sessionId && !endedSessionIdsRef.current.has(sessionId)) {
+        celebrateSyncEnded(sessionId);
+        await finalizeEndSyncRef.current({ sessionId, requestId: prev.requestId });
+      } else {
+        lastAppliedVersion.current = {};
+      }
     } else {
       lastAppliedVersion.current = {};
     }
-  }, [applyRemoteSnapshots, refreshAfterToolRestore, flushPushTool, seedSnapshotVersions]);
+  }, [applyRemoteSnapshots, refreshAfterToolRestore, flushPushTool, seedSnapshotVersions, celebrateSyncEnded]);
 
   const dismissCelebration = useCallback(() => {
     setCelebration(null);
@@ -451,6 +463,8 @@ export function SyncSessionProvider({ children }: { children: React.ReactNode })
     },
     [refreshAfterToolRestore]
   );
+
+  finalizeEndSyncRef.current = finalizeEndSync;
 
   useEffect(() => {
     void refreshSyncState();

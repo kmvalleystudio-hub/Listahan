@@ -179,7 +179,7 @@ export async function applySyncToolPayload(
       break;
     }
     case "vault": {
-      /** Import when partner session includes vault; export still gated in syncSnapshotExport. */
+      /** Import when vault is enabled in the active sync session. */
       if (!vaultSyncAllowed) return;
       const privateLists = parseVaultPayload(payload);
       if (!privateLists) return;

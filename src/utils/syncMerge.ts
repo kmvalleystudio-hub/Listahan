@@ -102,10 +102,9 @@ function mergeTodoLists(local: TodoList[], remote: TodoList[]): TodoList[] {
 
 function mergePrivateList(local: PrivateList, remote: PrivateList): PrivateList {
   const winner = pickSyncWinner(local, remote);
-  const listUpdatedAt = winner.updatedAt ?? nowFallback();
   return {
     ...winner,
-    items: mergeEntityArrays(local.items, remote.items) as PrivateItem[],
+    items: mergeEntityArrays(local.items, remote.items, pickSyncItemWinner) as PrivateItem[],
     pinned: entityActivityMs(remote) >= entityActivityMs(local) ? remote.pinned : local.pinned,
   };
 }

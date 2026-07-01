@@ -17,6 +17,7 @@ import {
   normalizePrivateItemsForPersist,
   reindexPrivateOrders,
   sortPrivateItemsForDisplay,
+  touchPrivateItem,
 } from "../utils/privateItems";
 import { tombstonePrivateItems } from "../utils/syncTombstone";
 import { useSpeechToText } from "../hooks/useSpeechToText";
@@ -525,7 +526,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
     const snap = listRef.current;
     if (!snap) return;
     const items = snap.items.map((i) =>
-      i.id === itemId ? { ...i, priority: next ?? !i.priority } : i
+      i.id === itemId ? touchPrivateItem({ ...i, priority: next ?? !i.priority }) : i
     );
     pushListWithActiveFlip({ ...snap, items });
   };
@@ -591,7 +592,7 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
           const current = listRef.current;
           if (!current) return;
           const items = current.items.map((i) =>
-            selectedIds.has(i.id) ? { ...i, priority: nextPriority } : i
+            selectedIds.has(i.id) ? touchPrivateItem({ ...i, priority: nextPriority }) : i
           );
           pushListWithActiveFlip({ ...current, items });
         },
@@ -690,14 +691,14 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
     const username = formUsername.trim();
     const secret = formSecret.trim();
     const notes = formNotes.trim();
-    const item: PrivateItem = {
+    const item: PrivateItem = touchPrivateItem({
       id: generateId(),
       name: formName.trim(),
       ...(username ? { username } : {}),
       ...(secret ? { secret } : {}),
       ...(notes ? { notes } : {}),
       order: nextActiveOrder(),
-    };
+    });
     pushList({ ...snap, items: dedupePrivateItemsByName([...snap.items, item]) });
     closeItemModal();
   };
@@ -711,13 +712,13 @@ export default function PrivateListDetailScreen({ navigation, route }: PrivateLi
     const notes = formNotes.trim();
     const items = snap.items.map((i) =>
       i.id === editingItemId
-        ? {
+        ? touchPrivateItem({
             ...i,
             name: formName.trim(),
             username: username || undefined,
             secret: secret || undefined,
             notes: notes || undefined,
-          }
+          })
         : i
     );
     pushList({ ...snap, items: dedupePrivateItemsByName(items) });

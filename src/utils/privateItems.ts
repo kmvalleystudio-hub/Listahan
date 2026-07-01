@@ -13,6 +13,11 @@ export function normalizePrivateItemsForPersist(items: PrivateItem[]): PrivateIt
   }));
 }
 
+/** Mark a vault row edited so sync merge prefers this device's version. */
+export function touchPrivateItem(item: PrivateItem): PrivateItem {
+  return { ...item, updatedAt: nowIso() };
+}
+
 /** Same ordering as active to-do rows: priority first, then order. */
 export function sortPrivateItemsForDisplay(items: PrivateItem[]): PrivateItem[] {
   return [...items].filter((i) => !isSyncDeleted(i)).sort((a, b) => {

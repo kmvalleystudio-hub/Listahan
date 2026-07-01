@@ -18,10 +18,10 @@ export type SyncExportSource = PersistShape;
 
 export async function exportSyncToolPayload(
   tool: SyncToolId,
-  vaultSyncAllowed: boolean,
+  allowVaultExport: boolean,
   source?: SyncExportSource | null
 ): Promise<SyncToolPayload | null> {
-  if (tool === "vault" && !vaultSyncAllowed) return null;
+  if (tool === "vault" && !allowVaultExport) return null;
 
   const persisted = source ?? (await loadPersisted());
 
@@ -43,13 +43,13 @@ export async function exportSyncToolPayload(
 
 export async function exportEnabledSyncPayloads(
   tools: SyncToolsConfig,
-  vaultSyncAllowed: boolean,
+  allowVaultExport: boolean,
   source?: SyncExportSource | null
 ): Promise<Partial<Record<SyncToolId, SyncToolPayload>>> {
   const out: Partial<Record<SyncToolId, SyncToolPayload>> = {};
   for (const id of SYNC_TOOL_IDS) {
     if (!tools[id]) continue;
-    const payload = await exportSyncToolPayload(id, vaultSyncAllowed, source);
+    const payload = await exportSyncToolPayload(id, allowVaultExport, source);
     if (payload != null) out[id] = payload;
   }
   return out;
